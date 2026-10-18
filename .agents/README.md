@@ -155,15 +155,15 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_aca _analysis
 
 Khi bắt đầu kiểm toán bảo mật cho một dự án mới (`<Project-Root>`), bạn **không cần** bung toàn bộ code Python và JSON Schema ra ngoài thư mục gốc của dự án. Thực hiện 3 bước sau tại `<Project-Root>`:
 
-1. **Clone `AI-skills` vào trong `<Project-Root>` và chỉ đưa `.agents/`, `AGENTS.md`, `SOUL.md` ra ngoài gốc**:
+1. **Clone `AI-skills` vào trong `<Project-Root>` và chạy `setup.sh`**:
    ```bash
    cd <Project-Root>
    git clone https://github.com/TimoMangCut/AI-skills.git
    sh AI-skills/setup.sh
    ```
-   *(Hoặc chạy thủ công: `rm -rf .agents && cp -R AI-skills/.agents AI-skills/AGENTS.md AI-skills/SOUL.md .`)*
-   - Khi đó, `.agents/` và `AGENTS.md` nằm ở `<Project-Root>` để Antigravity nhận diện 28 lệnh `/phase-*` và rule `Refute-first`.
+   - `setup.sh` đồng bộ 28 skills vào `<Project-Root>/.agents/skills/` và `.agents/rules/soul.md` (giữ nguyên các skill riêng sẵn có của dự án), gộp an toàn `AGENTS.md` / `SOUL.md` bằng thẻ `<!-- BEGIN AI-SKILLS:... -->` mà không làm mất nội dung cũ, và tự động cấu hình `.git/info/exclude` để giữ sạch `git status` cho `<Project-Root>`.
    - Toàn bộ bộ máy `localsec/`, `schemas/`, `contracts/`, `skills/`, `localsec.toml` vẫn nằm gọn trong `<Project-Root>/AI-skills/` và được các `SKILL.md` ánh xạ trực tiếp qua đường dẫn `AI-skills/...` cùng `PYTHONPATH=AI-skills:.`.
+   - Khi muốn gỡ bộ skills khỏi `<Project-Root>` (khôi phục nguyên trạng `AGENTS.md`, `SOUL.md` và `.git/info/exclude`): chạy `sh AI-skills/setup.sh --uninstall`.
 2. **Kiểm tra bộ cổng kiểm định (Unit Tests)**:
    ```bash
    PYTHONPATH=AI-skills:. python3 -m unittest discover -s AI-skills/tests
@@ -171,3 +171,4 @@ Khi bắt đầu kiểm toán bảo mật cho một dự án mới (`<Project-Ro
    Đảm bảo toàn bộ unit tests đều `OK`.
 3. **Khởi chạy tuần tự**:
    Mở `<Project-Root>` trong Antigravity IDE và gọi lần lượt `/phase-1-orchestrator` $\rightarrow$ `/phase-2-orchestrator` $\rightarrow$ `/phase-3-orchestrator` theo đúng các mẫu Prompt ở **Mục 2**.
+

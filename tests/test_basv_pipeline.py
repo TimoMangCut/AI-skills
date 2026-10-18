@@ -511,7 +511,77 @@ class TestBASVPipeline(unittest.TestCase):
             finally:
                 os.chdir(old_cwd)
 
+    def test_setup_sh_non_destructive_merge_git_exclude_and_toml_fallback(self) -> None:
+        import os
+        import subprocess
+        import tomllib
+        from localsec import config, manual_session
+
+        toolkit_root = manual_session._toolkit_root()
+        toml_text = (toolkit_root / "localsec.toml").read_text(encoding="utf-8")
+        # 1. Verify Python < 3.11 minimal TOML parser fallback matches stdlib tomllib 100%
+        self.assertEqual(config._parse_minimal_toml(toml_text), tomllib.loads(toml_text))
+
+        # 2. Verify setup.sh preserves existing project AGENTS.md & skills, populates .git/info/exclude, and uninstalls cleanly
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp)
+            (proj / ".git" / "info").mkdir(parents=True)
+            custom_agents = "# Custom Project Rules\n- Always validate DTOs at controller boundary.\n"
+            (proj / "AGENTS.md").write_text(custom_agents, encoding="utf-8")
+            custom_skill = proj / ".agents" / "skills" / "custom-project-skill"
+            custom_skill.mkdir(parents=True)
+            (custom_skill / "SKILL.md").write_text("---\nname: custom-project-skill\n---\n", encoding="utf-8")
+
+            env = {**os.environ, "AI_SKILLS_SKIP_TESTS": "1"}
+            res1 = subprocess.run(
+                ["sh", str(toolkit_root / "setup.sh")],
+                cwd=str(proj),
+                env=env,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertIn("merged_preserving_existing", res1.stdout)
+            merged_agents = (proj / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertIn("# Custom Project Rules", merged_agents)
+            self.assertIn("<!-- BEGIN AI-SKILLS:AGENTS.md -->", merged_agents)
+            self.assertTrue((proj / ".agents" / "rules" / "soul.md").is_file())
+            self.assertTrue((proj / ".agents" / "skills" / "custom-project-skill" / "SKILL.md").is_file())
+            self.assertTrue((proj / ".agents" / "skills" / "phase-1-orchestrator" / "SKILL.md").is_file())
+
+            exclude_txt = (proj / ".git" / "info" / "exclude").read_text(encoding="utf-8")
+            self.assertIn("# BEGIN AI-SKILLS EXCLUDE", exclude_txt)
+            self.assertIn("/.localsec/", exclude_txt)
+
+            # Re-run setup.sh to verify idempotency (no duplicate blocks)
+            subprocess.run(
+                ["sh", str(toolkit_root / "setup.sh")],
+                cwd=str(proj),
+                env=env,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            merged_agents_2 = (proj / "AGENTS.md").read_text(encoding="utf-8")
+            self.assertEqual(merged_agents_2.count("<!-- BEGIN AI-SKILLS:AGENTS.md -->"), 1)
+
+            # Run setup.sh --uninstall and verify original project files are restored intact
+            subprocess.run(
+                ["sh", str(toolkit_root / "setup.sh"), "--uninstall"],
+                cwd=str(proj),
+                env=env,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertEqual((proj / "AGENTS.md").read_text(encoding="utf-8"), custom_agents)
+            self.assertFalse((proj / "SOUL.md").exists())
+            self.assertTrue((proj / ".agents" / "skills" / "custom-project-skill" / "SKILL.md").is_file())
+            self.assertFalse((proj / ".agents" / "skills" / "phase-1-orchestrator").exists())
+            self.assertNotIn("# BEGIN AI-SKILLS EXCLUDE", (proj / ".git" / "info" / "exclude").read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

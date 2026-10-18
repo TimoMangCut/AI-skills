@@ -56,11 +56,20 @@ Khi bạn cần áp dụng bộ Skills này vào một dự án thực tế (`<P
 # 1. Clone bộ AI-skills vào trong <Project-Root>
 git clone https://github.com/TimoMangCut/AI-skills.git
 
-# 2. Chạy script cài đặt (tự động đồng bộ .agents/, AGENTS.md, SOUL.md ra ngoài <Project-Root> và chạy test)
+# 2. Chạy script cài đặt tự động
 sh AI-skills/setup.sh
 ```
 
-*(Hoặc nếu muốn copy thủ công không qua script: `rm -rf .agents && cp -R AI-skills/.agents AI-skills/AGENTS.md AI-skills/SOUL.md .`)*
+Script `setup.sh` thực hiện an toàn 4 việc:
+1. Đồng bộ 28 skills vào `<Project-Root>/.agents/skills/` và `.agents/rules/soul.md` mà **không xóa mất** các skill riêng sẵn có của dự án.
+2. Nếu `<Project-Root>` đã có sẵn `AGENTS.md` hoặc `SOUL.md` của dự án, script tự động **gộp (merge) có đánh dấu (`<!-- BEGIN AI-SKILLS:... -->`)** chứ không ghi đè làm mất nội dung cũ.
+3. Tự động ghi các đường dẫn công cụ (`/AI-skills/`, `/.agents/...`, `/.localsec/`, `/documents/`) vào `.git/info/exclude` của `<Project-Root>` để giữ `git status` của dự án hoàn toàn sạch sẽ mà không đụng chạm tới `.gitignore`.
+4. Chạy bộ kiểm định Unit Tests (hỗ trợ cả Python 3.9/3.10 lẫn Python 3.11+ không cần thư viện ngoài).
+
+- **Khi muốn gỡ sạch khỏi `<Project-Root>` sau khi kiểm toán xong**:
+  ```bash
+  sh AI-skills/setup.sh --uninstall
+  ```
 
 ---
 

@@ -1,8 +1,16 @@
 from __future__ import annotations
 
-import tomllib
+import ast
 from pathlib import Path
 from typing import Any
+
+try:
+    import tomllib as _tomllib  # Python 3.11+
+except ModuleNotFoundError:  # pragma: no cover - Python 3.9 / 3.10 fallback
+    try:
+        import tomli as _tomllib  # type: ignore[no-redef]
+    except ModuleNotFoundError:
+        _tomllib = None  # type: ignore[assignment]
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "analysis": {
@@ -42,6 +50,42 @@ DEFAULT_CONFIG: dict[str, Any] = {
 }
 
 
+def _parse_minimal_toml(text: str) -> dict[str, Any]:
+    """Zero-dependency TOML parser fallback for Python < 3.11."""
+    root: dict[str, Any] = {}
+    current: dict[str, Any] = root
+    lines = text.splitlines()
+    idx = 0
+    while idx < len(lines):
+        raw = lines[idx].strip()
+        idx += 1
+        if not raw or raw.startswith("#"):
+            continue
+        if raw.startswith("[") and raw.endswith("]"):
+            sec_name = raw[1:-1].strip()
+            current = root
+            for part in sec_name.split("."):
+                current = current.setdefault(part.strip(), {})
+            continue
+        if "=" not in raw:
+            continue
+        key, val_str = raw.split("=", 1)
+        key = key.strip()
+        val_str = val_str.strip()
+        while val_str.startswith("[") and not val_str.endswith("]") and idx < len(lines):
+            nxt = lines[idx].strip()
+            idx += 1
+            if not nxt.startswith("#"):
+                val_str += " " + nxt
+        if val_str.lower() == "true":
+            current[key] = True
+        elif val_str.lower() == "false":
+            current[key] = False
+        else:
+            current[key] = ast.literal_eval(val_str)
+    return root
+
+
 def deep_merge(base: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]:
     result = dict(base)
     for key, value in user.items():
@@ -58,6 +102,10 @@ def load_config(config_path: str | Path | None) -> dict[str, Any]:
     path = Path(config_path).expanduser().resolve()
     if not path.is_file():
         return DEFAULT_CONFIG
-    with path.open("rb") as handle:
-        user = tomllib.load(handle)
+    if _tomllib is not None:
+        with path.open("rb") as handle:
+            user = _tomllib.load(handle)
+    else:
+        user = _parse_minimal_toml(path.read_text(encoding="utf-8"))
     return deep_merge(DEFAULT_CONFIG, user)
+

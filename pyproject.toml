@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "localsec-ai-manual"
 version = "0.2.0"
 description = "AI-only manual reconnaissance and security architecture review for local .NET/Go microservices"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 dependencies = []
 
 [project.scripts]
