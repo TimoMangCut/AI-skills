@@ -15,10 +15,10 @@ Tập trung tìm sự bất đối xứng tin cậy: nơi Service A giả địn
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Tổng hợp `system_architecture`, `shared_trust_patterns`, `cross_repo_flows`, `cross_repo_findings`, và `priority_remediations`.
-- Schema đích: `schemas/cross_repo_review.schema.json`.
+- Schema đích: `AI-skills/schemas/cross_repo_review.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session prepare_system_context
-python3 -m localsec.manual_session finalize_system --cross-repo <path> --sys-audit <path> --diagrams <path>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_system_context
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_system --cross-repo <path> --sys-audit <path> --diagrams <path>
 ```

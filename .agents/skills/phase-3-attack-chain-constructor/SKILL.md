@@ -15,9 +15,9 @@ Chứng minh tính bắc cầu của từng cạnh nối: đầu ra, trạng th�
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Tuân thủ nghiêm ngặt 6 cổng kiểm định trong `_validate_aca_epistemic_gates()` (không nâng lên `confirmed` khi `request_plan_only` hoặc khi còn `preconditions` ở mức `unknown`/`refuted`).
-- Schema đích: `contracts/attack-chain-analysis-v1/schemas/attack_chain.schema.json`.
+- Schema đích: `AI-skills/contracts/attack-chain-analysis-v1/schemas/attack_chain.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session submit_skill _analysis attack_chain_constructor <json_file> --artifact-id <chain_id>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis attack_chain_constructor <json_file> --artifact-id <chain_id>
 ```

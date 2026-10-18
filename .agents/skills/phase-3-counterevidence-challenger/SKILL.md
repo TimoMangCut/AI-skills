@@ -15,11 +15,11 @@ Nếu phát hiện chốt chặn làm gãy một mắt xích, hãy hạ cấp k�
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Nhận ngữ cảnh làm mù từ `prepare_blinded_chain_verifier` và được phép đọc source code để tìm phản chứng (`counterevidence_refs`).
-- Schema đích: `contracts/attack-chain-analysis-v1/schemas/counterevidence_challenge.schema.json`.
+- Schema đích: `AI-skills/contracts/attack-chain-analysis-v1/schemas/counterevidence_challenge.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session prepare_blinded_chain_verifier <chain_json>
-python3 -m localsec.manual_session read_file _analysis "<repo_name>:<rel_path>" 1 160 --skill counterevidence_challenger
-python3 -m localsec.manual_session submit_skill _analysis counterevidence_challenger <json_file> --artifact-id <chal_id>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_chain_verifier <chain_json>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file _analysis "<repo_name>:<rel_path>" 1 160 --skill counterevidence_challenger
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis counterevidence_challenger <json_file> --artifact-id <chal_id>
 ```

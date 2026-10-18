@@ -15,9 +15,9 @@ Xác định rõ cho mỗi ứng viên: điều kiện tiên quyết nào còn t
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Chỉ đọc artifacts của Phase 1 & 2 (`read_scope: none` đối với source code).
-- Schema đích: `contracts/attack-chain-analysis-v1/schemas/candidate_claims.schema.json`.
+- Schema đích: `AI-skills/contracts/attack-chain-analysis-v1/schemas/candidate_claims.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session submit_skill _analysis finding_intake <json_file>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis finding_intake <json_file>
 ```

@@ -15,11 +15,11 @@ Phase 1.1 — Khảo sát thủ công mục đích nghiệp vụ, mức độ tr
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Đọc manifest, `Program.cs`/`main.go`/`package.json`/`pubspec.yaml`, Dockerfile, cấu hình môi trường để xác định `purpose`, `criticality`, `techstack`, `business_capabilities`, `entrypoints`, `sensitive_data`.
-- Schema đích: `schemas/repo_profile.schema.json`.
+- Schema đích: `AI-skills/schemas/repo_profile.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session list_dir <repo_name> . --depth 2 --skill repo_profile
-python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill repo_profile
-python3 -m localsec.manual_session submit_skill <repo_name> repo_profile <json_file>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session list_dir <repo_name> . --depth 2 --skill repo_profile
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill repo_profile
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> repo_profile <json_file>
 ```

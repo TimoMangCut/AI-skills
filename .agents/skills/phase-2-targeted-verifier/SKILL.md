@@ -16,12 +16,12 @@ Bắt buộc tìm kiếm cả bằng chứng ủng hộ (`evidence_ids`) lẫn b
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Bị giới hạn cứng bởi `read_scope: exact_paths` trong `ManualWorkspace`.
 - **Semantic Claim-to-Excerpt Verifier Gate**: Mọi kết luận `observed` / `derived` hoặc `confirmed` trong Phase 2.6 phải đi qua kiểm định đối chiếu ký hiệu mã nguồn với `excerpt` thực tế (`verify_semantic_claims <repo_name>`). Nếu `excerpt` của `ev_...` không chứa hàm/thuộc tính/cấu hình như mô tả (ví dụ nhầm lẫn cấu hình từ repo khác sang repo hiện tại), hệ thống tự động bác bỏ khi `submit_skill` hoặc hạ cấp fail-closed khi `finalize_basv_repo`.
-- Schema đích: `contracts/business-aware-security-verification-v1/schemas/targeted_verification.schema.json`.
+- Schema đích: `AI-skills/contracts/business-aware-security-verification-v1/schemas/targeted_verification.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill targeted_verifier --allowed-paths "<path1>,<path2>"
-python3 -m localsec.manual_session verify_semantic_claims <repo_name>
-python3 -m localsec.manual_session submit_skill <repo_name> targeted_verifier <json_file>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill targeted_verifier --allowed-paths "<path1>,<path2>"
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session verify_semantic_claims <repo_name>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> targeted_verifier <json_file>
 ```
 

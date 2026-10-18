@@ -15,10 +15,10 @@ Kiểm tra критически tại mỗi ranh giới tin cậy (Trust Boundar
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Xác định `flows[]` (`direction`, `source`, `destination`, `protocol`, `data_types`, `trust_boundary`, `identity_context`, `controls`) và `trust_boundaries[]`.
-- Schema đích: `schemas/dataflow.schema.json`.
+- Schema đích: `AI-skills/schemas/dataflow.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill dataflow
-python3 -m localsec.manual_session submit_skill <repo_name> dataflow <json_file>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill dataflow
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> dataflow <json_file>
 ```

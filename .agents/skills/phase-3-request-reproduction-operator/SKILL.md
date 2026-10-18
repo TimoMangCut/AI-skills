@@ -15,10 +15,10 @@ Nếu không có môi trường local/test được phê duyệt tường minh (
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Thực thi qua adapter an toàn `execute_constrained_local_request()`.
-- Schema đích: `contracts/attack-chain-analysis-v1/schemas/request_reproduction.schema.json`.
+- Schema đích: `AI-skills/contracts/attack-chain-analysis-v1/schemas/request_reproduction.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session run_aca_request_plan <request_json> [--target-profile <profile_json>]
-python3 -m localsec.manual_session submit_skill _analysis request_reproduction_operator <json_file> --artifact-id <req_id>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session run_aca_request_plan <request_json> [--target-profile <profile_json>]
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis request_reproduction_operator <json_file> --artifact-id <req_id>
 ```

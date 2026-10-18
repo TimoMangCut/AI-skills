@@ -15,10 +15,10 @@ Tự phản biện: một cơ chế phòng thủ có trong thư viện dùng chu
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Ghi nhận các nhận định kiến trúc (`observations[]`) và điểm mạnh có bằng chứng (`strengths[]`).
-- Schema đích: `schemas/architecture_review.schema.json`.
+- Schema đích: `AI-skills/schemas/architecture_review.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill architecture_review
-python3 -m localsec.manual_session submit_skill <repo_name> architecture_review <json_file>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill architecture_review
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> architecture_review <json_file>
 ```

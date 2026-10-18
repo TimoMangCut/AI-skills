@@ -15,9 +15,9 @@ Mỗi bước request phải định nghĩa rõ tiêu chí phân biệt: phản 
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Mặc định `execution_status: "plan_only"` và `executed: false` đối với mọi request chưa thực thi.
-- Schema đích: `contracts/attack-chain-analysis-v1/schemas/request_reproduction.schema.json`.
+- Schema đích: `AI-skills/contracts/attack-chain-analysis-v1/schemas/request_reproduction.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session submit_skill _analysis request_sequence_designer <json_file> --artifact-id <req_id>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis request_sequence_designer <json_file> --artifact-id <req_id>
 ```

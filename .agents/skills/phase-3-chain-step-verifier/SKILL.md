@@ -15,11 +15,11 @@ Phase 3.4 — Xác minh độc lập từng mắt xích (`step_results`) và t�
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Được phép đọc mã nguồn độc lập (`list_dir`, `read_file`) để xác nhận hoặc bác bỏ từng bước/cạnh.
-- Schema đích: `contracts/attack-chain-analysis-v1/schemas/chain_verification.schema.json`.
+- Schema đích: `AI-skills/contracts/attack-chain-analysis-v1/schemas/chain_verification.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session prepare_blinded_chain_verifier <chain_json>
-python3 -m localsec.manual_session read_file _analysis "<repo_name>:<rel_path>" 1 160 --skill chain_step_verifier
-python3 -m localsec.manual_session submit_skill _analysis chain_step_verifier <json_file> --artifact-id <verification_id>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_chain_verifier <chain_json>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file _analysis "<repo_name>:<rel_path>" 1 160 --skill chain_step_verifier
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis chain_step_verifier <json_file> --artifact-id <verification_id>
 ```

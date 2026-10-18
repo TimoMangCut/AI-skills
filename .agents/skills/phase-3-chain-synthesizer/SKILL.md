@@ -15,12 +15,12 @@ Phân tầng trung thực giữa chuỗi đã xác nhận động (`confirmed`),
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Xuất báo cáo tổng hợp `./documents/_analysis/07_attack_chain_analysis.md`, `09_unknowns_and_counterevidence.md`, `99_project_chain_report.md` và các thư mục `./documents/_analysis/chains/<chain_id>/`.
-- Schema đích: `contracts/attack-chain-analysis-v1/schemas/chain_synthesis_report.schema.json`.
+- Schema đích: `AI-skills/contracts/attack-chain-analysis-v1/schemas/chain_synthesis_report.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session extract_aca_claims _analysis
-python3 -m localsec.manual_session submit_skill _analysis aca_evidence_auditor <audit_json>
-python3 -m localsec.manual_session submit_skill _analysis chain_synthesizer <synth_json>
-python3 -m localsec.manual_session finalize_aca _analysis
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session extract_aca_claims _analysis
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis aca_evidence_auditor <audit_json>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis chain_synthesizer <synth_json>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_aca _analysis
 ```

@@ -12,6 +12,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             ".git", ".hg", ".svn", "bin", "obj", "vendor", "node_modules",
             ".venv", "venv", "dist", "build", "coverage", "TestResults",
             ".idea", ".vscode", ".dart_tool", "Pods", ".gradle", "DerivedData",
+            "AI-skills", ".agents", ".localsec", "documents",
         ],
         "max_file_bytes": 2_000_000,
         "max_lines_per_read": 180,
@@ -55,6 +56,8 @@ def load_config(config_path: str | Path | None) -> dict[str, Any]:
     if not config_path:
         return DEFAULT_CONFIG
     path = Path(config_path).expanduser().resolve()
+    if not path.is_file():
+        return DEFAULT_CONFIG
     with path.open("rb") as handle:
         user = tomllib.load(handle)
     return deep_merge(DEFAULT_CONFIG, user)

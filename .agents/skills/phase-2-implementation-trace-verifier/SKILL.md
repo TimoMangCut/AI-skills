@@ -15,10 +15,10 @@ Kiểm tra đủ 5 chiều: xác thực/phân quyền, kiểm tra đầu vào, r
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Tạo danh sách `traces[]` với từng bước `execution_steps[]` có gắn `evidence_ids` và `counter_evidence_ids`.
-- Schema đích: `contracts/business-aware-security-verification-v1/schemas/implementation_trace.schema.json`.
+- Schema đích: `AI-skills/contracts/business-aware-security-verification-v1/schemas/implementation_trace.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill implementation_trace_verifier
-python3 -m localsec.manual_session submit_skill <repo_name> implementation_trace_verifier <json_file>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill implementation_trace_verifier
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> implementation_trace_verifier <json_file>
 ```

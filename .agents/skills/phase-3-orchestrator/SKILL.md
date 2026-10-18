@@ -5,7 +5,7 @@ description: Master Orchestrator duy nhất cần gọi để chạy trọn bộ
 
 # `phase-3-orchestrator` — Master Orchestrator cho Phase 3 (Attack Chain & Root-Cause Analysis)
 
-Khi người dùng gọi `/phase-3-orchestrator`, bạn **BẮT BUỘC** thực thi đầy đủ **9 bước chuyên môn** bên dưới để truy vết chuỗi tấn công xuyên dịch vụ và nguyên nhân gốc. **Cơ chế khóa cứng (State-Machine Gate)** trong `localsec/manual_session.py` sẽ chặn việc nộp `chain_synthesizer` nếu chưa chạy `aca_evidence_auditor`, và chặn `finalize_aca` nếu thiếu bất kỳ bước bắt buộc nào.
+Khi người dùng gọi `/phase-3-orchestrator`, bạn **BẮT BUỘC** thực thi đầy đủ **9 bước chuyên môn** bên dưới để truy vết chuỗi tấn công xuyên dịch vụ và nguyên nhân gốc. **Cơ chế khóa cứng (State-Machine Gate)** trong `AI-skills/localsec/manual_session.py` sẽ chặn việc nộp `chain_synthesizer` nếu chưa chạy `aca_evidence_auditor`, và chặn `finalize_aca` nếu thiếu bất kỳ bước bắt buộc nào.
 
 ## Prompt Kích hoạt Tư duy Phản biện (Critical-Thinking Booster — 2–4 dòng)
 ```text
@@ -19,35 +19,35 @@ Mọi finding trước đó chỉ là manh mối (leads, not truth): phải ch�
 
 Trước và sau mỗi bước, kiểm tra trạng thái bằng:
 ```bash
-python3 -m localsec.manual_session phase_status _analysis --phase 3
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session phase_status _analysis --phase 3
 ```
 
 1. **Bước 3.1 — `finding_intake`** (Tham chiếu `.agents/skills/phase-3-finding-intake/SKILL.md`):
    - Thu nạp các findings từ Phase 1 & mismatches từ Phase 2 thành `candidate_claims` và `chain_hypotheses` (không được đọc trực tiếp source code ở bước này).
-   - Nộp: `python3 -m localsec.manual_session submit_skill _analysis finding_intake <json_file>`
+   - Nộp: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis finding_intake <json_file>`
 2. **Bước 3.2 — `code_trace_builder`** (Tham chiếu `.agents/skills/phase-3-code-trace-builder/SKILL.md`):
    - Truy vết thủ công từng hop (`hops[]`) qua mã nguồn (`--skill code_trace_builder`), mỗi hop `directly_read` bắt buộc đính kèm `evidence_refs`.
-   - Nộp: `python3 -m localsec.manual_session submit_skill _analysis code_trace_builder <json_file> --artifact-id <trace_id>`
+   - Nộp: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis code_trace_builder <json_file> --artifact-id <trace_id>`
 3. **Bước 3.3 — `attack_chain_constructor`** (Tham chiếu `.agents/skills/phase-3-attack-chain-constructor/SKILL.md`):
    - Xây dựng chuỗi tấn công với `preconditions`, `steps[]` và `linked_next_steps[]` (tuân thủ 6 cổng kiểm định trong `_validate_aca_epistemic_gates`).
-   - Nộp: `python3 -m localsec.manual_session submit_skill _analysis attack_chain_constructor <json_file> --artifact-id <chain_id>`
+   - Nộp: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis attack_chain_constructor <json_file> --artifact-id <chain_id>`
 4. **Bước 3.4 — `chain_step_verifier` (Context-Blinded)**:
-   - Tạo ngữ cảnh làm mù kết luận của Constructor: `python3 -m localsec.manual_session prepare_blinded_chain_verifier <chain_json>`
+   - Tạo ngữ cảnh làm mù kết luận của Constructor: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_chain_verifier <chain_json>`
    - Đọc mã nguồn độc lập (`--skill chain_step_verifier`) để xác minh từng `step_results[]` và `edge_results[]`.
-   - Nộp: `python3 -m localsec.manual_session submit_skill _analysis chain_step_verifier <json_file> --artifact-id <verify_id>`
+   - Nộp: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis chain_step_verifier <json_file> --artifact-id <verify_id>`
 5. **Bước 3.5 — `request_sequence_designer` & `request_reproduction_operator`**:
-   - Thiết kế chuỗi request kiểm định bằng dữ liệu giả lập (`plan_only`), sau đó chạy qua adapter an toàn: `python3 -m localsec.manual_session run_aca_request_plan <request_json>` (mặc định trả về `not_executed` khi không có môi trường local được phê duyệt).
-   - Nộp: `python3 -m localsec.manual_session submit_skill _analysis request_sequence_designer <json_file> --artifact-id <req_id>`
+   - Thiết kế chuỗi request kiểm định bằng dữ liệu giả lập (`plan_only`), sau đó chạy qua adapter an toàn: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session run_aca_request_plan <request_json>` (mặc định trả về `not_executed` khi không có môi trường local được phê duyệt).
+   - Nộp: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis request_sequence_designer <json_file> --artifact-id <req_id>`
 6. **Bước 3.6 — `root_cause_mapper`** (Tham chiếu `.agents/skills/phase-3-root-cause-mapper/SKILL.md`):
    - Truy nguyên từ triệu chứng bề mặt về nguyên nhân gốc trong kiến trúc/phân quyền/máy trạng thái (`--skill root_cause_mapper`).
-   - Nộp: `python3 -m localsec.manual_session submit_skill _analysis root_cause_mapper <json_file> --artifact-id <rc_id>`
+   - Nộp: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis root_cause_mapper <json_file> --artifact-id <rc_id>`
 7. **Bước 3.7 — `counterevidence_challenger` (Context-Blinded Adversarial Challenge & Runaway Governor)**:
    - Dùng ngữ cảnh làm mù (`prepare_blinded_chain_verifier`) và đọc source code (`--skill counterevidence_challenger`) để săn tìm guard ẩn, điều kiện vô nghiệm hoặc nhánh tấn công thay thế.
    - **Bộ Điều tốc Chống Phình to Câu hỏi (`Question-Space Runaway Governor` trong `check_aca_convergence`)**: Cuối mỗi vòng phân tích, nếu số câu hỏi mới sinh ra lớn hơn số câu hỏi giải quyết được (`added_questions > resolved_questions`), trong khi `resolved_question_count == 0` và `verified_step_or_edge_delta == 0`, runtime sẽ bật cờ `question_runaway_detected: true` và yêu cầu dừng mở rộng nhánh để chuyển sang Bước 3.8.
-   - Nộp: `python3 -m localsec.manual_session submit_skill _analysis counterevidence_challenger <json_file> --artifact-id <chal_id>`
+   - Nộp: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis counterevidence_challenger <json_file> --artifact-id <chal_id>`
 8. **Bước 3.8 — `aca_evidence_auditor` (Bắt buộc chạy TRƯỚC `chain_synthesizer`)**:
-   - Trích xuất claims: `python3 -m localsec.manual_session extract_aca_claims _analysis`
-   - Nộp kiểm toán: `python3 -m localsec.manual_session submit_skill _analysis aca_evidence_auditor <json_file>`
+   - Trích xuất claims: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session extract_aca_claims _analysis`
+   - Nộp kiểm toán: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis aca_evidence_auditor <json_file>`
 9. **Bước 3.9 — `chain_synthesizer` & Khóa sổ (`finalize_aca`)**:
-   - Nộp báo cáo tổng hợp: `python3 -m localsec.manual_session submit_skill _analysis chain_synthesizer <json_file>`
-   - Khóa sổ và xuất trọn bộ `./documents/_analysis/` + `./documents/_analysis/chains/<chain_id>/`: `python3 -m localsec.manual_session finalize_aca _analysis`
+   - Nộp báo cáo tổng hợp: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis chain_synthesizer <json_file>`
+   - Khóa sổ và xuất trọn bộ `./documents/_analysis/` + `./documents/_analysis/chains/<chain_id>/`: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_aca _analysis`

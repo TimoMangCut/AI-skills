@@ -15,9 +15,9 @@ Mọi kết nối liên dịch vụ chưa xác minh đủ cả hai đầu phải
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Xuất `repo_diagrams[]` và `system_diagram` đúng cú pháp `flowchart LR` / `flowchart TD`.
-- Schema đích: `schemas/diagrams.schema.json`.
+- Schema đích: `AI-skills/schemas/diagrams.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session submit_skill <repo_name> diagram_author <json_file>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> diagram_author <json_file>
 ```

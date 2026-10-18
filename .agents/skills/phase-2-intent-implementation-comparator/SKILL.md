@@ -16,9 +16,9 @@ Tuân thủ cổng bằng chứng kép: chỉ được kết luận `mismatch` �
 ## Trách nhiệm & Cổng Kiểm định (Epistemic & Provenance Gates)
 - Phân loại từng `comparisons[]` thành `aligned`, `mismatch`, `partial`, `contradictory`, `intent_ambiguous`, hoặc `not_verified`.
 - **Cổng Chặn Tự So Sánh Vòng Lặp (Anti-Circular Provenance Gate)**: Mọi `mismatch` ở mức `observed`/`derived` phải có `set(intent_evidence_ids) != set(implementation_evidence_ids)` và một `observed` mismatch không được chỉ trích dẫn `implementation_code` trong `intent_evidence_ids`.
-- Schema đích: `contracts/business-aware-security-verification-v1/schemas/intent_implementation_comparison.schema.json`.
+- Schema đích: `AI-skills/contracts/business-aware-security-verification-v1/schemas/intent_implementation_comparison.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session submit_skill <repo_name> intent_implementation_comparator <json_file>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> intent_implementation_comparator <json_file>
 ```

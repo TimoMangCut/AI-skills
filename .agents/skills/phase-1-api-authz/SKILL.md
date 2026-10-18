@@ -15,10 +15,10 @@ Bác bỏ giả định 'chắc middleware hoặc gateway đã chặn': nếu kh
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Truy vết route definitions, controllers/handlers, JWT/session middleware, Casbin/policy guards, và kiểm tra `object_level_authz`.
-- Schema đích: `schemas/api_authz.schema.json`.
+- Schema đích: `AI-skills/schemas/api_authz.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill api_authz
-python3 -m localsec.manual_session submit_skill <repo_name> api_authz <json_file>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill api_authz
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> api_authz <json_file>
 ```

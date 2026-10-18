@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -38,8 +39,30 @@ from .workspace import ManualWorkspace, write_json
 DEFAULT_RUN_ID = "manual-v0.2"
 
 
-def _project_root() -> Path:
+def _toolkit_root() -> Path:
     return Path(__file__).resolve().parents[1]
+
+
+def _project_root() -> Path:
+    env_root = os.environ.get("LOCALSEC_PROJECT_ROOT")
+    if env_root:
+        return Path(env_root).expanduser().resolve()
+    toolkit = _toolkit_root()
+    cwd = Path.cwd().resolve()
+    # When cloned into a target project as <Project-Root>/AI-skills and executed from <Project-Root>,
+    # resolve project_root to <Project-Root> while keeping schemas/contracts/config inside AI-skills/.
+    if toolkit.parent == cwd:
+        return cwd
+    if toolkit.name.lower() in {"ai-skills", "localsec-antigravity-skills"} and cwd != toolkit:
+        return toolkit.parent
+    return toolkit
+
+
+def _resolve_config_path(project_root: Path) -> Path | None:
+    for candidate in (project_root / "localsec.toml", _toolkit_root() / "localsec.toml"):
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def _load_workspace(
@@ -192,7 +215,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     root = _project_root()
-    cfg = load_config(root / "localsec.toml")
+    cfg = load_config(_resolve_config_path(root))
 
     if args.cmd == "verify_semantic_claims":
         from .orchestrator import _resolve_path

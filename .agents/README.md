@@ -16,7 +16,7 @@ Hệ thống gồm **28 Skills** trong `.agents/skills/`, chia thành **3 Master
 
 ### Tại sao chỉ cần gọi 1 Orchestrator mà không sợ AI bỏ sót bước hoặc suy luận vòng lặp? (Cơ chế Khóa Kép & 4 Cổng Nhận Thức Luận)
 1. **Khóa 1 — Kịch bản Tuần tự Khép kín trong `SKILL.md`**: Mỗi file `.agents/skills/phase-{1,2,3}-orchestrator/SKILL.md` chứa đầy đủ danh sách các bước tuần tự bắt buộc, đường dẫn tới từng sub-skill tương ứng và cấu trúc JSON Schema của từng bước.
-2. **Khóa 2 — Cổng Chặn Trạng thái Tất định trong CLI (`localsec/manual_session.py`)**:
+2. **Khóa 2 — Cổng Chặn Trạng thái Tất định trong CLI (`AI-skills/localsec/manual_session.py`)**:
    - Lệnh `phase_status` kiểm tra chính xác bước nào đã xong (`completed_steps`), bước nào còn thiếu (`remaining_steps`), bước bắt buộc tiếp theo (`next_required_step`) và chẩn đoán độ phủ ngữ nghĩa (`semantic_coverage_diagnostics`).
    - Lệnh `submit_skill` chặn cứng (`PREREQUISITE_ERROR`) nếu AI cố nộp bước tổng hợp (`business_aware_synthesizer` hoặc `chain_synthesizer`) khi chưa hoàn tất bước kiểm toán độc lập (`evidence_auditor` / `aca_evidence_auditor`).
    - Các lệnh đóng gói báo cáo (`finalize_repo`, `finalize_basv_repo`, `finalize_aca`) sẽ từ chối xuất báo cáo (`exit code 2`) nếu thiếu bất kỳ bước con nào trong Phase đó.
@@ -107,61 +107,66 @@ Khi bạn muốn **chạy lại hoặc kiểm tra sâu đúng 1 bước cụ th�
 
 ## 4. Bảng Tra cứu Nhanh Các Lệnh CLI (`localsec.manual_session`)
 
-Tất cả các thao tác đọc file, sinh mã bằng chứng `ev_...`, kiểm tra tiến độ và đóng gói báo cáo đều đi qua `python3 -m localsec.manual_session`:
+Tất cả các thao tác đọc file, sinh mã bằng chứng `ev_...`, kiểm tra tiến độ và đóng gói báo cáo đều đi qua `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session`:
 
 ```bash
 # 1. Kiểm tra tiến độ hoàn thành các bước của một Phase (1, 2 hoặc 3)
-python3 -m localsec.manual_session phase_status <repo_name> --phase 1
-python3 -m localsec.manual_session phase_status <repo_name> --phase 2
-python3 -m localsec.manual_session phase_status _analysis --phase 3
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session phase_status <repo_name> --phase 1
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session phase_status <repo_name> --phase 2
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session phase_status _analysis --phase 3
 
 # 2. Duyệt thư mục và đọc file thủ công để sinh mã bằng chứng ev_...
-python3 -m localsec.manual_session list_dir <repo_name> . --depth 2 --skill repo_profile
-python3 -m localsec.manual_session read_file <repo_name> <rel_path> <start_line> <end_line> --skill <skill_name>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session list_dir <repo_name> . --depth 2 --skill repo_profile
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> <start_line> <end_line> --skill <skill_name>
 
 # 3. Đọc file liên repo (Federated Cross-Repo Read) cho Phase 2 & Phase 3
-python3 -m localsec.manual_session read_file <repo_name> "<other_repo>:<rel_path>" <start_line> <end_line> --skill business_intent_modeler
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> "<other_repo>:<rel_path>" <start_line> <end_line> --skill business_intent_modeler
 
 # 4. Đọc file giới hạn phạm vi (Bounded Read) cho targeted_verifier
-python3 -m localsec.manual_session read_file <repo_name> <rel_path> <start_line> <end_line> --skill targeted_verifier --allowed-paths <path1> <path2>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> <start_line> <end_line> --skill targeted_verifier --allowed-paths <path1> <path2>
 
 # 5. Liệt kê toàn bộ bằng chứng ev_... đã thu thập của một repo
-python3 -m localsec.manual_session list_evidence <repo_name>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session list_evidence <repo_name>
 
 # 6. Tạo gói ngữ cảnh làm mù (Context-Blinding) cho Phase 2 & Phase 3
-python3 -m localsec.manual_session prepare_blinded_challenger <repo_name>
-python3 -m localsec.manual_session prepare_blinded_chain_verifier _analysis
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_challenger <repo_name>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_chain_verifier _analysis
 
 # 7. Nộp và kiểm định JSON đầu ra của một skill (Schema + Evidence IDs + Epistemic Gates)
-python3 -m localsec.manual_session submit_skill <repo_name> <skill_name> <json_path>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> <skill_name> <json_path>
 
 # 8. Trích xuất danh sách claims để kiểm toán độc lập (Evidence Auditor)
-python3 -m localsec.manual_session extract_claims <repo_name>          # Phase 1
-python3 -m localsec.manual_session extract_basv_claims <repo_name>     # Phase 2
-python3 -m localsec.manual_session extract_aca_claims _analysis        # Phase 3
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session extract_claims <repo_name>          # Phase 1
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session extract_basv_claims <repo_name>     # Phase 2
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session extract_aca_claims _analysis        # Phase 3
 
 # 9. Đóng gói và xuất báo cáo cuối cùng cho từng Phase (chỉ chạy được khi phase_status báo FINALIZE_READY)
-python3 -m localsec.manual_session finalize_repo <repo_name>           # Phase 1 (từng repo)
-python3 -m localsec.manual_session finalize_system                     # Phase 1 (toàn hệ thống)
-python3 -m localsec.manual_session finalize_basv_repo <repo_name>      # Phase 2 (từng repo)
-python3 -m localsec.manual_session finalize_basv_system                # Phase 2 (toàn hệ thống)
-python3 -m localsec.manual_session finalize_aca _analysis              # Phase 3 (toàn dự án)
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_repo <repo_name>           # Phase 1 (từng repo)
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_system                     # Phase 1 (toàn hệ thống)
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_basv_repo <repo_name>      # Phase 2 (từng repo)
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_basv_system                # Phase 2 (toàn hệ thống)
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_aca _analysis              # Phase 3 (toàn dự án)
 ```
 
 ---
 
-## 5. Hướng dẫn Mang Bộ Skills Sang Dự Án Mới (Portability Checklist)
+## 5. Hướng dẫn Áp Dụng Bộ Skills Vào Dự Án Mới (`<Project-Root>/AI-skills/`)
 
-Khi bắt đầu kiểm toán bảo mật cho một dự án mới (`<new-project-root>`), thực hiện 3 bước sau:
+Khi bắt đầu kiểm toán bảo mật cho một dự án mới (`<Project-Root>`), bạn **không cần** bung toàn bộ code Python và JSON Schema ra ngoài thư mục gốc của dự án. Thực hiện 3 bước sau tại `<Project-Root>`:
 
-1. **Sao chép các thư mục cốt lõi sang thư mục gốc của dự án mới**:
+1. **Clone `AI-skills` vào trong `<Project-Root>` và chỉ đưa `.agents/`, `AGENTS.md`, `SOUL.md` ra ngoài gốc**:
    ```bash
-   cp -R .agents localsec skills schemas contracts tests localsec.toml <new-project-root>/
+   cd <Project-Root>
+   git clone https://github.com/TimoMangCut/AI-skills.git
+   sh AI-skills/setup.sh
    ```
+   *(Hoặc chạy thủ công: `cp -R AI-skills/.agents AI-skills/AGENTS.md AI-skills/SOUL.md .`)*
+   - Khi đó, `.agents/` và `AGENTS.md` nằm ở `<Project-Root>` để Antigravity nhận diện 28 lệnh `/phase-*` và rule `Refute-first`.
+   - Toàn bộ bộ máy `localsec/`, `schemas/`, `contracts/`, `skills/`, `localsec.toml` vẫn nằm gọn trong `<Project-Root>/AI-skills/` và được các `SKILL.md` ánh xạ trực tiếp qua đường dẫn `AI-skills/...` cùng `PYTHONPATH=AI-skills:.`.
 2. **Kiểm tra bộ cổng kiểm định (Unit Tests)**:
    ```bash
-   python3 -m unittest discover -s tests
+   PYTHONPATH=AI-skills:. python3 -m unittest discover -s AI-skills/tests
    ```
-   Đảm bảo toàn bộ **27/27 tests** đều `OK`.
+   Đảm bảo toàn bộ **28/28 tests** đều `OK`.
 3. **Khởi chạy tuần tự**:
-   Mở dự án mới trong IDE và gọi lần lượt `/phase-1-orchestrator` $\rightarrow$ `/phase-2-orchestrator` $\rightarrow$ `/phase-3-orchestrator` theo đúng các mẫu Prompt ở **Mục 2**.
+   Mở `<Project-Root>` trong Antigravity IDE và gọi lần lượt `/phase-1-orchestrator` $\rightarrow$ `/phase-2-orchestrator` $\rightarrow$ `/phase-3-orchestrator` theo đúng các mẫu Prompt ở **Mục 2**.

@@ -15,9 +15,9 @@ Phase 2.7 — Đánh giá xem các sai lệch giữa ý định và triển khai
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Xây dựng các kịch bản hậu quả bảo mật (`scenarios[]`) và tách riêng `non_security_business_mismatches[]`.
-- Schema đích: `contracts/business-aware-security-verification-v1/schemas/security_consequence_map.schema.json`.
+- Schema đích: `AI-skills/contracts/business-aware-security-verification-v1/schemas/security_consequence_map.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session submit_skill <repo_name> security_consequence_mapper <json_file>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> security_consequence_mapper <json_file>
 ```

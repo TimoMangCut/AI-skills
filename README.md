@@ -1,70 +1,87 @@
-# LocalSec Antigravity Skills — 3-Phase AI Manual Security Review Pipeline
+# AI-skills — LocalSec 3-Phase Antigravity Security Review Pipeline
 
-Bộ công cụ và **28 Antigravity Skills + Always-On Rules (`AGENTS.md`, `SOUL.md`)** độc lập, dùng để kiểm toán bảo mật mã nguồn thủ công bằng AI qua **3 Phase chuẩn hóa** (**Phase 1: Manual Recon**, **Phase 2: Business-Aware Security Verification (BASV)**, **Phase 3: Attack Chain & Root-Cause Analysis (ACA)**) với kỷ luật **Refute-first (Bác bỏ trước, khẳng định sau)**.
-
-Bạn có thể `git clone` repository này ở bất kỳ đâu và sao chép vào thư mục gốc của bất kỳ dự án phần mềm nào để chạy ngay trên **Google Antigravity** (hoặc các AI coding agents tương thích chuẩn `.agents/`).
+Bộ **28 Antigravity Skills + Always-On Rules (`AGENTS.md`, `SOUL.md`) + Python Epistemic Engine (`localsec`)** dùng để kiểm toán bảo mật mã nguồn thủ công bằng AI qua **3 Phase chuẩn hóa**:
+- **Phase 1**: Manual Code Reconnaissance (`/phase-1-orchestrator` — 8 bước)
+- **Phase 2**: Business-Aware Security Verification / BASV (`/phase-2-orchestrator` — 9 bước)
+- **Phase 3**: Attack Chain & Root-Cause Analysis / ACA (`/phase-3-orchestrator` — 9 bước)
 
 ---
 
-## 1. Cấu trúc Trọn Bộ Đóng Gói (Portable Bundle)
+## 1. Cấu trúc Khi Clone Vào Một Project Cần Áp Dụng (`<Project-Root>`)
+
+Khi bạn cần áp dụng bộ Skills này vào một dự án thực tế (`<Project-Root>`), bạn **chỉ cần đưa `.agents/`, `AGENTS.md`, `SOUL.md` ra ngoài gốc Project** để Antigravity nhận diện lệnh `/phase-*` và Rules, còn **toàn bộ Engine (`localsec/`), JSON Schemas (`schemas/`), Contracts (`contracts/`) vẫn nằm nguyên gọn gàng trong thư mục `AI-skills/`**:
 
 ```text
-localsec-antigravity-skills/
-├── AGENTS.md                  # [Level Root Rule] Phương pháp luận Refute-first (Antigravity tự động nạp)
-├── SOUL.md                    # [Level Root Rule] Lớp giá trị cốt lõi (Tiebreaker khi phân vân)
-├── .agents/
-│   ├── README.md              # Sổ tay vận hành chi tiết 28 Skills (3 Phase) & bảng tra cứu CLI
-│   ├── rules/
-│   │   └── soul.md            # Always-On Rule tích hợp SOUL vào Antigravity
-│   └── skills/                # 28 Skills chuẩn Antigravity (3 Master Orchestrators + 25 Sub-skills)
-│       ├── phase-1-*          # 9 Skills cho Phase 1 (Manual Code Reconnaissance)
-│       ├── phase-2-*          # 9 Skills cho Phase 2 (Business-Aware Security Verification)
-│       └── phase-3-*          # 10 Skills cho Phase 3 (Attack Chain & Root-Cause Analysis)
-├── localsec/                  # Bộ máy Python CLI thực thi đọc file (ev_...), kiểm định Schema & Epistemic Gates
-├── skills/                    # Prompts & Registry gốc của Phase 1
-├── schemas/                   # JSON Schemas kiểm định đầu ra của Phase 1
-├── contracts/                 # Hợp đồng, Prompts & JSON Schemas của Phase 2 (BASV) & Phase 3 (ACA)
-├── examples/                  # Dự án mẫu (demo-go) để chạy thử nghiệm
-├── tests/                     # 27 Unit Tests kiểm định toàn bộ cổng an toàn và Epistemic Gates
-├── localsec.toml              # Cấu hình giới hạn đọc file và tham số pipeline
-└── pyproject.toml             # Khai báo Python package (Python >= 3.11, không cần thư viện ngoài)
+<Project-Root>/                        <-- Mở thư mục này trong Antigravity IDE (Working Directory)
+├── <service-repo-1>/                  <-- Các repo mã nguồn của dự án cần review
+├── <service-repo-2>/
+├── <docs-or-brd>/                     <-- Tài liệu nghiệp vụ BRD/BRS/Specs của dự án (nếu có)
+├── documents/                         <-- Báo cáo đầu ra (Phase 1, 2, 3) sẽ tự động xuất ra đây
+├── .localsec/                         <-- Trạng thái phiên làm việc & mã bằng chứng ev_... tự sinh tại đây
+│
+├── AGENTS.md                          <-- [Copy từ AI-skills ra] Rule Refute-first (Antigravity tự động nạp)
+├── SOUL.md                            <-- [Copy từ AI-skills ra] Lớp giá trị cốt lõi
+├── .agents/                           <-- [Copy từ AI-skills ra] 28 Skills đã trỏ sẵn đường dẫn vào AI-skills/...
+│   ├── README.md                      <-- Sổ tay tra cứu nhanh các lệnh & mẫu Prompt
+│   ├── rules/soul.md
+│   └── skills/phase-{1,2,3}-*/SKILL.md
+│
+└── AI-skills/                         <-- Thư mục git clone nằm gọn một chỗ, AI tự ánh xạ vào đây
+    ├── setup.sh                       <-- Script tự động copy .agents, AGENTS.md, SOUL.md ra <Project-Root>
+    ├── localsec/                      <-- Bộ máy Python CLI (manual_session.py, validators.py, workspace.py...)
+    ├── skills/                        <-- Prompts & Registry gốc của Phase 1
+    ├── schemas/                       <-- JSON Schemas của Phase 1 (AI-skills/schemas/*.schema.json)
+    ├── contracts/                     <-- Contracts & Schemas của Phase 2 & Phase 3 (AI-skills/contracts/...)
+    ├── examples/                      <-- Repo mẫu (demo-go)
+    ├── tests/                         <-- Unit Tests kiểm định toàn bộ cổng an toàn
+    └── localsec.toml                  <-- Cấu hình mặc định của bộ tool
 ```
+
+### Tại sao thiết kế theo cấu trúc này?
+1. **Không làm bẩn `<Project-Root>`**: Bạn không phải rải `localsec/`, `schemas/`, `contracts/`, `skills/`, `tests/`, `localsec.toml` ra ngoài thư mục gốc của dự án.
+2. **Đường dẫn trong 28 file `SKILL.md` đã được chuẩn hóa sang `AI-skills/...`**:
+   - Mọi liên kết Schema/Contract trong `.agents/skills/*/SKILL.md` đều chỉ thẳng vào `AI-skills/schemas/...` và `AI-skills/contracts/...`. AI đọc `SKILL.md` sẽ tìm đúng trong thư mục `AI-skills/` ngay trước mặt nó.
+   - Mọi lệnh CLI trong `SKILL.md` đều dùng `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session ...`.
+   - Bản thân `AI-skills/localsec/manual_session.py` tự động nhận biết nó đang nằm trong `<Project-Root>/AI-skills/` để đọc các `<service-repo>` ở ngoài `<Project-Root>/` và ghi báo cáo ra `<Project-Root>/documents/`.
 
 ---
 
-## 2. Cách Clone & Áp Dụng Vào Bất Kỳ Dự Án Nào
+## 2. Cách Cài Đặt Vào Project Mới (Chỉ 2 Lệnh)
 
-### Bước 1: Clone bộ Skills về máy
+Đứng tại thư mục gốc của dự án cần kiểm toán (`<Project-Root>`):
+
 ```bash
-git clone https://github.com/TimoMangCut/AI-skills.git localsec-antigravity-skills
+# 1. Clone bộ AI-skills vào trong <Project-Root>
+git clone https://github.com/TimoMangCut/AI-skills.git
+
+# 2. Chạy script cài đặt (tự động copy .agents/, AGENTS.md, SOUL.md ra ngoài <Project-Root> và chạy test)
+sh AI-skills/setup.sh
 ```
 
-### Bước 2: Đưa bộ Skills vào thư mục dự án cần kiểm toán (`<target-project-root>`)
-Chép các thành phần cốt lõi vào thư mục gốc chứa các repositories mã nguồn cần review:
-```bash
-cp -R localsec-antigravity-skills/.agents \
-      localsec-antigravity-skills/AGENTS.md \
-      localsec-antigravity-skills/SOUL.md \
-      localsec-antigravity-skills/localsec \
-      localsec-antigravity-skills/skills \
-      localsec-antigravity-skills/schemas \
-      localsec-antigravity-skills/contracts \
-      localsec-antigravity-skills/tests \
-      localsec-antigravity-skills/localsec.toml \
-      <target-project-root>/
+*(Hoặc nếu muốn copy thủ công không qua script: `cp -R AI-skills/.agents AI-skills/AGENTS.md AI-skills/SOUL.md .`)*
+
+---
+
+## 3. Cách Khởi Chạy Trên Antigravity
+
+Mở `<Project-Root>` trong Antigravity IDE và gọi tuần tự:
+
+### Bước A — Chạy Phase 1 (Manual Code Reconnaissance)
+```text
+/phase-1-orchestrator Thực hiện Phase 1 (Manual Recon) cho toàn bộ repositories trên nhánh <prod|main> (nếu thiếu thì chọn nhánh cập nhật gần nhất và tách riêng Tier A vs Tier B).
+Áp dụng kỷ luật Refute-first: không dùng SAST/grep, chỉ đọc file thủ công qua ManualWorkspace để sinh mã ev_..., chạy tuần tự đủ 8 bước (1.1 -> 1.8) kèm kiểm tra phase_status, và bắt buộc qua evidence_auditor hạ cấp fail-closed trước khi tổng hợp hệ thống.
 ```
 
-### Bước 3: Kiểm tra bộ cổng kiểm định (27 Unit Tests)
-Yêu cầu duy nhất: **Python >= 3.11** (chỉ sử dụng thư viện chuẩn của Python, không cần `pip install` bất kỳ thư viện bên thứ ba nào).
-```bash
-cd <target-project-root>
-python3 -m unittest discover -s tests -v
+### Bước B — Chạy Phase 2 (Business-Aware Security Verification)
+```text
+/phase-2-orchestrator Thực hiện Phase 2 (Business-Aware Security Verification) nối tiếp kết quả Phase 1 trên toàn bộ repositories.
+Chạy tuần tự đủ 9 bước (2.1 -> 2.9) kèm kiểm tra phase_status: đối chiếu nguồn sự thật nghiệp vụ (BRD/BRS/SQL/Specs), làm mù ngữ cảnh (Context-Blinding) khi chạy Challenger & Targeted Verifier, lập bản đồ liên kết giữa các service và chạy evidence_auditor trước khi tổng hợp.
 ```
 
-### Bước 4: Kích hoạt trong Antigravity
-Mở `<target-project-root>` trong Antigravity IDE và gọi lần lượt 3 lệnh Master Orchestrator (hoặc từng sub-skill riêng lẻ):
-1. **Phase 1 (Recon — 8 bước)**: `/phase-1-orchestrator`
-2. **Phase 2 (BASV — 9 bước)**: `/phase-2-orchestrator`
-3. **Phase 3 (Attack Chain — 9 bước)**: `/phase-3-orchestrator`
+### Bước C — Chạy Phase 3 (Attack Chain & Root-Cause Analysis)
+```text
+/phase-3-orchestrator Thực hiện Phase 3 (Attack Chain Analysis) nối tiếp kết quả Phase 1 & 2 để xây dựng và kiểm chứng các chuỗi tấn công đa bước xuyên dịch vụ.
+Chạy tuần tự đủ 9 bước (3.1 -> 3.9) kèm kiểm tra phase_status: mọi finding trước đó chỉ là manh mối, phải chứng minh từng mắt xích (step) và từng cạnh chuyển tiếp trạng thái (edge) bằng ev_..., làm mù kết luận khi verify/challenge, truy tới nguyên nhân gốc và tuyệt đối không gán confirmed nếu chỉ có kế hoạch request (request_plan_only).
+```
 
-👉 Xem hướng dẫn chi tiết từng lệnh và mẫu Prompt kích hoạt tư duy phản biện tại **[`.agents/README.md`](./.agents/README.md)**.
+👉 Tra cứu chi tiết từng sub-skill riêng lẻ (28 skills) và bảng lệnh CLI tại **[`.agents/README.md`](./.agents/README.md)**.

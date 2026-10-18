@@ -15,9 +15,9 @@ Tuyệt đối không cài kết luận mỏ neo vào câu hỏi: hãy hỏi 'H�
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Xác định `candidate_paths`, `expected_evidence`, `acceptance_criteria`, và `stop_if` cho mỗi nhiệm vụ kiểm chứng.
-- Schema đích: `contracts/business-aware-security-verification-v1/schemas/verification_plan.schema.json`.
+- Schema đích: `AI-skills/contracts/business-aware-security-verification-v1/schemas/verification_plan.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session submit_skill <repo_name> verification_planner <json_file>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> verification_planner <json_file>
 ```

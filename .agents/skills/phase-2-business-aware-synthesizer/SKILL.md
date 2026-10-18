@@ -15,12 +15,12 @@ Không một sai lệch nào được đưa vào nhóm Confirmed nếu chưa vư
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Xuất báo cáo `./documents/<repo_name>/basv/18_business_aware_synthesis.md` và cấp hệ thống `./documents/_system/basv/`.
-- Schema đích: `contracts/business-aware-security-verification-v1/schemas/business_aware_synthesis.schema.json`.
+- Schema đích: `AI-skills/contracts/business-aware-security-verification-v1/schemas/business_aware_synthesis.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-python3 -m localsec.manual_session extract_basv_claims <repo_name>
-python3 -m localsec.manual_session submit_skill <repo_name> evidence_auditor <audit_json>
-python3 -m localsec.manual_session submit_skill <repo_name> business_aware_synthesizer <synth_json>
-python3 -m localsec.manual_session finalize_basv_repo <repo_name>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session extract_basv_claims <repo_name>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> evidence_auditor <audit_json>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> business_aware_synthesizer <synth_json>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_basv_repo <repo_name>
 ```
