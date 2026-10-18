@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["repo_diagrams", "system_diagram", "unknowns"],
+  "properties": {
+    "repo_diagrams": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["repo_name", "mermaid", "evidence_ids", "notes"],
+        "properties": {
+          "repo_name": {"type": "string"},
+          "mermaid": {"type": "string"},
+          "evidence_ids": {"type": "array", "items": {"type": "string"}},
+          "notes": {"type": "string"}
+        }
+      }
+    },
+    "system_diagram": {"type": "string"},
+    "unknowns": {"type": "array", "items": {"type": "string"}}
+  }
+}

@@ -1,0 +1,343 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localsec.local/schemas/chain_synthesis_report.schema.json",
+  "title": "Attack Chain Synthesis Report",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "analysis_id": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": "string"
+    },
+    "analysis_status": {
+      "type": "string",
+      "enum": [
+        "in_progress",
+        "concluded_by_model",
+        "concluded_by_operator",
+        "interrupted",
+        "partial"
+      ]
+    },
+    "executive_summary": {
+      "type": "string"
+    },
+    "highest_credible_chains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "chain_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "chain_verdict": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "code_supported",
+              "partially_confirmed",
+              "hypothesized",
+              "refuted",
+              "inconclusive"
+            ]
+          },
+          "execution_status": {
+            "type": "string"
+          },
+          "credible_impact": {
+            "type": "string"
+          },
+          "key_preconditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "weakest_unverified_link": {
+            "type": "string"
+          },
+          "root_cause_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evidence_id": {
+                  "type": "string"
+                },
+                "relation": {
+                  "type": "string",
+                  "enum": [
+                    "supports",
+                    "contradicts",
+                    "context",
+                    "derived_from"
+                  ]
+                },
+                "claim": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "evidence_id",
+                "relation",
+                "claim"
+              ]
+            }
+          }
+        },
+        "required": [
+          "chain_id",
+          "title",
+          "chain_verdict",
+          "execution_status",
+          "credible_impact",
+          "key_preconditions",
+          "weakest_unverified_link",
+          "root_cause_ids",
+          "evidence_refs"
+        ]
+      }
+    },
+    "cross_service_patterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "pattern_id": {
+            "type": "string"
+          },
+          "pattern": {
+            "type": "string"
+          },
+          "affected_services": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "related_chain_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "root_cause_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evidence_id": {
+                  "type": "string"
+                },
+                "relation": {
+                  "type": "string",
+                  "enum": [
+                    "supports",
+                    "contradicts",
+                    "context",
+                    "derived_from"
+                  ]
+                },
+                "claim": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "evidence_id",
+                "relation",
+                "claim"
+              ]
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "code_supported",
+              "candidate",
+              "unknown"
+            ]
+          }
+        },
+        "required": [
+          "pattern_id",
+          "pattern",
+          "affected_services",
+          "related_chain_ids",
+          "root_cause_ids",
+          "evidence_refs",
+          "status"
+        ]
+      }
+    },
+    "root_causes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "root_cause_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "strongly_supported",
+              "candidate",
+              "refuted",
+              "unknown"
+            ]
+          },
+          "affected_chain_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "remediation_at_root": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "root_cause_id",
+          "title",
+          "status",
+          "affected_chain_ids",
+          "remediation_at_root"
+        ]
+      }
+    },
+    "refuted_or_weakened_chains": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unverified_claims_and_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "counterevidence_summary": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "recommended_remediations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "priority": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "informational",
+              "undetermined"
+            ]
+          },
+          "action": {
+            "type": "string"
+          },
+          "root_cause_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "chain_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "validation_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "priority",
+          "action",
+          "root_cause_ids",
+          "chain_ids",
+          "validation_criteria"
+        ]
+      }
+    },
+    "evidence_audit_summary": {
+      "type": "string"
+    },
+    "model_assessment": {
+      "type": "string",
+      "enum": [
+        "continue_exploration",
+        "request_operator_input",
+        "conclude_current_analysis",
+        "conclude_with_unknowns"
+      ]
+    },
+    "next_inquiry_ideas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "project_name",
+    "analysis_status",
+    "executive_summary",
+    "highest_credible_chains",
+    "cross_service_patterns",
+    "root_causes",
+    "refuted_or_weakened_chains",
+    "unverified_claims_and_gaps",
+    "counterevidence_summary",
+    "recommended_remediations",
+    "evidence_audit_summary",
+    "model_assessment",
+    "next_inquiry_ideas"
+  ]
+}

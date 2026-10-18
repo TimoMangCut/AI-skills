@@ -1,0 +1,321 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "repo_name",
+    "capabilities",
+    "invariants",
+    "workflows",
+    "conflicts_and_unknowns",
+    "inspection_gaps",
+    "unknowns"
+  ],
+  "properties": {
+    "repo_name": {
+      "type": "string"
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "business_outcome",
+          "primary_actors",
+          "intent_basis",
+          "authority_assessment",
+          "evidence_ids",
+          "status",
+          "notes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "business_outcome": {
+            "type": "string"
+          },
+          "primary_actors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "intent_basis": {
+            "type": "string",
+            "enum": [
+              "explicit_requirement",
+              "api_or_event_contract",
+              "acceptance_criteria_or_test",
+              "architecture_decision",
+              "readme_or_comment",
+              "implementation_inference",
+              "conflicting_sources",
+              "unknown"
+            ]
+          },
+          "authority_assessment": {
+            "type": "string",
+            "enum": [
+              "authoritative_in_input",
+              "supporting_only",
+              "unclear",
+              "contradictory",
+              "not_provided"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "invariants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "description",
+          "category",
+          "applies_to",
+          "actor_and_authority",
+          "preconditions",
+          "expected_behavior",
+          "forbidden_behavior",
+          "impact_if_violated",
+          "intent_basis",
+          "authority_assessment",
+          "evidence_ids",
+          "status",
+          "notes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "applies_to": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "actor_and_authority": {
+            "type": "string"
+          },
+          "preconditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expected_behavior": {
+            "type": "string"
+          },
+          "forbidden_behavior": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "impact_if_violated": {
+            "type": "string"
+          },
+          "intent_basis": {
+            "type": "string",
+            "enum": [
+              "explicit_requirement",
+              "api_or_event_contract",
+              "acceptance_criteria_or_test",
+              "architecture_decision",
+              "readme_or_comment",
+              "implementation_inference",
+              "conflicting_sources",
+              "unknown"
+            ]
+          },
+          "authority_assessment": {
+            "type": "string",
+            "enum": [
+              "authoritative_in_input",
+              "supporting_only",
+              "unclear",
+              "contradictory",
+              "not_provided"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "workflows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "steps",
+          "participating_components",
+          "terminal_conditions",
+          "evidence_ids",
+          "status",
+          "notes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "participating_components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "terminal_conditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "conflicts_and_unknowns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "topic",
+          "interpretations",
+          "source_authority_note",
+          "evidence_ids",
+          "status",
+          "notes"
+        ],
+        "properties": {
+          "topic": {
+            "type": "string"
+          },
+          "interpretations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source_authority_note": {
+            "type": "string"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "inspection_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

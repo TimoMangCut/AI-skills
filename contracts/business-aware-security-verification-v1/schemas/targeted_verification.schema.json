@@ -1,0 +1,133 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "round",
+    "task_results",
+    "scope_violations",
+    "unknowns"
+  ],
+  "properties": {
+    "round": {
+      "type": "integer"
+    },
+    "task_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "task_id",
+          "repo_name",
+          "question",
+          "outcome",
+          "observations",
+          "evidence_ids",
+          "counter_evidence_ids",
+          "tested_paths",
+          "read_scope_honored",
+          "unresolved_questions",
+          "suggested_next_paths",
+          "confidence",
+          "status",
+          "notes"
+        ],
+        "properties": {
+          "task_id": {
+            "type": "string"
+          },
+          "repo_name": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "refuted",
+              "inconclusive",
+              "unable_to_verify",
+              "budget_exhausted"
+            ]
+          },
+          "observations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "counter_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "tested_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_scope_honored": {
+            "type": "boolean"
+          },
+          "unresolved_questions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "suggested_next_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low",
+              "not_assessed"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "scope_violations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

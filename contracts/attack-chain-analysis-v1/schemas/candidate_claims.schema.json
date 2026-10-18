@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localsec.local/schemas/candidate_claims.schema.json",
+  "title": "Candidate Claims Intake",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "analysis_id": {
+      "type": "string"
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "candidate_id": {
+            "type": "string"
+          },
+          "source_finding_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "claim": {
+            "type": "string",
+            "minLength": 1
+          },
+          "claimed_impact": {
+            "type": "string"
+          },
+          "prior_verdict": {
+            "type": "string"
+          },
+          "affected_services": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "existing_evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evidence_id": {
+                  "type": "string"
+                },
+                "relation": {
+                  "type": "string",
+                  "enum": [
+                    "supports",
+                    "contradicts",
+                    "context",
+                    "derived_from"
+                  ]
+                },
+                "claim": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "evidence_id",
+                "relation",
+                "claim"
+              ]
+            }
+          },
+          "known_preconditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unresolved_questions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "candidate_chain_ideas": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "required_reads": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "repo_name": {
+                  "type": "string"
+                },
+                "relative_path_or_area": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "repo_name",
+                "relative_path_or_area",
+                "reason"
+              ]
+            }
+          },
+          "intake_status": {
+            "type": "string",
+            "enum": [
+              "ready_for_trace",
+              "needs_context",
+              "contradictory",
+              "possibly_duplicate",
+              "refuted_but_relevant"
+            ]
+          }
+        },
+        "required": [
+          "candidate_id",
+          "source_finding_ids",
+          "claim",
+          "claimed_impact",
+          "prior_verdict",
+          "affected_services",
+          "existing_evidence_refs",
+          "known_preconditions",
+          "unresolved_questions",
+          "candidate_chain_ideas",
+          "required_reads",
+          "intake_status"
+        ]
+      }
+    },
+    "input_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "deduplication_notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "next_inquiry_ideas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "candidates",
+    "input_gaps",
+    "deduplication_notes",
+    "next_inquiry_ideas"
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "threats",
+    "assumptions",
+    "unknowns"
+  ],
+  "properties": {
+    "threats": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "category",
+          "asset",
+          "threat_actor",
+          "scenario",
+          "impact",
+          "likelihood",
+          "existing_controls",
+          "control_gaps",
+          "priority",
+          "status",
+          "evidence_ids",
+          "validation_needed"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string"
+          },
+          "threat_actor": {
+            "type": "string"
+          },
+          "scenario": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "string"
+          },
+          "likelihood": {
+            "type": "string"
+          },
+          "existing_controls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "control_gaps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "priority": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "validation_needed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

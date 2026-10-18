@@ -1,0 +1,245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "purpose",
+    "criticality",
+    "techstack",
+    "business_capabilities",
+    "unknowns"
+  ],
+  "properties": {
+    "purpose": {
+      "type": "object",
+      "required": [
+        "value",
+        "status",
+        "evidence_ids",
+        "notes"
+      ],
+      "properties": {
+        "value": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "derived",
+            "hypothesis",
+            "unknown",
+            "not_assessed"
+          ]
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "criticality": {
+      "type": "object",
+      "required": [
+        "value",
+        "status",
+        "evidence_ids",
+        "notes"
+      ],
+      "properties": {
+        "value": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical",
+            "unknown"
+          ]
+        },
+        "status": {
+          "enum": [
+            "observed",
+            "derived",
+            "hypothesis",
+            "unknown",
+            "not_assessed"
+          ]
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "techstack": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "value",
+          "status",
+          "evidence_ids",
+          "notes"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "business_capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "status",
+          "evidence_ids",
+          "notes"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "entrypoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind",
+          "path_or_symbol",
+          "status",
+          "evidence_ids",
+          "notes"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "path_or_symbol": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "sensitive_data": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "data_class",
+          "status",
+          "evidence_ids",
+          "notes"
+        ],
+        "properties": {
+          "data_class": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

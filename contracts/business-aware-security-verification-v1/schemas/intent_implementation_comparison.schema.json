@@ -1,0 +1,174 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "comparisons",
+    "contradictions",
+    "unmatched_invariants",
+    "unknowns"
+  ],
+  "properties": {
+    "comparisons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "invariant_ref",
+          "repo_names",
+          "expected_behavior",
+          "observed_behavior",
+          "comparison_result",
+          "security_relevance",
+          "confidence",
+          "intent_evidence_ids",
+          "implementation_evidence_ids",
+          "counter_evidence_ids",
+          "status",
+          "rationale",
+          "notes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "invariant_ref": {
+            "type": "string"
+          },
+          "repo_names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expected_behavior": {
+            "type": "string"
+          },
+          "observed_behavior": {
+            "type": "string"
+          },
+          "comparison_result": {
+            "type": "string",
+            "enum": [
+              "aligned",
+              "mismatch",
+              "partial",
+              "contradictory",
+              "intent_ambiguous",
+              "not_verified",
+              "not_applicable"
+            ]
+          },
+          "security_relevance": {
+            "type": "string",
+            "enum": [
+              "security_relevant",
+              "business_correctness_only",
+              "unclear",
+              "not_assessed"
+            ]
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low",
+              "not_assessed"
+            ]
+          },
+          "intent_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "implementation_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "counter_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "contradictions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "topic",
+          "conflicting_claims",
+          "evidence_ids",
+          "resolution_status",
+          "notes"
+        ],
+        "properties": {
+          "topic": {
+            "type": "string"
+          },
+          "conflicting_claims": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "resolution_status": {
+            "type": "string",
+            "enum": [
+              "resolved",
+              "unresolved",
+              "not_assessed"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "unmatched_invariants": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

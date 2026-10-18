@@ -1,0 +1,494 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+SCHEMA_DIR = ROOT / "schemas"
+BASV_SCHEMA_DIR = ROOT / "contracts" / "business-aware-security-verification-v1" / "schemas"
+ACA_SCHEMA_DIR = ROOT / "contracts" / "attack-chain-analysis-v1" / "schemas"
+
+SKILL_SCHEMA = {
+    "repo_profile": "repo_profile.schema.json",
+    "api_authz": "api_authz.schema.json",
+    "dataflow": "dataflow.schema.json",
+    "threat_model": "threat_model.schema.json",
+    "architecture_review": "architecture_review.schema.json",
+    "cross_repo_review": "cross_repo_review.schema.json",
+    "evidence_auditor": "evidence_audit.schema.json",
+    "diagram_author": "diagrams.schema.json",
+    # Phase 2: Business-aware Security Verification (BASV v1.0)
+    "business_intent_modeler": "business_intent_model.schema.json",
+    "business_invariant_challenger": "business_invariant_challenge.schema.json",
+    "implementation_trace_verifier": "implementation_trace.schema.json",
+    "intent_implementation_comparator": "intent_implementation_comparison.schema.json",
+    "security_consequence_mapper": "security_consequence_map.schema.json",
+    "verification_planner": "verification_plan.schema.json",
+    "targeted_verifier": "targeted_verification.schema.json",
+    "business_aware_synthesizer": "business_aware_synthesis.schema.json",
+    "artifact_manifest": "artifact_manifest.schema.json",
+    "business_phase_coverage": "business_phase_coverage.schema.json",
+    "job_contract": "job-contract.schema.json",
+    # Phase 3: Attack Chain Analysis (ACA v1.0)
+    "finding_intake": "candidate_claims.schema.json",
+    "code_trace_builder": "code_trace.schema.json",
+    "attack_chain_constructor": "attack_chain.schema.json",
+    "chain_step_verifier": "chain_verification.schema.json",
+    "request_sequence_designer": "request_reproduction.schema.json",
+    "request_reproduction_operator": "request_reproduction.schema.json",
+    "root_cause_mapper": "root_cause.schema.json",
+    "counterevidence_challenger": "counterevidence_challenge.schema.json",
+    "chain_synthesizer": "chain_synthesis_report.schema.json",
+    "aca_evidence_auditor": "chain_verification.schema.json",
+    "analysis_session": "analysis_session.schema.json",
+}
+ACA_SKILLS = {
+    "finding_intake",
+    "code_trace_builder",
+    "attack_chain_constructor",
+    "chain_step_verifier",
+    "request_sequence_designer",
+    "request_reproduction_operator",
+    "root_cause_mapper",
+    "counterevidence_challenger",
+    "chain_synthesizer",
+    "aca_evidence_auditor",
+    "analysis_session",
+}
+ALLOWED_STATUSES = {"observed", "derived", "hypothesis", "unknown", "not_assessed"}
+EVIDENCE_ID_KEYS = ("evidence_ids", "intent_evidence_ids", "implementation_evidence_ids", "counter_evidence_ids")
+EVIDENCE_REF_KEYS = ("evidence_refs", "counterevidence_refs", "existing_evidence_refs")
+
+
+class OutputValidationError(ValueError):
+    pass
+
+
+def _load_schema_file(schema_name: str) -> dict[str, Any]:
+    for d in (SCHEMA_DIR, BASV_SCHEMA_DIR, ACA_SCHEMA_DIR):
+        p = d / schema_name
+        if p.is_file():
+            return json.loads(p.read_text(encoding="utf-8"))
+    raise OutputValidationError(f"Schema file not found: {schema_name}")
+
+
+def _validate_schema(value: Any, schema: dict[str, Any], path: str = "$", issues: list[str] | None = None) -> list[str]:
+    issues = issues if issues is not None else []
+    typ = schema.get("type")
+    type_ok = {
+        "object": lambda x: isinstance(x, dict),
+        "array": lambda x: isinstance(x, list),
+        "string": lambda x: isinstance(x, str),
+        "integer": lambda x: isinstance(x, int) and not isinstance(x, bool),
+        "number": lambda x: isinstance(x, (int, float)) and not isinstance(x, bool),
+        "boolean": lambda x: isinstance(x, bool),
+        "null": lambda x: x is None,
+    }
+    if isinstance(typ, str) and typ in type_ok:
+        if not type_ok[typ](value):
+            issues.append(f"{path} must be {typ}")
+            return issues
+    elif isinstance(typ, list):
+        if not any(t in type_ok and type_ok[t](value) for t in typ):
+            issues.append(f"{path} must be one of types {typ!r}")
+            return issues
+    if "const" in schema and value != schema["const"]:
+        issues.append(f"{path} must equal {schema['const']!r}")
+    if "enum" in schema and value not in schema["enum"]:
+        issues.append(f"{path} must be one of {schema['enum']!r}")
+    if isinstance(value, str) and "minLength" in schema and len(value) < schema["minLength"]:
+        issues.append(f"{path} must have length >= {schema['minLength']}")
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if "minimum" in schema and value < schema["minimum"]:
+            issues.append(f"{path} must be >= {schema['minimum']}")
+        if "maximum" in schema and value > schema["maximum"]:
+            issues.append(f"{path} must be <= {schema['maximum']}")
+    if isinstance(value, dict):
+        for required in schema.get("required", []):
+            if required not in value:
+                issues.append(f"{path}.{required} is required")
+        props = schema.get("properties", {})
+        if schema.get("additionalProperties") is False:
+            for key in value:
+                if key not in props:
+                    issues.append(f"{path}.{key} is not allowed")
+        for key, child_schema in props.items():
+            if key in value:
+                _validate_schema(value[key], child_schema, f"{path}.{key}", issues)
+        if isinstance(schema.get("additionalProperties"), dict):
+            for key, child in value.items():
+                if key not in props:
+                    _validate_schema(child, schema["additionalProperties"], f"{path}.{key}", issues)
+    elif isinstance(value, list):
+        if "minItems" in schema and len(value) < schema["minItems"]:
+            issues.append(f"{path} must have at least {schema['minItems']} items")
+        if "maxItems" in schema and len(value) > schema["maxItems"]:
+            issues.append(f"{path} must have at most {schema['maxItems']} items")
+        item_schema = schema.get("items")
+        if item_schema:
+            for index, item in enumerate(value):
+                _validate_schema(item, item_schema, f"{path}[{index}]", issues)
+    return issues
+
+
+def _supporting_ref_ids(refs: Any) -> list[str]:
+    if not isinstance(refs, list):
+        return []
+    return [
+        str(r["evidence_id"])
+        for r in refs
+        if isinstance(r, dict)
+        and isinstance(r.get("evidence_id"), str)
+        and r.get("relation") in {"supports", "derived_from", "context"}
+    ]
+
+
+def _validate_aca_epistemic_gates(skill: str, value: dict[str, Any], issues: list[str]) -> None:
+    """Enforce Phase 3 Attack Chain Analysis epistemic gates."""
+    chain_verdict = value.get("chain_verdict")
+    exec_status = value.get("execution_status")
+
+    # Gate 1: A chain cannot be marked 'confirmed' without observed effect in an authorized test execution.
+    if chain_verdict == "confirmed" and exec_status in {
+        "request_plan_only",
+        "not_executed",
+        "execution_blocked",
+        "not_applicable",
+    }:
+        issues.append(
+            f"$.chain_verdict cannot be 'confirmed' when execution_status is {exec_status!r} (request_plan_is_not_execution)"
+        )
+
+    # Gate 2: In attack_chain_constructor, confirmed/code_supported requires all critical steps, linked edges, and preconditions to be supported.
+    if skill == "attack_chain_constructor" and chain_verdict in {"confirmed", "code_supported"}:
+        for p_idx, pre in enumerate(value.get("preconditions", [])):
+            if isinstance(pre, dict) and pre.get("status") in {"unknown", "refuted"}:
+                issues.append(
+                    f"$.preconditions[{p_idx}].status is {pre.get('status')!r}; cannot claim chain_verdict={chain_verdict!r} when a precondition is unknown or refuted"
+                )
+        attacker_model = value.get("attacker_model", {})
+        if isinstance(attacker_model, dict):
+            for a_idx, assump in enumerate(attacker_model.get("assumptions", [])):
+                if isinstance(assump, dict) and assump.get("status") in {"unknown", "refuted"}:
+                    issues.append(
+                        f"$.attacker_model.assumptions[{a_idx}].status is {assump.get('status')!r}; cannot claim chain_verdict={chain_verdict!r} when an attacker assumption is unknown or refuted"
+                    )
+        if chain_verdict == "confirmed":
+            if value.get("unresolved_questions"):
+                issues.append(
+                    "$.unresolved_questions must be empty when chain_verdict=='confirmed' (downstream controls or contradictory evidence remain unresolved)"
+                )
+            for c_idx, cref in enumerate(value.get("counterevidence_refs", [])):
+                if isinstance(cref, dict) and cref.get("relation") == "contradicts":
+                    issues.append(
+                        f"$.counterevidence_refs[{c_idx}] has relation='contradicts'; cannot claim chain_verdict='confirmed' with unreconciled contradicting counterevidence"
+                    )
+        steps = value.get("steps", [])
+        if isinstance(steps, list):
+            for idx, step in enumerate(steps):
+                if not isinstance(step, dict):
+                    continue
+                for sp_idx, spre in enumerate(step.get("preconditions", [])):
+                    if isinstance(spre, dict) and spre.get("status") in {"unknown", "refuted"}:
+                        issues.append(
+                            f"$.steps[{idx}].preconditions[{sp_idx}].status is {spre.get('status')!r}; cannot claim chain_verdict={chain_verdict!r}"
+                        )
+                if chain_verdict == "confirmed" and step.get("unresolved_questions"):
+                    issues.append(
+                        f"$.steps[{idx}].unresolved_questions must be empty when chain_verdict=='confirmed'"
+                    )
+                v_stat = step.get("verification_status")
+                if v_stat not in {"confirmed_by_source", "confirmed_by_observation"}:
+                    issues.append(
+                        f"$.steps[{idx}].verification_status is {v_stat!r}; cannot claim chain_verdict={chain_verdict!r} with unverified step"
+                    )
+                if not _supporting_ref_ids(step.get("evidence_refs")):
+                    issues.append(
+                        f"$.steps[{idx}] requires at least one supporting evidence_ref when chain_verdict={chain_verdict!r}"
+                    )
+                for e_idx, edge in enumerate(step.get("linked_next_steps", [])):
+                    if not isinstance(edge, dict):
+                        continue
+                    l_stat = edge.get("link_status")
+                    if l_stat not in {"confirmed_by_source", "confirmed_by_observation"}:
+                        issues.append(
+                            f"$.steps[{idx}].linked_next_steps[{e_idx}].link_status is {l_stat!r}; cannot claim chain_verdict={chain_verdict!r} with unverified edge"
+                        )
+                    if not _supporting_ref_ids(edge.get("evidence_refs")):
+                        issues.append(
+                            f"$.steps[{idx}].linked_next_steps[{e_idx}] requires supporting evidence_refs when chain_verdict={chain_verdict!r}"
+                        )
+
+    # Gate 3: In chain_step_verifier / aca_evidence_auditor, confirmed/code_supported requires all step_results and edge_results to be supported.
+    if skill in {"chain_step_verifier", "aca_evidence_auditor"} and chain_verdict in {"confirmed", "code_supported"}:
+        for idx, sr in enumerate(value.get("step_results", [])):
+            if isinstance(sr, dict):
+                if sr.get("result") not in {"confirmed_by_source", "confirmed_by_observation"}:
+                    issues.append(
+                        f"$.step_results[{idx}].result is {sr.get('result')!r}; incompatible with chain_verdict={chain_verdict!r}"
+                    )
+                if not _supporting_ref_ids(sr.get("evidence_refs")):
+                    issues.append(f"$.step_results[{idx}] requires supporting evidence_refs")
+        for idx, er in enumerate(value.get("edge_results", [])):
+            if isinstance(er, dict):
+                if er.get("status") not in {"confirmed_by_source", "confirmed_by_observation"}:
+                    issues.append(
+                        f"$.edge_results[{idx}].status is {er.get('status')!r}; incompatible with chain_verdict={chain_verdict!r}"
+                    )
+                if not _supporting_ref_ids(er.get("evidence_refs")):
+                    issues.append(f"$.edge_results[{idx}] requires supporting evidence_refs")
+        fe = value.get("final_effect")
+        if isinstance(fe, dict):
+            if chain_verdict == "confirmed" and fe.get("status") != "demonstrated":
+                issues.append("$.final_effect.status must be 'demonstrated' when chain_verdict=='confirmed'")
+            elif chain_verdict == "code_supported" and fe.get("status") not in {"code_supported", "demonstrated"}:
+                issues.append("$.final_effect.status must be 'code_supported' or 'demonstrated' when chain_verdict=='code_supported'")
+
+    # Gate 4: In request_sequence_designer / request_reproduction_operator, plan_only / not_executed / blocked cannot have executed=true requests.
+    if skill in {"request_sequence_designer", "request_reproduction_operator"} and exec_status in {
+        "plan_only",
+        "not_executed",
+        "blocked",
+    }:
+        for idx, req in enumerate(value.get("requests", [])):
+            if isinstance(req, dict) and req.get("executed") is True:
+                issues.append(
+                    f"$.requests[{idx}].executed cannot be true when top-level execution_status is {exec_status!r}"
+                )
+
+    # Gate 5: In code_trace_builder, directly_read hops must cite at least one evidence_ref.
+    if skill == "code_trace_builder":
+        for idx, hop in enumerate(value.get("hops", [])):
+            if isinstance(hop, dict) and hop.get("verification_status") == "directly_read":
+                if not _supporting_ref_ids(hop.get("evidence_refs")):
+                    issues.append(f"$.hops[{idx}] is marked directly_read but has no supporting evidence_refs")
+
+    # Gate 6: In chain_synthesizer, highest_credible_chains cannot claim confirmed when execution_status is plan-only/not_executed.
+    if skill == "chain_synthesizer":
+        for idx, ch in enumerate(value.get("highest_credible_chains", [])):
+            if isinstance(ch, dict):
+                cv = ch.get("chain_verdict")
+                es = ch.get("execution_status")
+                if cv == "confirmed" and es in {"request_plan_only", "plan_only", "not_executed", "execution_blocked", "not_applicable"}:
+                    issues.append(
+                        f"$.highest_credible_chains[{idx}].chain_verdict cannot be 'confirmed' when execution_status is {es!r}"
+                    )
+                if cv in {"confirmed", "code_supported"} and not _supporting_ref_ids(ch.get("evidence_refs")):
+                    issues.append(
+                        f"$.highest_credible_chains[{idx}] requires supporting evidence_refs for chain_verdict={cv!r}"
+                    )
+
+
+def _get_provenance_kind(eid: str, evidence_catalog: dict[str, dict[str, Any]] | None) -> str:
+    if not isinstance(evidence_catalog, dict) or eid not in evidence_catalog:
+        return "unknown_source_kind"
+    rec = evidence_catalog[eid]
+    if not isinstance(rec, dict):
+        return "unknown_source_kind"
+    if isinstance(rec.get("provenance_kind"), str) and rec["provenance_kind"]:
+        return rec["provenance_kind"]
+    from .workspace import classify_evidence_provenance
+    return classify_evidence_provenance(str(rec.get("path", "")))
+
+
+def verify_claim_to_excerpt_semantics(
+    node: dict[str, Any],
+    cited_eids: list[str],
+    evidence_catalog: dict[str, dict[str, Any]] | None,
+) -> list[str]:
+    """
+    Deterministic Semantic Claim-to-Excerpt Verifier (Phase 1.6 / Phase 2.6 / Phase 3.4 Gate).
+    Detects cases where an LLM attaches a valid evidence_id (ev_...) whose actual source excerpt
+    does not contain the claimed code symbols or directly contradicts the claimed mechanism
+    (e.g., claiming AuthConfigurer.cs overrides SignatureValidator / SecurityAlgorithms.None / JwtClearToken
+    when the excerpt only sets ValidateIssuerSigningKey = true).
+    """
+    if not isinstance(evidence_catalog, dict) or not cited_eids or not isinstance(node, dict):
+        return []
+    recs = [evidence_catalog[eid] for eid in cited_eids if eid in evidence_catalog and isinstance(evidence_catalog[eid], dict)]
+    if not recs:
+        return []
+    combined_excerpts = "\n".join(str(r.get("excerpt", "")) for r in recs if r.get("excerpt"))
+    if not combined_excerpts.strip():
+        return []
+    excerpt_lower = combined_excerpts.lower()
+
+    text_fields = (
+        "title",
+        "scenario",
+        "assessment",
+        "mechanism",
+        "claim",
+        "description",
+        "observed_behavior",
+        "rationale",
+        "outcome",
+        "authorization_analysis",
+        "validation_analysis",
+        "state_transition_analysis",
+        "observed_logic",
+        "notes",
+    )
+    claim_blob = " ".join(str(node.get(k, "")) for k in text_fields if isinstance(node.get(k), str))
+    if not claim_blob.strip():
+        return []
+    claim_lower = claim_blob.lower()
+    contradictions: list[str] = []
+
+    # Rule 1: High-risk JWT alg:none / SignatureValidator / JwtClearToken hallucination guard
+    alg_none_markers = (
+        "signaturevalidator",
+        "securityalgorithms.none",
+        "jwtcleartoken",
+        "jwtsecuritytoken(token)",
+    )
+    mentioned_alg_markers = [m for m in alg_none_markers if m in claim_lower]
+    if mentioned_alg_markers:
+        missing_markers = [m for m in mentioned_alg_markers if m not in excerpt_lower]
+        if len(missing_markers) == len(mentioned_alg_markers):
+            contradictions.append(
+                f"Semantic Claim-to-Excerpt Contradiction: claim asserts {missing_markers} in cited evidence {cited_eids}, "
+                f"but none of those symbols exist in the actual source excerpt(s)"
+            )
+
+    # Rule 2: Explicit dotted code symbol anchors (e.g., TokenValidationParameters.SignatureValidator)
+    import re
+    dotted_symbols = re.findall(r"`([A-Z][A-Za-z0-9_]+\.[A-Z][A-Za-z0-9_]+)`", claim_blob)
+    for sym in dotted_symbols:
+        lhs, rhs = sym.split(".", 1)
+        # If the LHS type/object is present in the excerpt (showing we are looking at the right file/block),
+        # the claimed RHS member/property must also appear in the cited excerpt.
+        if lhs.lower() in excerpt_lower and rhs.lower() not in excerpt_lower:
+            contradictions.append(
+                f"Semantic Claim-to-Excerpt Contradiction: claim cites `{sym}`, and `{lhs}` is in {cited_eids}, "
+                f"but member `{rhs}` does not appear anywhere in the cited excerpt(s)"
+            )
+
+    return contradictions
+
+
+def validate_agent_output(
+    skill: str,
+    value: dict[str, Any],
+    valid_evidence_ids: set[str],
+    *,
+    evidence_catalog: dict[str, dict[str, Any]] | None = None,
+) -> None:
+    if skill not in SKILL_SCHEMA:
+        raise OutputValidationError(f"No schema for skill {skill!r}")
+    schema = _load_schema_file(SKILL_SCHEMA[skill])
+    issues = _validate_schema(value, schema)
+    is_aca = skill in ACA_SKILLS
+
+    def check_evidence(node: Any, loc: str = "$", parent_status: str | None = None) -> None:
+        if isinstance(node, dict):
+            status = node.get("status", parent_status)
+            if not is_aca and "status" in node and node["status"] not in ALLOWED_STATUSES:
+                issues.append(f"{loc}.status has unsupported value {node['status']!r}")
+            if node.get("intent_basis") == "implementation_inference" and node.get("authority_assessment") == "authoritative_in_input":
+                issues.append(f"{loc} cannot mark implementation_inference as authoritative_in_input")
+            if (
+                evidence_catalog is not None
+                and node.get("authority_assessment") == "authoritative_in_input"
+                and node.get("intent_basis") in {"explicit_requirement", "api_or_event_contract", "acceptance_criteria_or_test", "architecture_decision"}
+            ):
+                node_eids = [x for x in node.get("evidence_ids", []) if isinstance(x, str)]
+                if node_eids:
+                    kinds = [_get_provenance_kind(eid, evidence_catalog) for eid in node_eids]
+                    if all(k == "implementation_code" for k in kinds):
+                        issues.append(
+                            f"{loc} provenance contamination: cannot claim authoritative_in_input ({node.get('intent_basis')!r}) when all cited evidence_ids are implementation_code"
+                        )
+            present_id_keys = [k for k in EVIDENCE_ID_KEYS if k in node]
+            combined_primary_ids: list[str] = []
+            for k in present_id_keys:
+                ids = node.get(k)
+                if isinstance(ids, list) and all(isinstance(x, str) for x in ids):
+                    for eid in ids:
+                        if eid not in valid_evidence_ids:
+                            issues.append(f"{loc}.{k} references evidence ID not in this job scope: {eid}")
+                    if k in {"evidence_ids", "intent_evidence_ids", "implementation_evidence_ids"}:
+                        combined_primary_ids.extend(ids)
+            for rk in EVIDENCE_REF_KEYS:
+                refs = node.get(rk)
+                if isinstance(refs, list):
+                    for r_idx, ref_obj in enumerate(refs):
+                        if isinstance(ref_obj, dict):
+                            eid = ref_obj.get("evidence_id")
+                            if isinstance(eid, str) and eid not in valid_evidence_ids:
+                                issues.append(f"{loc}.{rk}[{r_idx}].evidence_id references evidence ID not in this job scope: {eid}")
+                            if rk in {"evidence_refs", "existing_evidence_refs"} and ref_obj.get("relation") in {"supports", "derived_from", "context"} and isinstance(eid, str):
+                                combined_primary_ids.append(eid)
+            if not is_aca:
+                if present_id_keys:
+                    if status in {"observed", "derived"} and not combined_primary_ids:
+                        issues.append(f"{loc} is {status} but has no supporting evidence IDs")
+                    if node.get("comparison_result") == "mismatch" and status in {"observed", "derived"}:
+                        intent_ids = [x for x in (node.get("intent_evidence_ids") or []) if isinstance(x, str)]
+                        impl_ids = [x for x in (node.get("implementation_evidence_ids") or []) if isinstance(x, str)]
+                        if not intent_ids or not impl_ids:
+                            issues.append(f"{loc} is an observed/derived mismatch and requires both intent_evidence_ids and implementation_evidence_ids")
+                        else:
+                            if set(intent_ids) == set(impl_ids):
+                                issues.append(
+                                    f"{loc} provenance contamination: intent_evidence_ids and implementation_evidence_ids cannot be identical for an observed/derived mismatch"
+                                )
+                            if evidence_catalog is not None and status == "observed":
+                                intent_kinds = [_get_provenance_kind(eid, evidence_catalog) for eid in intent_ids]
+                                if all(k == "implementation_code" for k in intent_kinds):
+                                    issues.append(
+                                        f"{loc} provenance contamination: an 'observed' mismatch cannot cite only implementation_code in intent_evidence_ids; cite an intent_artifact/config_or_manifest or downgrade status to 'derived'/'hypothesis'"
+                                    )
+                elif status in {"observed", "derived"} and any(
+                    k in node
+                    for k in ("title", "scenario", "path", "endpoint", "asset", "name", "assessment", "claim", "mechanism", "source_repo", "expected_behavior", "observed_behavior")
+                ):
+                    issues.append(f"{loc} is {status} but lacks evidence_ids")
+            else:
+                if "evidence_refs" in node and status in {"confirmed", "confirmed_by_source", "confirmed_by_observation", "code_supported", "demonstrated"} and not combined_primary_ids:
+                    issues.append(f"{loc} has status={status!r} but no supporting evidence_refs")
+            if (
+                evidence_catalog is not None
+                and combined_primary_ids
+                and status in {"observed", "derived", "confirmed", "confirmed_by_source", "code_supported", "directly_read", "strongly_supported"}
+            ):
+                sem_issues = verify_claim_to_excerpt_semantics(node, combined_primary_ids, evidence_catalog)
+                for si in sem_issues:
+                    issues.append(f"{loc}: {si}")
+            for key, child in node.items():
+                check_evidence(child, f"{loc}.{key}", status)
+        elif isinstance(node, list):
+            for i, child in enumerate(node):
+                check_evidence(child, f"{loc}[{i}]", parent_status)
+
+    check_evidence(value)
+    if is_aca and isinstance(value, dict):
+        _validate_aca_epistemic_gates(skill, value, issues)
+    if issues:
+        raise OutputValidationError("; ".join(issues[:40]))
+
+
+def collect_evidence_ids(value: Any) -> set[str]:
+    found: set[str] = set()
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            for k in EVIDENCE_ID_KEYS:
+                ids = node.get(k)
+                if isinstance(ids, list):
+                    found.update(x for x in ids if isinstance(x, str))
+            for rk in EVIDENCE_REF_KEYS:
+                refs = node.get(rk)
+                if isinstance(refs, list):
+                    for r in refs:
+                        if isinstance(r, dict) and isinstance(r.get("evidence_id"), str):
+                            found.add(r["evidence_id"])
+            for child in node.values():
+                walk(child)
+        elif isinstance(node, list):
+            for child in node:
+                walk(child)
+
+    walk(value)
+    return found

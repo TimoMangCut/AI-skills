@@ -1,0 +1,129 @@
+{
+  "schema_version": "1.0.0",
+  "analysis_id": "demo-analysis-001",
+  "chain_id": "AC-DEMO-001",
+  "parent_chain_id": null,
+  "related_chain_ids": [],
+  "originating_finding_ids": [
+    "F-DEMO-01"
+  ],
+  "title": "Illustrative cross-account object access chain (fictional)",
+  "attacker_objective": "Read a synthetic test object's details without owning it",
+  "business_invariant_at_risk": "A caller may access only objects owned by their test identity or explicitly shared with them",
+  "scope": {
+    "repositories": [
+      "demo-api"
+    ],
+    "services": [
+      "object-api"
+    ],
+    "authorized_environment": "isolated local demo",
+    "target_profile_id": "local-demo"
+  },
+  "attacker_model": {
+    "initial_access": "Authenticated synthetic low-privilege user",
+    "initial_privileges": [
+      "basic-user"
+    ],
+    "capabilities": [
+      "Call documented local API endpoints",
+      "Know a synthetic object identifier"
+    ],
+    "explicitly_unavailable_capabilities": [
+      "Admin credentials",
+      "Production data access"
+    ],
+    "assumptions": [
+      {
+        "condition_id": "PRE-1",
+        "condition": "Two synthetic users and one object owned by the second user exist",
+        "kind": "data_state",
+        "status": "confirmed",
+        "evidence_refs": [
+          {
+            "evidence_id": "EV-DEMO-FIXTURE-1",
+            "relation": "supports",
+            "claim": "Fixture setup creates two synthetic users and an object owned by user B"
+          }
+        ],
+        "notes": "Illustrative fixture only"
+      }
+    ]
+  },
+  "entry_point": "GET /api/test-objects/{objectId}",
+  "preconditions": [
+    {
+      "condition_id": "PRE-2",
+      "condition": "The handler receives a user identity from the test authentication middleware",
+      "kind": "identity_or_role",
+      "status": "confirmed",
+      "evidence_refs": [
+        {
+          "evidence_id": "EV-DEMO-CODE-1",
+          "relation": "supports",
+          "claim": "Test middleware assigns the synthetic subject"
+        }
+      ],
+      "notes": "Example evidence IDs are placeholders"
+    }
+  ],
+  "steps": [
+    {
+      "step_id": "S1",
+      "purpose": "Call the local object endpoint as synthetic user A",
+      "actor": "synthetic user A",
+      "action": "Send GET for object ID owned by synthetic user B",
+      "target_component": "object-api",
+      "preconditions": [],
+      "source_or_entry_point": "GET /api/test-objects/{objectId}",
+      "expected_control": "The handler should confirm that the authenticated subject owns the object or has an explicit share grant",
+      "observed_control_behavior": "Not yet read/verified in this illustrative example",
+      "state_before": "User A authenticated; object belongs to user B",
+      "state_after": "Unknown until source trace or observation",
+      "data_or_privilege_delta": "Potential unauthorized disclosure only if ownership guard is absent or ineffective",
+      "linked_next_steps": [],
+      "request_ids": [
+        "REQ-DEMO-1"
+      ],
+      "verification_status": "hypothesis",
+      "evidence_refs": [],
+      "counterevidence_refs": [],
+      "unresolved_questions": [
+        "Does the handler or downstream data layer check object ownership?"
+      ]
+    }
+  ],
+  "chain_verdict": "hypothesized",
+  "execution_status": "request_plan_only",
+  "impact_assessment": {
+    "demonstrated_impact": "None; not executed",
+    "code_supported_impact": "None; code path not established in this fictional example",
+    "conditional_impact": "Synthetic object disclosure if no effective ownership check exists",
+    "unsupported_or_speculative_impact": [
+      "Cross-tenant data compromise beyond the test object"
+    ],
+    "affected_assets": [
+      "synthetic test object"
+    ],
+    "affected_principals_or_tenants": [
+      "synthetic user B"
+    ],
+    "business_consequence": "Potential object-level authorization failure; not a confirmed finding",
+    "severity_rationale": "Impact cannot be rated until the ownership check and returned data are verified",
+    "what_prevents_a_stronger_claim": [
+      "No source evidence or runtime observation attached"
+    ]
+  },
+  "root_cause_ids": [],
+  "counterevidence_refs": [],
+  "unresolved_questions": [
+    "Trace middleware, handler, service and persistence ownership checks"
+  ],
+  "evidence_refs": [],
+  "model_assessment": "continue_exploration",
+  "next_inquiry_ideas": [
+    "Read the route handler and all downstream object retrieval/authorization logic",
+    "Design a control request using an object owned by user A"
+  ],
+  "created_at": "2026-10-17T00:00:00Z"
+}

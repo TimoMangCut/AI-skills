@@ -1,0 +1,179 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "repo_name",
+    "traces",
+    "invariants_not_traced",
+    "coverage_gaps",
+    "unknowns"
+  ],
+  "properties": {
+    "repo_name": {
+      "type": "string"
+    },
+    "traces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "repo_name",
+          "invariant_refs",
+          "entrypoint",
+          "execution_steps",
+          "authorization_analysis",
+          "validation_analysis",
+          "state_transition_analysis",
+          "persistence_and_side_effects",
+          "audit_trail_analysis",
+          "implementation_outcome",
+          "status",
+          "evidence_ids",
+          "counter_evidence_ids",
+          "unknowns",
+          "notes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "repo_name": {
+            "type": "string"
+          },
+          "invariant_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "entrypoint": {
+            "type": "string"
+          },
+          "execution_steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "step",
+                "component",
+                "behavior",
+                "evidence_ids",
+                "status",
+                "notes"
+              ],
+              "properties": {
+                "step": {
+                  "type": "string"
+                },
+                "component": {
+                  "type": "string"
+                },
+                "behavior": {
+                  "type": "string"
+                },
+                "evidence_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "observed",
+                    "derived",
+                    "hypothesis",
+                    "unknown",
+                    "not_assessed"
+                  ]
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "authorization_analysis": {
+            "type": "string"
+          },
+          "validation_analysis": {
+            "type": "string"
+          },
+          "state_transition_analysis": {
+            "type": "string"
+          },
+          "persistence_and_side_effects": {
+            "type": "string"
+          },
+          "audit_trail_analysis": {
+            "type": "string"
+          },
+          "implementation_outcome": {
+            "type": "string",
+            "enum": [
+              "matches_expected",
+              "contradicts_expected",
+              "partially_matches",
+              "conflicting_evidence",
+              "not_verified",
+              "not_applicable"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "counter_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unknowns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "invariants_not_traced": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "coverage_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

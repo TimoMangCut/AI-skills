@@ -1,0 +1,136 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "challenge_cases",
+    "coverage_gaps",
+    "unknowns"
+  ],
+  "properties": {
+    "challenge_cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "invariant_refs",
+          "counterexample",
+          "preconditions",
+          "alternate_path",
+          "expected_safe_result",
+          "plausible_failure",
+          "question_to_verify",
+          "priority",
+          "status",
+          "evidence_ids",
+          "notes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "invariant_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "counterexample": {
+            "type": "string"
+          },
+          "preconditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "alternate_path": {
+            "type": "string"
+          },
+          "expected_safe_result": {
+            "type": "string"
+          },
+          "plausible_failure": {
+            "type": "string"
+          },
+          "question_to_verify": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "P0",
+              "P1",
+              "P2",
+              "P3"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "coverage_gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "business_area",
+          "question",
+          "impact_if_ignored",
+          "priority",
+          "notes"
+        ],
+        "properties": {
+          "business_area": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "impact_if_ignored": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "P0",
+              "P1",
+              "P2",
+              "P3"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

@@ -1,0 +1,34 @@
+{
+  "name": "Attack Chain Analysis Contract",
+  "version": "1.0.0",
+  "phase_id": "attack_chain_analysis",
+  "contract_only": true,
+  "analytical_stop_condition": null,
+  "depth_limit": null,
+  "iteration_limit": null,
+  "skills": [
+    "finding_intake",
+    "code_trace_builder",
+    "attack_chain_constructor",
+    "chain_step_verifier",
+    "request_sequence_designer",
+    "request_reproduction_operator",
+    "root_cause_mapper",
+    "counterevidence_challenger",
+    "chain_synthesizer",
+    "evidence_auditor"
+  ],
+  "schemas": [
+    "attack_chain.schema.json",
+    "code_trace.schema.json",
+    "root_cause.schema.json",
+    "request_reproduction.schema.json",
+    "counterevidence_challenge.schema.json",
+    "chain_verification.schema.json",
+    "analysis_session.schema.json",
+    "candidate_claims.schema.json",
+    "chain_synthesis_report.schema.json"
+  ],
+  "created_for": "LocalSec AI Manual Pipeline post-recon Analysis phase",
+  "important": "This package does not imply runtime integration. Request execution requires an explicitly implemented, locally constrained adapter."
+}

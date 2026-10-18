@@ -1,0 +1,115 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "round",
+    "tasks",
+    "unresolved_high_priority_count",
+    "budget_note",
+    "unknowns"
+  ],
+  "properties": {
+    "round": {
+      "type": "integer"
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "task_id",
+          "related_refs",
+          "repo_name",
+          "question",
+          "candidate_paths",
+          "priority",
+          "justification",
+          "expected_evidence",
+          "acceptance_criteria",
+          "stop_if",
+          "planning_status",
+          "notes"
+        ],
+        "properties": {
+          "task_id": {
+            "type": "string"
+          },
+          "related_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "repo_name": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "candidate_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "P0",
+              "P1",
+              "P2",
+              "P3"
+            ]
+          },
+          "justification": {
+            "type": "string"
+          },
+          "expected_evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "acceptance_criteria": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "stop_if": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "planning_status": {
+            "type": "string",
+            "enum": [
+              "actionable",
+              "path_unknown",
+              "blocked",
+              "not_needed"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "unresolved_high_priority_count": {
+      "type": "integer"
+    },
+    "budget_note": {
+      "type": "string"
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

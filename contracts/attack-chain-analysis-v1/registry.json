@@ -1,0 +1,186 @@
+{
+  "contract_version": "1.0.0",
+  "phase_id": "attack_chain_analysis",
+  "analysis_mode": "ai_manual_reasoning",
+  "source_analysis_tools_prohibited": [
+    "AST/IR parser",
+    "SAST",
+    "grep or automated source search",
+    "compiler-based source inspection",
+    "dependency scanner",
+    "automated call-graph or taint analyzer",
+    "arbitrary shell execution"
+  ],
+  "exploration_policy": {
+    "mode": "model_directed_open_ended_exploration",
+    "decision_owner": "model_or_operator",
+    "note": "The contract does not prescribe analytical depth or iteration limits. The model decides when to continue, request operator input, or conclude. Operational interruption is recorded as incomplete."
+  },
+  "skills": [
+    {
+      "skill_id": "finding_intake",
+      "objective": "Normalize prior findings as candidates",
+      "prompt_template": "prompts/finding_intake.md",
+      "output_schema": "schemas/candidate_claims.schema.json",
+      "allowed_tools": [
+        "read_prior_artifacts"
+      ],
+      "outputs": [
+        "candidate claims",
+        "provenance",
+        "unresolved questions"
+      ],
+      "version": "1.0.0",
+      "immutable_for_run": true
+    },
+    {
+      "skill_id": "code_trace_builder",
+      "objective": "Manual source-level trace",
+      "prompt_template": "prompts/code_trace_builder.md",
+      "output_schema": "schemas/code_trace.schema.json",
+      "allowed_tools": [
+        "list_dir",
+        "read_file",
+        "write_artifact"
+      ],
+      "outputs": [
+        "code trace"
+      ],
+      "version": "1.0.0",
+      "immutable_for_run": true
+    },
+    {
+      "skill_id": "attack_chain_constructor",
+      "objective": "Construct multi-step and cross-service chains",
+      "prompt_template": "prompts/attack_chain_constructor.md",
+      "output_schema": "schemas/attack_chain.schema.json",
+      "allowed_tools": [
+        "read_evidence",
+        "write_artifact"
+      ],
+      "outputs": [
+        "candidate chains",
+        "alternate chains"
+      ],
+      "version": "1.0.0",
+      "immutable_for_run": true
+    },
+    {
+      "skill_id": "chain_step_verifier",
+      "objective": "Independent per-step and per-edge validation",
+      "prompt_template": "prompts/chain_step_verifier.md",
+      "output_schema": "schemas/chain_verification.schema.json",
+      "allowed_tools": [
+        "list_dir",
+        "read_file",
+        "read_evidence",
+        "write_artifact"
+      ],
+      "outputs": [
+        "step/edge verification",
+        "counterevidence"
+      ],
+      "version": "1.0.0",
+      "immutable_for_run": true
+    },
+    {
+      "skill_id": "request_sequence_designer",
+      "objective": "Build discriminating request sequences",
+      "prompt_template": "prompts/request_sequence_designer.md",
+      "output_schema": "schemas/request_reproduction.schema.json",
+      "allowed_tools": [
+        "read_evidence",
+        "write_artifact"
+      ],
+      "outputs": [
+        "request plan"
+      ],
+      "version": "1.0.0",
+      "immutable_for_run": true
+    },
+    {
+      "skill_id": "request_reproduction_operator",
+      "objective": "Send requests to approved local/test target and capture observations",
+      "prompt_template": "prompts/request_reproduction_operator.md",
+      "output_schema": "schemas/request_reproduction.schema.json",
+      "allowed_tools": [
+        "send_local_http_request",
+        "read_local_observations",
+        "write_artifact"
+      ],
+      "outputs": [
+        "sanitized request/response observations"
+      ],
+      "version": "1.0.0",
+      "immutable_for_run": true
+    },
+    {
+      "skill_id": "root_cause_mapper",
+      "objective": "Map symptoms/chains to root causes",
+      "prompt_template": "prompts/root_cause_mapper.md",
+      "output_schema": "schemas/root_cause.schema.json",
+      "allowed_tools": [
+        "list_dir",
+        "read_file",
+        "read_evidence",
+        "write_artifact"
+      ],
+      "outputs": [
+        "root cause map"
+      ],
+      "version": "1.0.0",
+      "immutable_for_run": true
+    },
+    {
+      "skill_id": "counterevidence_challenger",
+      "objective": "Adversarial search for broken links and alternate paths",
+      "prompt_template": "prompts/counterevidence_challenger.md",
+      "output_schema": "schemas/counterevidence_challenge.schema.json",
+      "allowed_tools": [
+        "list_dir",
+        "read_file",
+        "read_evidence",
+        "read_local_observations",
+        "write_artifact"
+      ],
+      "outputs": [
+        "counterevidence",
+        "alternate paths"
+      ],
+      "version": "1.0.0",
+      "immutable_for_run": true
+    },
+    {
+      "skill_id": "chain_synthesizer",
+      "objective": "Produce chain report and project synthesis",
+      "prompt_template": "prompts/chain_synthesizer.md",
+      "output_schema": "schemas/chain_synthesis_report.schema.json",
+      "allowed_tools": [
+        "read_evidence",
+        "read_artifacts",
+        "write_artifact"
+      ],
+      "outputs": [
+        "final synthesis"
+      ],
+      "version": "1.0.0",
+      "immutable_for_run": true
+    },
+    {
+      "skill_id": "evidence_auditor",
+      "objective": "Audit claim-evidence mappings",
+      "prompt_template": "prompts/evidence_auditor.md",
+      "output_schema": "schemas/chain_verification.schema.json",
+      "allowed_tools": [
+        "read_evidence",
+        "read_artifacts",
+        "write_artifact"
+      ],
+      "outputs": [
+        "audit results"
+      ],
+      "version": "1.0.0",
+      "immutable_for_run": true
+    }
+  ]
+}

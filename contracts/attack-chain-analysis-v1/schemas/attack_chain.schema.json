@@ -1,0 +1,765 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localsec.local/schemas/attack-chain.schema.json",
+  "title": "Attack Chain",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "analysis_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "chain_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "parent_chain_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "related_chain_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "originating_finding_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attacker_objective": {
+      "type": "string",
+      "minLength": 1
+    },
+    "business_invariant_at_risk": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "repositories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "authorized_environment": {
+          "type": "string"
+        },
+        "target_profile_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "repositories",
+        "services",
+        "authorized_environment",
+        "target_profile_id"
+      ]
+    },
+    "attacker_model": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "initial_access": {
+          "type": "string"
+        },
+        "initial_privileges": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "explicitly_unavailable_capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "condition_id": {
+                "type": "string"
+              },
+              "condition": {
+                "type": "string",
+                "minLength": 1
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "attacker_capability",
+                  "identity_or_role",
+                  "data_state",
+                  "environment",
+                  "timing",
+                  "configuration",
+                  "business_state",
+                  "other"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "confirmed",
+                  "assumed",
+                  "unknown",
+                  "refuted"
+                ]
+              },
+              "evidence_refs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "evidence_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "relation": {
+                      "type": "string",
+                      "enum": [
+                        "supports",
+                        "contradicts",
+                        "context",
+                        "derived_from"
+                      ]
+                    },
+                    "claim": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "evidence_id",
+                    "relation",
+                    "claim"
+                  ]
+                }
+              },
+              "notes": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "condition",
+              "kind",
+              "status",
+              "evidence_refs"
+            ]
+          }
+        }
+      },
+      "required": [
+        "initial_access",
+        "initial_privileges",
+        "capabilities",
+        "explicitly_unavailable_capabilities",
+        "assumptions"
+      ]
+    },
+    "entry_point": {
+      "type": "string",
+      "minLength": 1
+    },
+    "preconditions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "condition_id": {
+            "type": "string"
+          },
+          "condition": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "attacker_capability",
+              "identity_or_role",
+              "data_state",
+              "environment",
+              "timing",
+              "configuration",
+              "business_state",
+              "other"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "assumed",
+              "unknown",
+              "refuted"
+            ]
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evidence_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "relation": {
+                  "type": "string",
+                  "enum": [
+                    "supports",
+                    "contradicts",
+                    "context",
+                    "derived_from"
+                  ]
+                },
+                "claim": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "evidence_id",
+                "relation",
+                "claim"
+              ]
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "condition",
+          "kind",
+          "status",
+          "evidence_refs"
+        ]
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "step_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1
+          },
+          "actor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target_component": {
+            "type": "string",
+            "minLength": 1
+          },
+          "preconditions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "condition_id": {
+                  "type": "string"
+                },
+                "condition": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "attacker_capability",
+                    "identity_or_role",
+                    "data_state",
+                    "environment",
+                    "timing",
+                    "configuration",
+                    "business_state",
+                    "other"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "confirmed",
+                    "assumed",
+                    "unknown",
+                    "refuted"
+                  ]
+                },
+                "evidence_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "evidence_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "relation": {
+                        "type": "string",
+                        "enum": [
+                          "supports",
+                          "contradicts",
+                          "context",
+                          "derived_from"
+                        ]
+                      },
+                      "claim": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "evidence_id",
+                      "relation",
+                      "claim"
+                    ]
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "condition",
+                "kind",
+                "status",
+                "evidence_refs"
+              ]
+            }
+          },
+          "source_or_entry_point": {
+            "type": "string"
+          },
+          "expected_control": {
+            "type": "string"
+          },
+          "observed_control_behavior": {
+            "type": "string"
+          },
+          "state_before": {
+            "type": "string"
+          },
+          "state_after": {
+            "type": "string"
+          },
+          "data_or_privilege_delta": {
+            "type": "string"
+          },
+          "linked_next_steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "next_step_id": {
+                  "type": "string"
+                },
+                "link_claim": {
+                  "type": "string"
+                },
+                "link_status": {
+                  "type": "string",
+                  "enum": [
+                    "confirmed_by_source",
+                    "confirmed_by_observation",
+                    "partially_supported",
+                    "hypothesis",
+                    "refuted",
+                    "not_tested"
+                  ]
+                },
+                "evidence_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "evidence_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "relation": {
+                        "type": "string",
+                        "enum": [
+                          "supports",
+                          "contradicts",
+                          "context",
+                          "derived_from"
+                        ]
+                      },
+                      "claim": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "evidence_id",
+                      "relation",
+                      "claim"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "next_step_id",
+                "link_claim",
+                "link_status",
+                "evidence_refs"
+              ]
+            }
+          },
+          "request_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "verification_status": {
+            "type": "string",
+            "enum": [
+              "confirmed_by_source",
+              "confirmed_by_observation",
+              "partially_supported",
+              "hypothesis",
+              "refuted",
+              "blocked_by_environment",
+              "not_tested"
+            ]
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evidence_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "relation": {
+                  "type": "string",
+                  "enum": [
+                    "supports",
+                    "contradicts",
+                    "context",
+                    "derived_from"
+                  ]
+                },
+                "claim": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "evidence_id",
+                "relation",
+                "claim"
+              ]
+            }
+          },
+          "counterevidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evidence_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "relation": {
+                  "type": "string",
+                  "enum": [
+                    "supports",
+                    "contradicts",
+                    "context",
+                    "derived_from"
+                  ]
+                },
+                "claim": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "evidence_id",
+                "relation",
+                "claim"
+              ]
+            }
+          },
+          "unresolved_questions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "step_id",
+          "purpose",
+          "actor",
+          "action",
+          "target_component",
+          "preconditions",
+          "expected_control",
+          "state_before",
+          "state_after",
+          "data_or_privilege_delta",
+          "linked_next_steps",
+          "request_ids",
+          "verification_status",
+          "evidence_refs",
+          "counterevidence_refs",
+          "unresolved_questions"
+        ]
+      },
+      "minItems": 1
+    },
+    "chain_verdict": {
+      "type": "string",
+      "enum": [
+        "confirmed",
+        "code_supported",
+        "partially_confirmed",
+        "hypothesized",
+        "refuted",
+        "inconclusive"
+      ]
+    },
+    "execution_status": {
+      "type": "string",
+      "enum": [
+        "observed_in_authorized_test",
+        "partially_observed",
+        "request_plan_only",
+        "not_executed",
+        "execution_blocked",
+        "not_applicable"
+      ]
+    },
+    "impact_assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "demonstrated_impact": {
+          "type": "string"
+        },
+        "code_supported_impact": {
+          "type": "string"
+        },
+        "conditional_impact": {
+          "type": "string"
+        },
+        "unsupported_or_speculative_impact": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "affected_assets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "affected_principals_or_tenants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "business_consequence": {
+          "type": "string"
+        },
+        "severity_rationale": {
+          "type": "string"
+        },
+        "what_prevents_a_stronger_claim": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "demonstrated_impact",
+        "code_supported_impact",
+        "conditional_impact",
+        "unsupported_or_speculative_impact",
+        "affected_assets",
+        "affected_principals_or_tenants",
+        "business_consequence",
+        "severity_rationale",
+        "what_prevents_a_stronger_claim"
+      ]
+    },
+    "root_cause_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "counterevidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "supports",
+              "contradicts",
+              "context",
+              "derived_from"
+            ]
+          },
+          "claim": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "evidence_id",
+          "relation",
+          "claim"
+        ]
+      }
+    },
+    "unresolved_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "supports",
+              "contradicts",
+              "context",
+              "derived_from"
+            ]
+          },
+          "claim": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "evidence_id",
+          "relation",
+          "claim"
+        ]
+      }
+    },
+    "model_assessment": {
+      "type": "string",
+      "enum": [
+        "continue_exploration",
+        "request_operator_input",
+        "conclude_current_chain",
+        "conclude_with_unresolved_questions"
+      ]
+    },
+    "next_inquiry_ideas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "chain_id",
+    "parent_chain_id",
+    "related_chain_ids",
+    "originating_finding_ids",
+    "title",
+    "attacker_objective",
+    "business_invariant_at_risk",
+    "scope",
+    "attacker_model",
+    "entry_point",
+    "preconditions",
+    "steps",
+    "chain_verdict",
+    "execution_status",
+    "impact_assessment",
+    "root_cause_ids",
+    "counterevidence_refs",
+    "unresolved_questions",
+    "evidence_refs",
+    "model_assessment",
+    "next_inquiry_ideas"
+  ]
+}

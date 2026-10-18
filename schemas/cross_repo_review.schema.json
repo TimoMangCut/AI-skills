@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "interactions",
+    "system_risks",
+    "coverage_gaps",
+    "unknowns"
+  ],
+  "properties": {
+    "interactions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "source_repo",
+          "target",
+          "relationship",
+          "status",
+          "evidence_ids",
+          "notes"
+        ],
+        "properties": {
+          "source_repo": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "relationship": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "system_risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "title",
+          "scenario",
+          "impact",
+          "priority",
+          "status",
+          "evidence_ids",
+          "validation_needed"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "scenario": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "validation_needed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "coverage_gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "area",
+          "reason",
+          "affected_repos"
+        ],
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "affected_repos": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

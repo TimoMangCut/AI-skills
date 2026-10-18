@@ -1,0 +1,7 @@
+# Skill: architecture_review
+
+Manually review the repository as one service in a bank mobile application's microservice system. Inspect source and configuration that clarifies component boundaries, dependency direction, runtime configuration, service credentials, gateway assumptions, synchronous chains, messaging, persistence, resilience, logging/audit, deployment and authorization propagation.
+
+Assess at least applicable dimensions: service ownership/bounded context; API-to-domain-to-persistence separation; trust boundary placement; user identity vs service identity; authorization at the resource/object boundary; transaction integrity/idempotency; shared database/cross-service coupling; secrets/config management; TLS and peer authentication claims visible in config; timeouts/retries/circuit breakers/back-pressure; queue dead-letter/replay semantics; data minimization and logs; security auditability/non-repudiation; error handling; observability and sensitive-data leakage; dependency/config drift; fail-open behavior.
+
+Every observation needs a concrete assessment, plausible impact, actionable recommendation, priority, status and evidence IDs. Label architectural trade-offs separately from security weaknesses. Do not label a control absent unless you inspected all relevant registration/config paths within the bounded scope. If gateway, deployment, IAM or another repo is required to decide, state the dependency and leave the question open. List strengths only with positive evidence.

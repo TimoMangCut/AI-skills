@@ -1,0 +1,341 @@
+{
+  "contract_version": "1.0.0",
+  "phase_id": "business_aware_security_verification",
+  "execution_model": "AI-only manual reasoning over prior recon artifacts plus bounded read-only source re-reads",
+  "integration_status": "wired_into_localsec_runtime_v1_0_project_wide",
+  "orchestration_policy": {
+    "dynamic_skill_selection": false,
+    "dynamic_system_prompt_generation": false,
+    "max_targeted_rounds_default": 2,
+    "max_targeted_rounds_hard_limit": 3,
+    "max_validation_retries": 1,
+    "allowed_workspace_tools": [
+      "list_dir",
+      "read_file"
+    ],
+    "shell_access": false,
+    "network_access": false,
+    "write_access_to_repositories": false,
+    "static_analysis_tools": false,
+    "evidence_audit_required": true,
+    "require_exact_path_allowlist_for_targeted_verifier": true,
+    "publish_partial_results_on_budget_exhaustion": true,
+    "mismatch_confirmation_gate": [
+      "expected_behavior_has_sufficiently_authoritative_input_evidence",
+      "relevant_implementation_path_is_directly_traced",
+      "contradiction_is_evidenced_not_merely_unobserved",
+      "targeted_verification_supports_the_comparison",
+      "evidence_audit_does_not_reject_the_claim",
+      "no_unresolved_contradiction_changes_the_verdict"
+    ],
+    "workflow_order": [
+      "artifact_intake",
+      "business_intent_modeler_per_repo",
+      "business_invariant_challenger_blinded_project_pass",
+      "implementation_trace_verifier_per_repo",
+      "intent_implementation_comparator_project_pass",
+      "security_consequence_mapper_preliminary_pass",
+      "verification_planner_round_1",
+      "targeted_verifier_per_repo_round_1",
+      "verification_planner_round_n_if_needed",
+      "targeted_verifier_per_repo_round_n",
+      "security_consequence_mapper_final_pass",
+      "evidence_auditor",
+      "business_aware_synthesizer",
+      "publish_reports"
+    ],
+    "blinded_context_rules": {
+      "business_invariant_challenger_excludes": [
+        "prior_threat_models",
+        "prior_security_findings",
+        "prior_architecture_review_conclusions"
+      ],
+      "targeted_verifier_excludes": [
+        "comparison_result",
+        "security_impact",
+        "exploitability",
+        "previous_agent_recommended_conclusion"
+      ],
+      "implementation_trace_verifier_must_independently_read_source": true
+    },
+    "stop_conditions": [
+      "targeted_round_limit_reached",
+      "no_new_actionable_paths_for_unresolved_items",
+      "all_high_priority_tasks_confirmed_refuted_or_explicitly_unresolved",
+      "tool_or_model_budget_exhausted"
+    ]
+  },
+  "skills": {
+    "business_intent_modeler": {
+      "version": "1.0.0",
+      "prompt": "business_intent_modeler.md",
+      "schema": "business_intent_model.schema.json",
+      "scope_type": "repository",
+      "allowed_tools": [
+        "list_dir",
+        "read_file"
+      ],
+      "read_scope": "source_config_docs",
+      "purpose": "Build capability/workflow/invariant models from business documentation and source; classify authority of each claim.",
+      "input_contract": [
+        "recon dossier for this repository",
+        "evidence catalog",
+        "manual workspace tools"
+      ],
+      "output_contract": [
+        "business intent",
+        "business invariant register",
+        "workflow map",
+        "conflicts and unknowns"
+      ],
+      "minimum_successful_reads": 1,
+      "minimum_directory_lists": 1,
+      "context_blinded": false,
+      "constraints": [
+        "No shell/network/compiler/static analyzer/parser/AST/IR/grep/SAST.",
+        "No source repository writes.",
+        "Evidence-bearing claims cite only evidence IDs actually present in this job input or created by this job.",
+        "Unknown, ambiguous, contradictory and uninspected are valid outcomes; do not manufacture certainty."
+      ]
+    },
+    "business_invariant_challenger": {
+      "version": "1.0.0",
+      "prompt": "business_invariant_challenger.md",
+      "schema": "business_invariant_challenge.schema.json",
+      "scope_type": "project",
+      "allowed_tools": [],
+      "read_scope": "none",
+      "purpose": "Generate counterexamples and coverage challenges from business candidates without seeing prior security conclusions.",
+      "input_contract": [
+        "per-repo business intent models",
+        "API/dataflow/service map",
+        "manual coverage gaps"
+      ],
+      "output_contract": [
+        "counterexample set",
+        "invariant coverage gaps"
+      ],
+      "minimum_successful_reads": 0,
+      "minimum_directory_lists": 0,
+      "context_blinded": true,
+      "constraints": [
+        "No shell/network/compiler/static analyzer/parser/AST/IR/grep/SAST.",
+        "No source repository writes.",
+        "Evidence-bearing claims cite only evidence IDs actually present in this job input or created by this job.",
+        "Unknown, ambiguous, contradictory and uninspected are valid outcomes; do not manufacture certainty."
+      ]
+    },
+    "implementation_trace_verifier": {
+      "version": "1.0.0",
+      "prompt": "implementation_trace_verifier.md",
+      "schema": "implementation_trace.schema.json",
+      "scope_type": "repository",
+      "allowed_tools": [
+        "list_dir",
+        "read_file"
+      ],
+      "read_scope": "source_config_docs",
+      "purpose": "Independently trace code behavior for important invariants through authorization, validation, state changes, side effects and audit.",
+      "input_contract": [
+        "repo business intent model",
+        "invariant challenge set",
+        "prior recon dossier as navigation hints",
+        "manual workspace tools"
+      ],
+      "output_contract": [
+        "implementation traces",
+        "untraced invariants",
+        "evidence-backed observed behavior"
+      ],
+      "minimum_successful_reads": 1,
+      "minimum_directory_lists": 1,
+      "context_blinded": false,
+      "constraints": [
+        "No shell/network/compiler/static analyzer/parser/AST/IR/grep/SAST.",
+        "No source repository writes.",
+        "Evidence-bearing claims cite only evidence IDs actually present in this job input or created by this job.",
+        "Unknown, ambiguous, contradictory and uninspected are valid outcomes; do not manufacture certainty."
+      ]
+    },
+    "intent_implementation_comparator": {
+      "version": "1.0.0",
+      "prompt": "intent_implementation_comparator.md",
+      "schema": "intent_implementation_comparison.schema.json",
+      "scope_type": "project",
+      "allowed_tools": [],
+      "read_scope": "none",
+      "purpose": "Compare expected business intent with observed implementation and explicitly separate mismatch from ambiguity or incomplete evidence.",
+      "input_contract": [
+        "business intent models",
+        "implementation traces",
+        "challenge cases",
+        "evidence catalog"
+      ],
+      "output_contract": [
+        "comparison results",
+        "contradictions",
+        "unmatched invariants"
+      ],
+      "minimum_successful_reads": 0,
+      "minimum_directory_lists": 0,
+      "context_blinded": false,
+      "constraints": [
+        "No shell/network/compiler/static analyzer/parser/AST/IR/grep/SAST.",
+        "No source repository writes.",
+        "Evidence-bearing claims cite only evidence IDs actually present in this job input or created by this job.",
+        "Unknown, ambiguous, contradictory and uninspected are valid outcomes; do not manufacture certainty."
+      ]
+    },
+    "security_consequence_mapper": {
+      "version": "1.0.0",
+      "prompt": "security_consequence_mapper.md",
+      "schema": "security_consequence_map.schema.json",
+      "scope_type": "project",
+      "allowed_tools": [],
+      "read_scope": "none",
+      "purpose": "Map candidate mismatches to reasoned security abuse scenarios and separate risk priority from proof.",
+      "input_contract": [
+        "comparison results",
+        "implementation traces",
+        "challenge cases",
+        "evidence catalog"
+      ],
+      "output_contract": [
+        "security scenarios",
+        "non-security business mismatches",
+        "unmapped high-risk items"
+      ],
+      "minimum_successful_reads": 0,
+      "minimum_directory_lists": 0,
+      "context_blinded": false,
+      "constraints": [
+        "No shell/network/compiler/static analyzer/parser/AST/IR/grep/SAST.",
+        "No source repository writes.",
+        "Evidence-bearing claims cite only evidence IDs actually present in this job input or created by this job.",
+        "Unknown, ambiguous, contradictory and uninspected are valid outcomes; do not manufacture certainty."
+      ]
+    },
+    "verification_planner": {
+      "version": "1.0.0",
+      "prompt": "verification_planner.md",
+      "schema": "verification_plan.schema.json",
+      "scope_type": "project",
+      "allowed_tools": [
+        "list_dir"
+      ],
+      "read_scope": "none",
+      "purpose": "Produce targeted verification tasks tied to unresolved material questions, using exact candidate paths and acceptance criteria.",
+      "input_contract": [
+        "comparisons",
+        "preliminary scenarios",
+        "evidence-index paths",
+        "previous targeted rounds when present",
+        "budget"
+      ],
+      "output_contract": [
+        "bounded targeted-read task list"
+      ],
+      "minimum_successful_reads": 0,
+      "minimum_directory_lists": 0,
+      "context_blinded": false,
+      "constraints": [
+        "No shell/network/compiler/static analyzer/parser/AST/IR/grep/SAST.",
+        "No source repository writes.",
+        "Evidence-bearing claims cite only evidence IDs actually present in this job input or created by this job.",
+        "Unknown, ambiguous, contradictory and uninspected are valid outcomes; do not manufacture certainty."
+      ]
+    },
+    "targeted_verifier": {
+      "version": "1.0.0",
+      "prompt": "targeted_verifier.md",
+      "schema": "targeted_verification.schema.json",
+      "scope_type": "targeted_repository",
+      "allowed_tools": [
+        "read_file"
+      ],
+      "read_scope": "exact_paths",
+      "purpose": "Independently confirm/refute neutral questions by manually rereading only orchestrator-approved exact source paths.",
+      "input_contract": [
+        "neutral verification tasks",
+        "related invariant expected behavior",
+        "exact allowed path list",
+        "tool budget"
+      ],
+      "output_contract": [
+        "task outcome",
+        "fresh evidence",
+        "counter-evidence",
+        "remaining questions"
+      ],
+      "minimum_successful_reads": 1,
+      "minimum_directory_lists": 0,
+      "context_blinded": true,
+      "constraints": [
+        "No shell/network/compiler/static analyzer/parser/AST/IR/grep/SAST.",
+        "No source repository writes.",
+        "Evidence-bearing claims cite only evidence IDs actually present in this job input or created by this job.",
+        "Unknown, ambiguous, contradictory and uninspected are valid outcomes; do not manufacture certainty."
+      ]
+    },
+    "business_aware_synthesizer": {
+      "version": "1.0.0",
+      "prompt": "business_aware_synthesizer.md",
+      "schema": "business_aware_synthesis.schema.json",
+      "scope_type": "project",
+      "allowed_tools": [],
+      "read_scope": "none",
+      "purpose": "Compose final business-aware security review while preserving confirmation state, ambiguity, coverage limits and audit outcomes.",
+      "input_contract": [
+        "business intent models",
+        "implementation traces",
+        "comparison results",
+        "targeted verification rounds",
+        "final security scenarios",
+        "evidence audit",
+        "coverage"
+      ],
+      "output_contract": [
+        "final business-aware security review",
+        "confirmed/unverified mismatches",
+        "priority actions",
+        "unknowns"
+      ],
+      "minimum_successful_reads": 0,
+      "minimum_directory_lists": 0,
+      "context_blinded": false,
+      "constraints": [
+        "No shell/network/compiler/static analyzer/parser/AST/IR/grep/SAST.",
+        "No source repository writes.",
+        "Evidence-bearing claims cite only evidence IDs actually present in this job input or created by this job.",
+        "Unknown, ambiguous, contradictory and uninspected are valid outcomes; do not manufacture certainty."
+      ]
+    },
+    "evidence_auditor": {
+      "version": "2.0.0",
+      "prompt": "evidence_auditor.md",
+      "schema": "evidence_audit.schema.json",
+      "scope_type": "project",
+      "allowed_tools": [],
+      "read_scope": "none",
+      "purpose": "Independently audit high-priority business/implementation/security claims against the exact cited excerpts and list unaudited claims.",
+      "input_contract": [
+        "claims_to_audit with stable claim_ref",
+        "exact cited evidence excerpts",
+        "not-audited refs caused by budget"
+      ],
+      "output_contract": [
+        "supported/partially_supported/unsupported/inconclusive verdict per claim",
+        "unaudited claims"
+      ],
+      "minimum_successful_reads": 0,
+      "minimum_directory_lists": 0,
+      "context_blinded": false,
+      "constraints": [
+        "No source access.",
+        "Do not validate plausibility instead of checking supplied excerpts.",
+        "An evidence ID proves provenance, not that a claim is supported.",
+        "If evidence is insufficient, use inconclusive or unsupported."
+      ]
+    }
+  }
+}

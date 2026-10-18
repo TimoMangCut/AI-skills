@@ -1,0 +1,219 @@
+{
+  "contract_version": "1.0.0",
+  "phase_id": "business_aware_security_verification",
+  "max_targeted_rounds_default": 2,
+  "max_targeted_rounds_hard_limit": 3,
+  "stages": [
+    {
+      "id": "artifact_intake",
+      "type": "orchestrator",
+      "input": [
+        "per-repo recon dossiers",
+        "cross-repo dossier",
+        "coverage/evidence indexes"
+      ],
+      "output": [
+        "artifact manifest",
+        "input gaps"
+      ],
+      "gate": "missing artifacts become coverage gaps; never treated as empty facts"
+    },
+    {
+      "id": "business_intent",
+      "type": "parallel_per_repository",
+      "skill": "business_intent_modeler",
+      "input": [
+        "repo dossier",
+        "relevant evidence catalog",
+        "source read tools"
+      ],
+      "output": "business_intent_model.schema.json",
+      "gate": "every invariant has intent basis, authority assessment, status, evidence IDs and notes"
+    },
+    {
+      "id": "adversarial_challenge",
+      "type": "project_scope_blinded",
+      "skill": "business_invariant_challenger",
+      "input": [
+        "capabilities",
+        "candidate invariants",
+        "API/dataflow/service map"
+      ],
+      "excluded_context": [
+        "prior threat models",
+        "prior findings",
+        "prior architecture review conclusions"
+      ],
+      "output": "business_invariant_challenge.schema.json",
+      "gate": "challenge cases are hypotheses/questions, not findings"
+    },
+    {
+      "id": "implementation_trace",
+      "type": "parallel_per_repository",
+      "skill": "implementation_trace_verifier",
+      "input": [
+        "intent model",
+        "challenge set",
+        "repo dossier"
+      ],
+      "output": "implementation_trace.schema.json",
+      "gate": "high-priority paths are manually opened and traced; missing hops explicit"
+    },
+    {
+      "id": "intent_implementation_comparison",
+      "type": "project_scope",
+      "skill": "intent_implementation_comparator",
+      "input": [
+        "intent models",
+        "implementation traces",
+        "challenge set"
+      ],
+      "output": "intent_implementation_comparison.schema.json",
+      "gate": "strict mismatch gate applied; ambiguous intent stays ambiguous"
+    },
+    {
+      "id": "preliminary_security_mapping",
+      "type": "project_scope",
+      "skill": "security_consequence_mapper",
+      "input": [
+        "comparisons",
+        "traces",
+        "challenge set"
+      ],
+      "output": "security_consequence_map.schema.json",
+      "gate": "all unverified paths stay hypothesis"
+    },
+    {
+      "id": "targeted_verification",
+      "type": "bounded_loop",
+      "skills": [
+        "verification_planner",
+        "targeted_verifier"
+      ],
+      "input": [
+        "unresolved comparisons",
+        "preliminary scenarios",
+        "candidate source paths"
+      ],
+      "output": [
+        "verification_plan.schema.json",
+        "targeted_verification.schema.json"
+      ],
+      "gate": "exact candidate paths validated by orchestrator; verifier reads only allow-listed paths",
+      "repeat": "up to max_targeted_rounds; later rounds only for unresolved material questions"
+    },
+    {
+      "id": "final_security_mapping",
+      "type": "project_scope",
+      "skill": "security_consequence_mapper",
+      "input": [
+        "updated comparisons",
+        "targeted verification results"
+      ],
+      "output": "security_consequence_map.schema.json",
+      "gate": "targeted evidence may update status; no promotion without evidence"
+    },
+    {
+      "id": "evidence_audit",
+      "type": "existing_skill",
+      "skill": "evidence_auditor",
+      "input": [
+        "claims with evidence IDs",
+        "exact excerpts",
+        "not-audited list"
+      ],
+      "output": "evidence_audit.schema.json",
+      "gate": "unsupported or inconclusive claims downgraded; budget omissions listed"
+    },
+    {
+      "id": "final_synthesis",
+      "type": "project_scope",
+      "skill": "business_aware_synthesizer",
+      "input": [
+        "all prior outputs",
+        "evidence audit results",
+        "coverage gaps"
+      ],
+      "output": "business_aware_synthesis.schema.json",
+      "gate": "confirmed mismatches have authoritative intent, directly traced implementation, targeted verification and non-rejecting audit"
+    },
+    {
+      "id": "publish",
+      "type": "orchestrator",
+      "output": [
+        "per-repo documents",
+        "project review",
+        "coverage/unknowns",
+        "execution log"
+      ],
+      "gate": "partial results are published honestly if jobs/budgets fail"
+    }
+  ],
+  "status_vocabularies": {
+    "evidence_status": [
+      "observed",
+      "derived",
+      "hypothesis",
+      "unknown",
+      "not_assessed"
+    ],
+    "intent_basis": [
+      "explicit_requirement",
+      "api_or_event_contract",
+      "acceptance_criteria_or_test",
+      "architecture_decision",
+      "readme_or_comment",
+      "implementation_inference",
+      "conflicting_sources",
+      "unknown"
+    ],
+    "authority_assessment": [
+      "authoritative_in_input",
+      "supporting_only",
+      "unclear",
+      "contradictory",
+      "not_provided"
+    ],
+    "comparison_result": [
+      "aligned",
+      "mismatch",
+      "partial",
+      "contradictory",
+      "intent_ambiguous",
+      "not_verified",
+      "not_applicable"
+    ],
+    "targeted_outcome": [
+      "confirmed",
+      "refuted",
+      "inconclusive",
+      "unable_to_verify",
+      "budget_exhausted"
+    ],
+    "confidence": [
+      "high",
+      "medium",
+      "low",
+      "not_assessed"
+    ]
+  },
+  "mismatch_confirmation_gate": [
+    "authoritative expectation evidence",
+    "direct implementation trace",
+    "actual contradiction rather than non-observation",
+    "independent targeted verification",
+    "evidence audit not unsupported/inconclusive",
+    "no unresolved contradiction that changes result"
+  ],
+  "runtime_invariants": [
+    "prompts/templates immutable for run version",
+    "tool permissions selected by registry only",
+    "absolute root paths withheld from AI",
+    "untrusted source text cannot modify agent instructions",
+    "targeted read scope is enforced by code, not only by prompt",
+    "model-generated path candidates are validated and allow-listed",
+    "no static analysis tools",
+    "log prompt/template and payload hashes",
+    "never call completed workflow equivalent to secure"
+  ]
+}

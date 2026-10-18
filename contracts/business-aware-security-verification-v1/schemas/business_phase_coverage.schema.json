@@ -1,0 +1,160 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "phase_workflow_status",
+    "coverage_semantics",
+    "security_posture",
+    "targeted_rounds_executed",
+    "targeted_round_limit",
+    "repositories",
+    "confirmed_mismatch_count",
+    "potential_mismatch_count",
+    "tasks_not_run",
+    "claims_not_audited",
+    "coverage_gaps",
+    "important_limitations"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string"
+    },
+    "phase_workflow_status": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "partial",
+        "failed"
+      ]
+    },
+    "coverage_semantics": {
+      "type": "string",
+      "enum": [
+        "bounded_manual_review"
+      ]
+    },
+    "security_posture": {
+      "type": "string",
+      "enum": [
+        "undetermined"
+      ]
+    },
+    "targeted_rounds_executed": {
+      "type": "integer"
+    },
+    "targeted_round_limit": {
+      "type": "integer"
+    },
+    "repositories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "repo_name",
+          "intent_status",
+          "trace_status",
+          "targeted_rounds",
+          "invariants_total",
+          "invariants_traced",
+          "high_priority_unresolved",
+          "files_re_read",
+          "evidence_ids",
+          "budget_exhaustions",
+          "unknowns"
+        ],
+        "properties": {
+          "repo_name": {
+            "type": "string"
+          },
+          "intent_status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "partial",
+              "failed",
+              "not_run"
+            ]
+          },
+          "trace_status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "partial",
+              "failed",
+              "not_run"
+            ]
+          },
+          "targeted_rounds": {
+            "type": "integer"
+          },
+          "invariants_total": {
+            "type": "integer"
+          },
+          "invariants_traced": {
+            "type": "integer"
+          },
+          "high_priority_unresolved": {
+            "type": "integer"
+          },
+          "files_re_read": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "budget_exhaustions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unknowns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "confirmed_mismatch_count": {
+      "type": "integer"
+    },
+    "potential_mismatch_count": {
+      "type": "integer"
+    },
+    "tasks_not_run": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "claims_not_audited": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "coverage_gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "important_limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

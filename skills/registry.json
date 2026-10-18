@@ -1,0 +1,181 @@
+{
+  "registry_version": "2.0.0",
+  "execution_model": "isolated specialist AI sessions with iterative read-only filesystem tool use; no static analyzers or parsers",
+  "orchestration_policy": {
+    "dynamic_skill_selection": false,
+    "dynamic_system_prompt_generation": false,
+    "max_validation_retries": 1,
+    "allowed_workspace_tools": [
+      "list_dir",
+      "read_file"
+    ],
+    "subagent_shell_access": false,
+    "subagent_network_access": false,
+    "subagent_write_access": false,
+    "static_analysis_tools": false,
+    "evidence_audit_required": true,
+    "workflow_order": [
+      "repo_profile",
+      "api_authz",
+      "dataflow",
+      "threat_model",
+      "architecture_review",
+      "evidence_auditor",
+      "cross_repo_review",
+      "evidence_auditor_system_pass",
+      "diagram_author"
+    ]
+  },
+  "skills": {
+    "repo_profile": {
+      "version": "2.0.0",
+      "prompt": "repo_profile.md",
+      "schema": "repo_profile.schema.json",
+      "phase": 1,
+      "allowed_tools": [
+        "list_dir",
+        "read_file"
+      ],
+      "read_scope": "all_text",
+      "purpose": "Manually learn the repository's responsibility, components, runtime, frameworks, datastores, and likely criticality.",
+      "input_contract": [
+        "repo_name",
+        "job_spec",
+        "manual workspace tools"
+      ],
+      "output_contract": "repo_profile.schema.json",
+      "minimum_successful_reads": 1,
+      "minimum_directory_lists": 1
+    },
+    "api_authz": {
+      "version": "2.0.0",
+      "prompt": "api_authz.md",
+      "schema": "api_authz.schema.json",
+      "phase": 2,
+      "allowed_tools": [
+        "list_dir",
+        "read_file"
+      ],
+      "read_scope": "source_config_docs",
+      "purpose": "Manually identify inbound HTTP/RPC/message entrypoints and trace authentication/authorization enforcement.",
+      "input_contract": [
+        "repo_profile",
+        "available evidence catalog",
+        "manual workspace tools"
+      ],
+      "output_contract": "api_authz.schema.json",
+      "minimum_successful_reads": 1,
+      "minimum_directory_lists": 0
+    },
+    "dataflow": {
+      "version": "2.0.0",
+      "prompt": "dataflow.md",
+      "schema": "dataflow.schema.json",
+      "phase": 2,
+      "allowed_tools": [
+        "list_dir",
+        "read_file"
+      ],
+      "read_scope": "source_config_docs",
+      "purpose": "Manually trace inbound/outbound paths, persistence, messages, external calls, and trust boundaries.",
+      "input_contract": [
+        "repo_profile",
+        "API inventory",
+        "available evidence catalog",
+        "manual workspace tools"
+      ],
+      "output_contract": "dataflow.schema.json",
+      "minimum_successful_reads": 1,
+      "minimum_directory_lists": 0
+    },
+    "threat_model": {
+      "version": "2.0.0",
+      "prompt": "threat_model.md",
+      "schema": "threat_model.schema.json",
+      "phase": 3,
+      "allowed_tools": [
+        "list_dir",
+        "read_file"
+      ],
+      "read_scope": "source_config_docs",
+      "purpose": "Create evidence-grounded STRIDE and banking abuse-case threat models for this repository.",
+      "input_contract": [
+        "profile",
+        "API/authz",
+        "dataflow",
+        "available evidence catalog",
+        "manual workspace tools"
+      ],
+      "output_contract": "threat_model.schema.json",
+      "minimum_successful_reads": 1,
+      "minimum_directory_lists": 0
+    },
+    "architecture_review": {
+      "version": "2.0.0",
+      "prompt": "architecture_review.md",
+      "schema": "architecture_review.schema.json",
+      "phase": 3,
+      "allowed_tools": [
+        "list_dir",
+        "read_file"
+      ],
+      "read_scope": "source_config_docs",
+      "purpose": "Manually review architecture, service boundaries, trust, resilience, auditability, and security design assumptions.",
+      "input_contract": [
+        "profile",
+        "API/authz",
+        "dataflow",
+        "threat model",
+        "available evidence catalog",
+        "manual workspace tools"
+      ],
+      "output_contract": "architecture_review.schema.json",
+      "minimum_successful_reads": 1,
+      "minimum_directory_lists": 0
+    },
+    "evidence_auditor": {
+      "version": "2.0.0",
+      "prompt": "evidence_auditor.md",
+      "schema": "evidence_audit.schema.json",
+      "phase": 4,
+      "allowed_tools": [],
+      "read_scope": "none",
+      "purpose": "Independently challenge each claim against the exact source excerpts cited by the skills.",
+      "input_contract": [
+        "claims to audit",
+        "cited evidence excerpts"
+      ],
+      "output_contract": "evidence_audit.schema.json"
+    },
+    "cross_repo_review": {
+      "version": "2.0.0",
+      "prompt": "cross_repo_review.md",
+      "schema": "cross_repo_review.schema.json",
+      "phase": 5,
+      "allowed_tools": [],
+      "read_scope": "none",
+      "purpose": "Manually synthesize system-level risks from the reviewed repo dossiers and shared evidence excerpts.",
+      "input_contract": [
+        "per-repo summaries",
+        "cross-repo evidence excerpts",
+        "coverage limits"
+      ],
+      "output_contract": "cross_repo_review.schema.json"
+    },
+    "diagram_author": {
+      "version": "2.0.0",
+      "prompt": "diagram_author.md",
+      "schema": "diagrams.schema.json",
+      "phase": 6,
+      "allowed_tools": [],
+      "read_scope": "none",
+      "purpose": "Author Mermaid diagrams from AI-reviewed flows and explicitly label uncertain relationships.",
+      "input_contract": [
+        "reviewed repository flows",
+        "cross-repo review",
+        "evidence catalog"
+      ],
+      "output_contract": "diagrams.schema.json"
+    }
+  }
+}

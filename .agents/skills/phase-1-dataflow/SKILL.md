@@ -1,0 +1,24 @@
+---
+name: phase-1-dataflow
+description: Phase 1.3 — Truy vết thủ công luồng dữ liệu inbound/outbound, lưu trữ DB/Cache, hàng đợi, gọi dịch vụ ngoài và ranh giới tin cậy (`dataflow`).
+---
+
+# `phase-1-dataflow` (PHASE-1 — Internal Skill ID: `dataflow`)
+
+Phase 1.3 — Truy vết thủ công luồng dữ liệu inbound/outbound, lưu trữ DB/Cache, hàng đợi, gọi dịch vụ ngoài và ranh giới tin cậy (`dataflow`).
+
+## Prompt Kích hoạt Tư duy Phản biện (Critical-Thinking Booster — 2–4 dòng)
+```text
+/phase-1-dataflow Truy vết luồng dữ liệu từ điểm vào qua xử lý nội bộ tới DB, Queue và các lệnh gọi liên dịch vụ (HTTP/gRPC).
+Kiểm tra критически tại mỗi ranh giới tin cậy (Trust Boundary): danh tính người gọi (identity_context) có được truyền nguyên vẹn và xác thực lại ở đầu nhận hay bị tin tưởng mù quáng?
+```
+
+## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
+- Xác định `flows[]` (`direction`, `source`, `destination`, `protocol`, `data_types`, `trust_boundary`, `identity_context`, `controls`) và `trust_boundaries[]`.
+- Schema đích: `schemas/dataflow.schema.json`.
+
+## Lệnh Thực thi Chuẩn (Portable CLI)
+```bash
+python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill dataflow
+python3 -m localsec.manual_session submit_skill <repo_name> dataflow <json_file>
+```

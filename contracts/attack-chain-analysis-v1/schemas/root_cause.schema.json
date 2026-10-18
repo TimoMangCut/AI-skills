@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localsec.local/schemas/root-cause-map.schema.json",
+  "title": "Root Cause Map",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "analysis_id": {
+      "type": "string"
+    },
+    "root_cause_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "root_cause_status": {
+      "type": "string",
+      "enum": [
+        "confirmed",
+        "strongly_supported",
+        "candidate",
+        "refuted",
+        "unknown"
+      ]
+    },
+    "cause_category": {
+      "type": "string",
+      "enum": [
+        "authorization",
+        "identity_propagation",
+        "trust_boundary",
+        "business_invariant",
+        "state_machine",
+        "transaction_semantics",
+        "validation",
+        "idempotency_replay",
+        "data_or_event_provenance",
+        "configuration",
+        "secrets_lifecycle",
+        "auditability",
+        "architecture",
+        "requirement_ambiguity",
+        "other"
+      ]
+    },
+    "underlying_flaw": {
+      "type": "string"
+    },
+    "why_it_is_root_cause": {
+      "type": "string"
+    },
+    "symptoms": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "affected_chain_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "affected_services": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "source_locations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "repo_name": {
+            "type": "string"
+          },
+          "relative_path": {
+            "type": "string"
+          },
+          "line_start": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "line_end": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "symbol_or_locator": {
+            "type": "string"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evidence_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "relation": {
+                  "type": "string",
+                  "enum": [
+                    "supports",
+                    "contradicts",
+                    "context",
+                    "derived_from"
+                  ]
+                },
+                "claim": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "evidence_id",
+                "relation",
+                "claim"
+              ]
+            }
+          }
+        },
+        "required": [
+          "repo_name",
+          "relative_path",
+          "line_start",
+          "line_end",
+          "symbol_or_locator",
+          "evidence_refs"
+        ]
+      }
+    },
+    "business_invariant_violated": {
+      "type": "string"
+    },
+    "contributing_factors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "counterevidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "supports",
+              "contradicts",
+              "context",
+              "derived_from"
+            ]
+          },
+          "claim": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "evidence_id",
+          "relation",
+          "claim"
+        ]
+      }
+    },
+    "remediation_at_root": {
+      "type": "string"
+    },
+    "remediation_that_only_treats_symptom": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "residual_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "supports",
+              "contradicts",
+              "context",
+              "derived_from"
+            ]
+          },
+          "claim": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "evidence_id",
+          "relation",
+          "claim"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "root_cause_id",
+    "title",
+    "root_cause_status",
+    "cause_category",
+    "underlying_flaw",
+    "why_it_is_root_cause",
+    "symptoms",
+    "affected_chain_ids",
+    "affected_services",
+    "source_locations",
+    "business_invariant_violated",
+    "contributing_factors",
+    "counterevidence_refs",
+    "remediation_at_root",
+    "remediation_that_only_treats_symptom",
+    "residual_questions",
+    "evidence_refs"
+  ]
+}

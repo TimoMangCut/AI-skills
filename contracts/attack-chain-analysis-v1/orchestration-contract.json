@@ -1,0 +1,227 @@
+{
+  "contract_version": "1.0.0",
+  "phase_id": "attack_chain_analysis",
+  "execution_model": "model_directed_exploration",
+  "stages": [
+    {
+      "id": "intake",
+      "skill": "finding_intake",
+      "input": [
+        "all Phase 1/Phase 2 artifacts",
+        "evidence index",
+        "coverage gaps",
+        "contradictions"
+      ],
+      "output": [
+        "candidate claims",
+        "input gap ledger"
+      ],
+      "handoff": "manual_code_trace_or_chain_construction"
+    },
+    {
+      "id": "manual_code_trace",
+      "skill": "code_trace_builder",
+      "input": [
+        "candidate claims",
+        "relevant source/config files",
+        "existing evidence"
+      ],
+      "output": [
+        "code traces",
+        "missing hops",
+        "counterevidence"
+      ],
+      "allowed_next": [
+        "attack_chain_construction",
+        "more_code_trace",
+        "operator_question"
+      ]
+    },
+    {
+      "id": "attack_chain_construction",
+      "skill": "attack_chain_constructor",
+      "input": [
+        "candidate claims",
+        "code traces",
+        "business invariants",
+        "cross-repo maps"
+      ],
+      "output": [
+        "candidate attack chains",
+        "alternate paths",
+        "sub-chains"
+      ],
+      "allowed_next": [
+        "step_edge_verification",
+        "more_code_trace",
+        "counterevidence_challenge",
+        "request_design",
+        "operator_question"
+      ]
+    },
+    {
+      "id": "step_edge_verification",
+      "skill": "chain_step_verifier",
+      "input": [
+        "candidate chain",
+        "source trace",
+        "evidence catalog"
+      ],
+      "output": [
+        "step results",
+        "edge results",
+        "contradictions",
+        "unverified dependencies"
+      ],
+      "allowed_next": [
+        "more_code_trace",
+        "counterevidence_challenge",
+        "request_design",
+        "root_cause_mapping",
+        "operator_question"
+      ]
+    },
+    {
+      "id": "request_design",
+      "skill": "request_sequence_designer",
+      "input": [
+        "candidate or code-supported chain",
+        "preconditions",
+        "authorized target profile"
+      ],
+      "output": [
+        "discriminating request sequence",
+        "expected and observed fields"
+      ],
+      "allowed_next": [
+        "request_execution_if_available",
+        "operator_run_instructions",
+        "more_analysis"
+      ]
+    },
+    {
+      "id": "request_execution_if_available",
+      "skill": "request_reproduction_operator",
+      "execution_condition": "approved local/test request adapter and target profile are available",
+      "input": [
+        "reviewed request sequence",
+        "target allow-list",
+        "synthetic fixture plan"
+      ],
+      "output": [
+        "sanitized request/response observations",
+        "execution status",
+        "evidence IDs"
+      ],
+      "allowed_next": [
+        "step_edge_verification",
+        "root_cause_mapping",
+        "counterevidence_challenge"
+      ]
+    },
+    {
+      "id": "root_cause_mapping",
+      "skill": "root_cause_mapper",
+      "input": [
+        "chain paths",
+        "source traces",
+        "observations",
+        "business intent sources"
+      ],
+      "output": [
+        "root cause records",
+        "symptom/cause mapping",
+        "root remediation"
+      ],
+      "allowed_next": [
+        "more_code_trace",
+        "counterevidence_challenge",
+        "synthesis"
+      ]
+    },
+    {
+      "id": "counterevidence_challenge",
+      "skill": "counterevidence_challenger",
+      "input": [
+        "chain currently under review",
+        "source/evidence catalog",
+        "request observations"
+      ],
+      "output": [
+        "counterevidence",
+        "alternate path candidates",
+        "resolution questions"
+      ],
+      "allowed_next": [
+        "more_code_trace",
+        "attack_chain_construction",
+        "step_edge_verification",
+        "synthesis"
+      ]
+    },
+    {
+      "id": "synthesis_and_audit",
+      "skills": [
+        "evidence_auditor",
+        "chain_synthesizer"
+      ],
+      "input": [
+        "all chain records",
+        "all traces",
+        "request plans and observations",
+        "root cause maps",
+        "counterevidence"
+      ],
+      "output": [
+        "project report",
+        "machine-readable chain records",
+        "evidence audit",
+        "unknowns ledger"
+      ],
+      "allowed_next": [
+        "model_directed_exploration",
+        "request_operator_input",
+        "conclude_current_analysis"
+      ]
+    }
+  ],
+  "verdict_rules": {
+    "confirmed_requires": [
+      "all critical steps supported",
+      "all critical edges supported",
+      "preconditions verified or explicitly represented as non-blocking for the claim",
+      "observed effect evidence from an authorized test execution",
+      "evidence audit does not reject the claim",
+      "material counterevidence resolved"
+    ],
+    "code_supported_requires": [
+      "complete direct source trace for critical path",
+      "preconditions and control behavior supported by source/evidence",
+      "no claim of dynamic reproduction"
+    ],
+    "request_plan_is_not_execution": true,
+    "http_status_alone_is_not_impact_proof": true,
+    "missing_evidence_is_not_evidence_of_absence": true
+  },
+  "runtime_invariants": [
+    "skill prompts and schemas are pinned by version and hashed per run",
+    "tools are granted only from the registry",
+    "source reading stays manual; no automated source-analysis tool use",
+    "model-selected paths are checked against repository read allow-list by runtime",
+    "request adapter accepts only approved local/test targets and routes",
+    "request/response evidence is sanitized and assigned stable evidence IDs",
+    "untrusted repository text cannot override agent instructions",
+    "high-impact state-changing tests require operator approval and disposable synthetic fixtures",
+    "partial/interrupted analysis remains incomplete rather than being promoted to a complete verdict"
+  ],
+  "exploration_policy": {
+    "mode": "model_directed_open_ended_exploration",
+    "decision_owner": "model_or_operator",
+    "interpretation": "The contract does not prescribe analytical depth, branch count or iteration limits. The model may continue, branch, revisit, ask the operator or conclude. Operational interruption is recorded as incomplete, not as an analytical verdict.",
+    "convergence_and_cycle_guards": {
+      "visited_hop_deduplication": "Track visited (repo_name, relative_file_path, symbol_or_locator, trace_question) tuples to prevent cyclic cross-repo re-reading.",
+      "evidence_delta_check": "Require each exploratory continuation pass to either mint new evidence_id records, resolve an outstanding question, or record an explicit unknown rather than re-emitting identical claims.",
+      "branch_tier_separation": "Preserve Tier A (prod branch) vs Tier B (fallback non-prod branch) provenance on every chain scope and step."
+    }
+  }
+}

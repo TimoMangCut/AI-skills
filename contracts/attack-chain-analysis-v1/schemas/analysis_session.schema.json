@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localsec.local/schemas/attack-chain-analysis-session.schema.json",
+  "title": "Attack Chain Analysis Session",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "analysis_id": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": "string"
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": "string"
+    },
+    "session_status": {
+      "type": "string",
+      "enum": [
+        "in_progress",
+        "concluded_by_model",
+        "concluded_by_operator",
+        "interrupted",
+        "partial"
+      ]
+    },
+    "inputs_received": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifact_path": {
+            "type": "string"
+          },
+          "artifact_type": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "loaded",
+              "partially_loaded",
+              "unavailable",
+              "contradictory"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifact_path",
+          "artifact_type",
+          "status",
+          "notes"
+        ]
+      }
+    },
+    "chain_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "request_sequence_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "root_cause_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "outstanding_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "counterevidence_to_review": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "model_assessment": {
+      "type": "string",
+      "enum": [
+        "continue_exploration",
+        "request_operator_input",
+        "conclude_current_analysis",
+        "conclude_with_unknowns"
+      ]
+    },
+    "next_inquiry_ideas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "operator_directives": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "incomplete_work": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "execution_log_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "project_name",
+    "started_at",
+    "updated_at",
+    "session_status",
+    "inputs_received",
+    "chain_ids",
+    "request_sequence_ids",
+    "root_cause_ids",
+    "outstanding_questions",
+    "counterevidence_to_review",
+    "model_assessment",
+    "next_inquiry_ideas",
+    "operator_directives",
+    "incomplete_work",
+    "execution_log_refs"
+  ]
+}

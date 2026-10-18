@@ -1,0 +1,329 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localsec.local/schemas/request-reproduction-plan-and-observations.schema.json",
+  "title": "Request Reproduction Plan and Observations",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "analysis_id": {
+      "type": "string"
+    },
+    "chain_id": {
+      "type": "string"
+    },
+    "request_sequence_id": {
+      "type": "string"
+    },
+    "execution_status": {
+      "type": "string",
+      "enum": [
+        "plan_only",
+        "executed",
+        "partially_executed",
+        "blocked",
+        "not_executed"
+      ]
+    },
+    "target_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "environment_type": {
+          "type": "string",
+          "enum": [
+            "local",
+            "isolated_test",
+            "staging_authorized",
+            "unknown"
+          ]
+        },
+        "base_url_placeholder": {
+          "type": "string"
+        },
+        "authorization_basis": {
+          "type": "string"
+        },
+        "approved_scope": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "synthetic_data_only": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "profile_id",
+        "environment_type",
+        "base_url_placeholder",
+        "authorization_basis",
+        "approved_scope",
+        "synthetic_data_only"
+      ]
+    },
+    "objective": {
+      "type": "string"
+    },
+    "safety_notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "requests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "request_id": {
+            "type": "string"
+          },
+          "sequence_number": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "preconditions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "condition_id": {
+                  "type": "string"
+                },
+                "condition": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "attacker_capability",
+                    "identity_or_role",
+                    "data_state",
+                    "environment",
+                    "timing",
+                    "configuration",
+                    "business_state",
+                    "other"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "confirmed",
+                    "assumed",
+                    "unknown",
+                    "refuted"
+                  ]
+                },
+                "evidence_refs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "evidence_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "relation": {
+                        "type": "string",
+                        "enum": [
+                          "supports",
+                          "contradicts",
+                          "context",
+                          "derived_from"
+                        ]
+                      },
+                      "claim": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "evidence_id",
+                      "relation",
+                      "claim"
+                    ]
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "condition",
+                "kind",
+                "status",
+                "evidence_refs"
+              ]
+            }
+          },
+          "method": {
+            "type": "string"
+          },
+          "path_template": {
+            "type": "string"
+          },
+          "headers_template": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "body_template": {
+            "type": [
+              "object",
+              "array",
+              "string",
+              "null"
+            ]
+          },
+          "identity_or_role": {
+            "type": "string"
+          },
+          "object_or_tenant_context": {
+            "type": "string"
+          },
+          "expected_secure_behavior": {
+            "type": "string"
+          },
+          "expected_vulnerable_behavior": {
+            "type": "string"
+          },
+          "observables": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "state_change_risk": {
+            "type": "string",
+            "enum": [
+              "none_expected",
+              "reversible_test_state",
+              "sensitive_state_change",
+              "potentially_irreversible",
+              "unknown"
+            ]
+          },
+          "operator_approval_required": {
+            "type": "boolean"
+          },
+          "executed": {
+            "type": "boolean"
+          },
+          "response_summary_redacted": {
+            "type": "string"
+          },
+          "observed_effect": {
+            "type": "string"
+          },
+          "cleanup_or_reset": {
+            "type": "string"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evidence_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "relation": {
+                  "type": "string",
+                  "enum": [
+                    "supports",
+                    "contradicts",
+                    "context",
+                    "derived_from"
+                  ]
+                },
+                "claim": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "evidence_id",
+                "relation",
+                "claim"
+              ]
+            }
+          },
+          "linked_chain_step_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "request_id",
+          "sequence_number",
+          "purpose",
+          "preconditions",
+          "method",
+          "path_template",
+          "headers_template",
+          "body_template",
+          "identity_or_role",
+          "object_or_tenant_context",
+          "expected_secure_behavior",
+          "expected_vulnerable_behavior",
+          "observables",
+          "state_change_risk",
+          "operator_approval_required",
+          "executed",
+          "response_summary_redacted",
+          "observed_effect",
+          "cleanup_or_reset",
+          "evidence_refs",
+          "linked_chain_step_ids"
+        ]
+      }
+    },
+    "sequence_conclusion": {
+      "type": "string"
+    },
+    "unexecuted_requests": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "chain_id",
+    "request_sequence_id",
+    "execution_status",
+    "target_profile",
+    "objective",
+    "safety_notes",
+    "requests",
+    "sequence_conclusion",
+    "unexecuted_requests"
+  ]
+}

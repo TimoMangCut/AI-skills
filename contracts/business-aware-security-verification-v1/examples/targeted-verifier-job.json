@@ -1,0 +1,27 @@
+{
+  "phase_id": "business_aware_security_verification",
+  "phase_version": "1.0.0",
+  "run_id": "example-run-001",
+  "job_id": "example-job-009",
+  "skill": "targeted_verifier",
+  "skill_version": "1.0.0",
+  "scope_type": "targeted_repository",
+  "repo_name": "payment-service",
+  "objective": "Independently determine whether the specified state-transition check occurs before the persisted side effect.",
+  "input_artifact_refs": ["comparison:INV-PAY-004", "plan:ROUND-1-TASK-003"],
+  "context_summary": "Question only: in the allowed file, does the implementation reject this state transition before the side effect? The authoritative requirement excerpt is supplied separately; do not infer beyond the inspected path.",
+  "related_invariant_refs": ["INV-PAY-004"],
+  "related_task_refs": ["ROUND-1-TASK-003"],
+  "allowed_tools": ["read_file"],
+  "allowed_read_paths": ["src/Payments/PaymentService.cs"],
+  "read_scope": "exact_paths",
+  "output_schema": "targeted_verification.schema.json",
+  "evidence_policy": "Only cite evidence IDs in supplied inputs or freshly returned by an approved read_file call. Confirmed/refuted requires direct evidence and a reasoned explanation.",
+  "budgets": {
+    "max_model_turns": 12,
+    "max_tool_calls": 4,
+    "max_read_lines": 180
+  },
+  "context_blinding": ["comparison_result", "security_impact", "exploitability", "previous_agent_recommended_conclusion"],
+  "must_not_conclude": ["Do not call this a confirmed mismatch solely because the behavior was not seen in this excerpt.", "Do not read files outside allowed_read_paths.", "Do not declare the service secure or insecure overall."]
+}

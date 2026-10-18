@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localsec.local/schemas/counterevidence_challenge.schema.json",
+  "title": "Counterevidence Challenge",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "analysis_id": {
+      "type": "string"
+    },
+    "challenge_id": {
+      "type": "string"
+    },
+    "chain_id": {
+      "type": "string"
+    },
+    "overall_assessment": {
+      "type": "string",
+      "enum": [
+        "supports_chain_so_far",
+        "weakens_chain",
+        "refutes_chain_or_edge",
+        "reveals_alternate_path",
+        "inconclusive"
+      ]
+    },
+    "challenges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "challenge_item_id": {
+            "type": "string"
+          },
+          "target_type": {
+            "type": "string",
+            "enum": [
+              "step",
+              "edge",
+              "precondition",
+              "impact",
+              "root_cause",
+              "entry_point",
+              "overall_chain"
+            ]
+          },
+          "target_id": {
+            "type": "string"
+          },
+          "challenge_question": {
+            "type": "string"
+          },
+          "counterexample_or_missing_fact": {
+            "type": "string"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evidence_id": {
+                  "type": "string"
+                },
+                "relation": {
+                  "type": "string",
+                  "enum": [
+                    "supports",
+                    "contradicts",
+                    "context",
+                    "derived_from"
+                  ]
+                },
+                "claim": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "evidence_id",
+                "relation",
+                "claim"
+              ]
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "counterevidence_found",
+              "alternate_path_found",
+              "question_unresolved",
+              "challenge_refuted",
+              "no_counterexample_found"
+            ]
+          },
+          "effect_on_verdict": {
+            "type": "string"
+          },
+          "follow_up_reads_or_tests": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "challenge_item_id",
+          "target_type",
+          "target_id",
+          "challenge_question",
+          "counterexample_or_missing_fact",
+          "evidence_refs",
+          "status",
+          "effect_on_verdict",
+          "follow_up_reads_or_tests"
+        ]
+      }
+    },
+    "alternate_chain_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "overall_rationale": {
+      "type": "string"
+    },
+    "next_inquiry_ideas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "challenge_id",
+    "chain_id",
+    "overall_assessment",
+    "challenges",
+    "alternate_chain_ids",
+    "overall_rationale",
+    "next_inquiry_ideas"
+  ]
+}

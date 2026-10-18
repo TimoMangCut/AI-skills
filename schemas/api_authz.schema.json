@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "endpoints",
+    "authorization_patterns",
+    "unknowns"
+  ],
+  "properties": {
+    "endpoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "method",
+          "path",
+          "handler",
+          "authn",
+          "authorization",
+          "roles",
+          "status",
+          "evidence_ids",
+          "notes"
+        ],
+        "properties": {
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "handler": {
+            "type": "string"
+          },
+          "authn": {
+            "type": "string"
+          },
+          "authorization": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "object_level_authz": {
+            "type": "string"
+          },
+          "sensitivity": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical",
+              "unknown"
+            ]
+          },
+          "caller_class": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "authorization_patterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "mechanism",
+          "status",
+          "evidence_ids",
+          "notes"
+        ],
+        "properties": {
+          "mechanism": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

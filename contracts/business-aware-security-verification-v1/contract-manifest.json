@@ -1,0 +1,147 @@
+{
+  "contract_version": "1.0.0",
+  "contract_id": "business_aware_security_verification",
+  "file_count": 28,
+  "files": [
+    {
+      "path": "BUSINESS_AWARE_SECURITY_VERIFICATION.md",
+      "size_bytes": 19110,
+      "sha256": "737e17413a5a6679a0dd273f8849b65215769a314e3707f98768c41857cc48d8"
+    },
+    {
+      "path": "IMPLEMENTATION_ACCEPTANCE.md",
+      "size_bytes": 4244,
+      "sha256": "ce3ab515558e3e22dec4cbc9bf9d631e882f6783b6ed692c8315817da7d969a2"
+    },
+    {
+      "path": "README.md",
+      "size_bytes": 3626,
+      "sha256": "ed0c2b5f1115f14be71fbe2fd152675ba247b8dd5194c14ad22d0794fbb5c744"
+    },
+    {
+      "path": "examples/decision-examples.md",
+      "size_bytes": 2525,
+      "sha256": "bab892a2512544ae89c1fad1eea692279ed5d7ae13fec4b8f81361999f374123"
+    },
+    {
+      "path": "examples/targeted-verifier-job.json",
+      "size_bytes": 1636,
+      "sha256": "10cef794f7b0016da9aa4b4598b8c8e8827fb24ce51f6994a4d0701f5eb101c4"
+    },
+    {
+      "path": "orchestration-contract.json",
+      "size_bytes": 6429,
+      "sha256": "57b3efd124e1306317ff020acbff08895d4a0564bcf26b1c49e93c1faea4c262"
+    },
+    {
+      "path": "prompts/business_aware_synthesizer.md",
+      "size_bytes": 1336,
+      "sha256": "f483b9c1e8b791c4108d306225f134bd6ba245920c1b1f7700bae27243e8d1c2"
+    },
+    {
+      "path": "prompts/business_intent_modeler.md",
+      "size_bytes": 1886,
+      "sha256": "592f6342d74eb2af6ab65733925c4b73025863881b3b273724ad9d1fff1d92bb"
+    },
+    {
+      "path": "prompts/business_invariant_challenger.md",
+      "size_bytes": 1550,
+      "sha256": "e69597970a40707fc05edd9f739963d73e8e2673a4bb8b340823c5fa07397506"
+    },
+    {
+      "path": "prompts/evidence_auditor.md",
+      "size_bytes": 1276,
+      "sha256": "9d74ae2606dca5902f3220f9f7c8dd8708a22a0e5ddf09dd688ac45177b42720"
+    },
+    {
+      "path": "prompts/implementation_trace_verifier.md",
+      "size_bytes": 1549,
+      "sha256": "138b4b2bd07054923e321ea8525605d9fa8d15a1fdaa6e0a5e238455acaa33e9"
+    },
+    {
+      "path": "prompts/intent_implementation_comparator.md",
+      "size_bytes": 1470,
+      "sha256": "cbab69c89ab6a8ac1e0e5999309aa2628e4b38b75190a6dd7a624ca4ee8a07d7"
+    },
+    {
+      "path": "prompts/security_consequence_mapper.md",
+      "size_bytes": 1193,
+      "sha256": "ad3b7f057842b514ddda47a7fe7c886b4e7663470826426dcaac353f47e7b188"
+    },
+    {
+      "path": "prompts/targeted_verifier.md",
+      "size_bytes": 1388,
+      "sha256": "e865b545ec3924eb2729842fd290d357a28fbc0df6b53b9a19ec7716995ee943"
+    },
+    {
+      "path": "prompts/verification_planner.md",
+      "size_bytes": 1241,
+      "sha256": "44bb660ae3e6572ae7e750eedb3180c1fad70c5d96bb99255fae31c05cd68f44"
+    },
+    {
+      "path": "registry.json",
+      "size_bytes": 13400,
+      "sha256": "0e2f50a31e8f6aaeda2f4cf160bfdeab7be594ed8a3b43205f5ef47c25fbea13"
+    },
+    {
+      "path": "schemas/artifact_manifest.schema.json",
+      "size_bytes": 2626,
+      "sha256": "692a197918464af58ef8221385350256079671c38042cfa53d9943e820b65f9f"
+    },
+    {
+      "path": "schemas/business_aware_synthesis.schema.json",
+      "size_bytes": 13829,
+      "sha256": "48046a6b3041b589ebf2910bc09e08d25293f9d8eefad1de9ebcff253b08b330"
+    },
+    {
+      "path": "schemas/business_intent_model.schema.json",
+      "size_bytes": 7413,
+      "sha256": "54464502d5491cef02e50ccaace0b29f5ca58580dd52b0c16e19016b7dd58d03"
+    },
+    {
+      "path": "schemas/business_invariant_challenge.schema.json",
+      "size_bytes": 2953,
+      "sha256": "873dc744fbe812a5808ea9f0199d088428ee6d691d362c32b6524c0a9655bbe0"
+    },
+    {
+      "path": "schemas/business_phase_coverage.schema.json",
+      "size_bytes": 3445,
+      "sha256": "67da0e4a744a417cd8cb6b88f61023e4a4783eef7b442d42506add09751ec023"
+    },
+    {
+      "path": "schemas/evidence_audit.schema.json",
+      "size_bytes": 1448,
+      "sha256": "edf9d20712ca8c2c8f5a0c8c23d0c07f0cabceefe7088a93d3679f86f908b34a"
+    },
+    {
+      "path": "schemas/implementation_trace.schema.json",
+      "size_bytes": 4294,
+      "sha256": "2519705118cd05905783c8c57f233f8836d98083b6aebae327167cc253d25101"
+    },
+    {
+      "path": "schemas/intent_implementation_comparison.schema.json",
+      "size_bytes": 3968,
+      "sha256": "5912cd71e6af3faa04c0e93810ac2cf09081fd7ddaf980e7de0aefec2cad1d9e"
+    },
+    {
+      "path": "schemas/job-contract.schema.json",
+      "size_bytes": 2697,
+      "sha256": "3ed79430a4e2ad15b3c67a2c5367775149cc5e062d82572b34255e76c247de79"
+    },
+    {
+      "path": "schemas/security_consequence_map.schema.json",
+      "size_bytes": 3889,
+      "sha256": "7a8b6d0443f87f792a970ffef5568b36ffa427a7f5871fc4c08b365136dd97f5"
+    },
+    {
+      "path": "schemas/targeted_verification.schema.json",
+      "size_bytes": 2927,
+      "sha256": "69cee26d83cce31e635cea699af47516c033d65979127bd958811ad82fdbe069"
+    },
+    {
+      "path": "schemas/verification_plan.schema.json",
+      "size_bytes": 2461,
+      "sha256": "6cbf23f92963c24a955a7c9943775bfcc08c5e7944fc9e8ac21a3d68e73500cc"
+    }
+  ]
+}

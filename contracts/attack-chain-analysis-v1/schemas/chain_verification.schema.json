@@ -1,0 +1,338 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localsec.local/schemas/attack-chain-verification.schema.json",
+  "title": "Attack Chain Verification",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "analysis_id": {
+      "type": "string"
+    },
+    "chain_id": {
+      "type": "string"
+    },
+    "verification_id": {
+      "type": "string"
+    },
+    "chain_verdict": {
+      "type": "string",
+      "enum": [
+        "confirmed",
+        "code_supported",
+        "partially_confirmed",
+        "hypothesized",
+        "refuted",
+        "inconclusive"
+      ]
+    },
+    "execution_status": {
+      "type": "string",
+      "enum": [
+        "observed_in_authorized_test",
+        "partially_observed",
+        "request_plan_only",
+        "not_executed",
+        "execution_blocked",
+        "not_applicable"
+      ]
+    },
+    "step_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "step_id": {
+            "type": "string"
+          },
+          "reachability_status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "refuted",
+              "unknown"
+            ]
+          },
+          "control_behavior_status": {
+            "type": "string",
+            "enum": [
+              "as_expected",
+              "bypassed_or_missing",
+              "different_than_expected",
+              "unknown"
+            ]
+          },
+          "state_transition_status": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "code_supported",
+              "not_observed",
+              "contradicted",
+              "unknown"
+            ]
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "confirmed_by_source",
+              "confirmed_by_observation",
+              "partially_supported",
+              "hypothesis",
+              "refuted",
+              "blocked_by_environment",
+              "not_tested"
+            ]
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evidence_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "relation": {
+                  "type": "string",
+                  "enum": [
+                    "supports",
+                    "contradicts",
+                    "context",
+                    "derived_from"
+                  ]
+                },
+                "claim": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "evidence_id",
+                "relation",
+                "claim"
+              ]
+            }
+          },
+          "counterevidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evidence_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "relation": {
+                  "type": "string",
+                  "enum": [
+                    "supports",
+                    "contradicts",
+                    "context",
+                    "derived_from"
+                  ]
+                },
+                "claim": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "evidence_id",
+                "relation",
+                "claim"
+              ]
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "step_id",
+          "reachability_status",
+          "control_behavior_status",
+          "state_transition_status",
+          "result",
+          "evidence_refs",
+          "counterevidence_refs",
+          "notes"
+        ]
+      }
+    },
+    "edge_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "from_step_id": {
+            "type": "string"
+          },
+          "to_step_id": {
+            "type": "string"
+          },
+          "transition_claim": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed_by_source",
+              "confirmed_by_observation",
+              "partially_supported",
+              "hypothesis",
+              "refuted",
+              "not_tested"
+            ]
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evidence_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "relation": {
+                  "type": "string",
+                  "enum": [
+                    "supports",
+                    "contradicts",
+                    "context",
+                    "derived_from"
+                  ]
+                },
+                "claim": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "evidence_id",
+                "relation",
+                "claim"
+              ]
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_step_id",
+          "to_step_id",
+          "transition_claim",
+          "status",
+          "evidence_refs",
+          "notes"
+        ]
+      }
+    },
+    "final_effect": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "expected": {
+          "type": "string"
+        },
+        "observed": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "demonstrated",
+            "code_supported",
+            "not_demonstrated",
+            "refuted",
+            "unknown"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "evidence_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "relation": {
+                "type": "string",
+                "enum": [
+                  "supports",
+                  "contradicts",
+                  "context",
+                  "derived_from"
+                ]
+              },
+              "claim": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "evidence_id",
+              "relation",
+              "claim"
+            ]
+          }
+        }
+      },
+      "required": [
+        "expected",
+        "observed",
+        "status",
+        "evidence_refs"
+      ]
+    },
+    "contradictions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "unverified_dependencies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verdict_rationale": {
+      "type": "string"
+    },
+    "next_inquiry_ideas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "analysis_id",
+    "chain_id",
+    "verification_id",
+    "chain_verdict",
+    "execution_status",
+    "step_results",
+    "edge_results",
+    "final_effect",
+    "contradictions",
+    "unverified_dependencies",
+    "verdict_rationale",
+    "next_inquiry_ideas"
+  ]
+}

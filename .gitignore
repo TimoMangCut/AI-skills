@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.localsec/
+documents/
+documents_*/
+.env
+.env.*
+*.burp
+*.burp.*
+.DS_Store
+build/
+dist/

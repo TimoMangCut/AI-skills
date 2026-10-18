@@ -1,0 +1,114 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "project_name",
+    "input_root_label",
+    "artifacts",
+    "missing_inputs",
+    "context_limits"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": "string"
+    },
+    "input_root_label": {
+      "type": "string"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "artifact_id",
+          "repo_name",
+          "artifact_type",
+          "relative_path",
+          "sha256",
+          "load_status",
+          "authority_assessment",
+          "notes"
+        ],
+        "properties": {
+          "artifact_id": {
+            "type": "string"
+          },
+          "repo_name": {
+            "type": "string"
+          },
+          "artifact_type": {
+            "type": "string",
+            "enum": [
+              "repo_profile",
+              "techstack",
+              "api_inventory",
+              "auth_matrix",
+              "inbound_outbound",
+              "dataflow",
+              "threat_model",
+              "architecture_review",
+              "findings",
+              "evidence_index",
+              "coverage",
+              "analysis_status",
+              "cross_repo_review",
+              "cross_repo_evidence_audit",
+              "business_requirement",
+              "acceptance_criteria",
+              "api_or_event_contract",
+              "architecture_decision",
+              "test_specification",
+              "other"
+            ]
+          },
+          "relative_path": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "load_status": {
+            "type": "string",
+            "enum": [
+              "loaded",
+              "missing",
+              "unreadable",
+              "omitted_by_budget"
+            ]
+          },
+          "authority_assessment": {
+            "type": "string",
+            "enum": [
+              "authoritative_in_input",
+              "supporting_only",
+              "unclear",
+              "contradictory",
+              "not_provided"
+            ]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "missing_inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "context_limits": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

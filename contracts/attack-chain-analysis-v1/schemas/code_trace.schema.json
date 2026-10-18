@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://localsec.local/schemas/manual-code-trace.schema.json",
+  "title": "Manual Code Trace",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "trace_id": {
+      "type": "string"
+    },
+    "analysis_id": {
+      "type": "string"
+    },
+    "chain_id": {
+      "type": "string"
+    },
+    "step_id": {
+      "type": "string"
+    },
+    "repo_name": {
+      "type": "string"
+    },
+    "service_name": {
+      "type": "string"
+    },
+    "trace_question": {
+      "type": "string"
+    },
+    "hops": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "hop_id": {
+            "type": "string"
+          },
+          "relative_file_path": {
+            "type": "string"
+          },
+          "line_start": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "line_end": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "symbol_or_locator": {
+            "type": "string"
+          },
+          "caller_or_entry": {
+            "type": "string"
+          },
+          "callee_or_next_hop": {
+            "type": "string"
+          },
+          "input_or_context": {
+            "type": "string"
+          },
+          "observed_logic": {
+            "type": "string"
+          },
+          "control_and_branch": {
+            "type": "string"
+          },
+          "state_or_data_effect": {
+            "type": "string"
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evidence_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "relation": {
+                  "type": "string",
+                  "enum": [
+                    "supports",
+                    "contradicts",
+                    "context",
+                    "derived_from"
+                  ]
+                },
+                "claim": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "evidence_id",
+                "relation",
+                "claim"
+              ]
+            }
+          },
+          "alternate_path_or_guard": {
+            "type": "string"
+          },
+          "verification_status": {
+            "type": "string",
+            "enum": [
+              "directly_read",
+              "partially_read",
+              "inferred_from_context",
+              "unread",
+              "counterevidence_found"
+            ]
+          }
+        },
+        "required": [
+          "hop_id",
+          "relative_file_path",
+          "line_start",
+          "line_end",
+          "symbol_or_locator",
+          "caller_or_entry",
+          "callee_or_next_hop",
+          "input_or_context",
+          "observed_logic",
+          "control_and_branch",
+          "state_or_data_effect",
+          "evidence_refs",
+          "alternate_path_or_guard",
+          "verification_status"
+        ]
+      }
+    },
+    "trace_conclusion": {
+      "type": "string"
+    },
+    "missing_hops": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "counterevidence_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "evidence_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "supports",
+              "contradicts",
+              "context",
+              "derived_from"
+            ]
+          },
+          "claim": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "evidence_id",
+          "relation",
+          "claim"
+        ]
+      }
+    },
+    "created_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "trace_id",
+    "analysis_id",
+    "chain_id",
+    "step_id",
+    "repo_name",
+    "service_name",
+    "trace_question",
+    "hops",
+    "trace_conclusion",
+    "missing_hops",
+    "counterevidence_refs"
+  ]
+}

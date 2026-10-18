@@ -1,0 +1,104 @@
+{
+  "schema_version": "1.0.0",
+  "analysis_id": "demo-analysis-001",
+  "chain_id": "AC-DEMO-001",
+  "request_sequence_id": "RS-DEMO-001",
+  "execution_status": "plan_only",
+  "target_profile": {
+    "profile_id": "local-demo",
+    "environment_type": "local",
+    "base_url_placeholder": "${LOCAL_TEST_BASE_URL}",
+    "authorization_basis": "Operator-owned isolated demo application",
+    "approved_scope": [
+      "/api/test-objects/*"
+    ],
+    "synthetic_data_only": true
+  },
+  "objective": "Determine whether object-level ownership is enforced for a synthetic object belonging to another synthetic user",
+  "safety_notes": [
+    "This is a fictional plan; do not run against production or an unapproved host",
+    "Use synthetic users and records",
+    "Do not infer a vulnerability from an HTTP status code alone"
+  ],
+  "requests": [
+    {
+      "request_id": "REQ-DEMO-1",
+      "sequence_number": 1,
+      "purpose": "Negative control: read an object owned by the authenticated caller",
+      "preconditions": [],
+      "method": "GET",
+      "path_template": "${LOCAL_TEST_BASE_URL}/api/test-objects/${OBJECT_A_OWNED_BY_USER_A}",
+      "headers_template": {
+        "Authorization": "Bearer ${TOKEN_USER_A}",
+        "Accept": "application/json"
+      },
+      "body_template": null,
+      "identity_or_role": "Synthetic user A / basic-user",
+      "object_or_tenant_context": "Object A belongs to user A",
+      "expected_secure_behavior": "Return the permitted object's data",
+      "expected_vulnerable_behavior": "Not applicable; control request should establish baseline",
+      "observables": [
+        "Response body object ID and owner",
+        "Application audit event if available"
+      ],
+      "state_change_risk": "none_expected",
+      "operator_approval_required": false,
+      "executed": false,
+      "response_summary_redacted": "",
+      "observed_effect": "",
+      "cleanup_or_reset": "No mutation expected",
+      "evidence_refs": [],
+      "linked_chain_step_ids": [
+        "S1"
+      ]
+    },
+    {
+      "request_id": "REQ-DEMO-2",
+      "sequence_number": 2,
+      "purpose": "Cross-owner negative test: attempt to read an object owned by user B while authenticated as user A",
+      "preconditions": [
+        {
+          "condition_id": "PRE-1",
+          "condition": "Object B belongs to synthetic user B",
+          "kind": "data_state",
+          "status": "assumed",
+          "evidence_refs": [],
+          "notes": "Confirm fixture ownership before running"
+        }
+      ],
+      "method": "GET",
+      "path_template": "${LOCAL_TEST_BASE_URL}/api/test-objects/${OBJECT_B_OWNED_BY_USER_B}",
+      "headers_template": {
+        "Authorization": "Bearer ${TOKEN_USER_A}",
+        "Accept": "application/json"
+      },
+      "body_template": null,
+      "identity_or_role": "Synthetic user A / basic-user",
+      "object_or_tenant_context": "Requested object belongs to user B, not user A",
+      "expected_secure_behavior": "Deny access or return a non-disclosing not-found response according to the documented API contract",
+      "expected_vulnerable_behavior": "Return sensitive object data belonging to user B without an authorized share/ownership relationship",
+      "observables": [
+        "Response data contains object B fields",
+        "Compare response with fixture truth",
+        "Application authorization/audit log",
+        "Downstream state remains unchanged"
+      ],
+      "state_change_risk": "none_expected",
+      "operator_approval_required": false,
+      "executed": false,
+      "response_summary_redacted": "",
+      "observed_effect": "",
+      "cleanup_or_reset": "No mutation expected",
+      "evidence_refs": [],
+      "linked_chain_step_ids": [
+        "S1"
+      ]
+    }
+  ],
+  "sequence_conclusion": "Plan only; no request has been sent. Execution and source trace are required before any verdict.",
+  "unexecuted_requests": [
+    "REQ-DEMO-1",
+    "REQ-DEMO-2"
+  ],
+  "created_at": "2026-10-17T00:00:00Z"
+}
