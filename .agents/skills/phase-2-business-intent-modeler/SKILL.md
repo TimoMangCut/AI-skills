@@ -16,6 +16,7 @@ Nguyên tắc tối thượng: Code hiện tại KHÔNG phải là ý định th
 ## Trách nhiệm & Cổng Kiểm định (Epistemic & Provenance Gates)
 - Mô hình hóa `capabilities[]`, `invariants[]` (Maker-Checker, phân quyền, chuyển trạng thái, toàn vẹn dữ liệu), `workflows[]`, và `conflicts_and_unknowns[]`.
 - **Cổng Chống Nhiễm Bẩn Nguồn Gốc (`provenance_kind`)**: Runtime tự động gắn nhãn mỗi `ev_...` thành `intent_artifact` (`.md`/`.docx`/`.xlsx`/`.sql`/spec/test), `config_or_manifest` hoặc `implementation_code`. Không được gán `authority_assessment: "authoritative_in_input"` nếu `intent_basis == "implementation_inference"` hoặc nếu toàn bộ `evidence_ids` đều thuộc loại `implementation_code`.
+- Prompt & Contract gốc: `AI-skills/contracts/business-aware-security-verification-v1/prompts/business_intent_modeler.md` (Registry: `AI-skills/contracts/business-aware-security-verification-v1/registry.json`).
 - Schema đích: `AI-skills/contracts/business-aware-security-verification-v1/schemas/business_intent_model.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

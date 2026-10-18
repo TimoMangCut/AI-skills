@@ -1,6 +1,18 @@
 ---
 name: phase-2-orchestrator
 description: Master Orchestrator duy nhất cần gọi để chạy trọn bộ Phase 2 (Business-Aware Security Verification v1.0 — 9 bước bắt buộc) trên toàn bộ repositories của dự án.
+
+## Bản Đồ Đường Dẫn Nội Bộ (Internal Resource Mapping tại `AI-skills/`)
+> **LƯU Ý QUAN TRỌNG CHO AI AGENT**: Khi bộ kỹ năng được tích hợp vào một Project mục tiêu (`<Project-Root>`), toàn bộ mã nguồn Engine, Prompts và JSON Schemas nằm gọn bên trong thư mục `AI-skills/` (không nằm rời rạc ở gốc Project). Hãy truy cập trực tiếp các đường dẫn chuẩn hóa sau:
+- **Engine CLI**: `AI-skills/localsec/manual_session.py` (gọi qua `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session ...`)
+- **Cấu hình Runtime**: `AI-skills/localsec.toml` (hoặc `<Project-Root>/localsec.toml` nếu muốn ghi đè)
+- **Skill Registry**: `AI-skills/contracts/business-aware-security-verification-v1/registry.json`
+- **Thư mục Prompts gốc**: `AI-skills/contracts/business-aware-security-verification-v1/prompts/`
+- **Thư mục JSON Schemas**: `AI-skills/contracts/business-aware-security-verification-v1/schemas/`
+- **Quy ước `<repo_name>`**:
+  - **Multi-repo Workspace** (nhiều repo con nằm trong `<Project-Root>`): truyền tên thư mục con (ví dụ: `auth-service`, `payment-api`).
+  - **Single-repo Project** (`<Project-Root>` chính là repo cần review): truyền `.` hoặc tên thư mục gốc của project; Engine tự động bỏ qua `AI-skills/`, `.agents/`, `.localsec/`, `documents/`.
+
 ---
 
 # `phase-2-orchestrator` — Master Orchestrator cho Phase 2 (Business-Aware Security Verification)
@@ -26,8 +38,10 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session phase_status <repo_nam
    - Đọc tài liệu BRD/BRS/Specs/SQL (hỗ trợ đọc liên repo `<other_repo>:<rel_path>` và file `.xlsx`/`.docx`) bằng `--skill business_intent_modeler`.
    - **Cổng Chống Nhiễm Bẩn Nguồn Gốc (Provenance Contamination Gate)**: Mỗi `ev_...` được runtime gắn nhãn `provenance_kind` (`intent_artifact` vs `config_or_manifest` vs `implementation_code`). Tuyệt đối không gán `authoritative_in_input` cho `implementation_inference`, và không được gán `authoritative_in_input` (`explicit_requirement`) nếu toàn bộ `evidence_ids` đều thuộc loại `implementation_code`.
    - Nộp: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> business_intent_modeler <json_file>`
-2. **Bước 2.2 — `business_invariant_challenger` (Context-Blinded)**:
-   - Phản biện các bất biến nghiệp vụ trong chế độ mù ngữ cảnh (không nhìn kết quả lỗ hổng của Phase 1).
+2. **Bước 2.2 — `business_invariant_challenger` (Context-Blinded)** (Tham chiếu `.agents/skills/phase-2-business-invariant-challenger/SKILL.md`):
+   - Lấy ngữ cảnh đã làm mù (tự động loại bỏ Threat Model & Findings của Phase 1):
+     `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_challenger <repo_name>`
+   - Phản biện các bất biến nghiệp vụ trong chế độ mù ngữ cảnh.
    - Nộp: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> business_invariant_challenger <json_file>`
 3. **Bước 2.3 — `implementation_trace_verifier`** (Tham chiếu `.agents/skills/phase-2-implementation-trace-verifier/SKILL.md`):
    - Đọc mã nguồn thực thi (`--skill implementation_trace_verifier`) qua Controller, Service, DB, HTTP/gRPC Client liên dịch vụ.
@@ -39,7 +53,9 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session phase_status <repo_nam
 5. **Bước 2.5 — `verification_planner`** (Tham chiếu `.agents/skills/phase-2-verification-planner/SKILL.md`):
    - Đặt câu hỏi kiểm chứng trung lập (không dẫn dắt) kèm danh sách `candidate_paths` cụ thể.
    - Nộp: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> verification_planner <json_file>`
-6. **Bước 2.6 — `targeted_verifier` (Context-Blinded & Path-Bound)**:
+6. **Bước 2.6 — `targeted_verifier` (Context-Blinded & Path-Bound)** (Tham chiếu `.agents/skills/phase-2-targeted-verifier/SKILL.md`):
+   - Lấy danh sách task đã làm mù (tự động loại bỏ `comparison_result`, `security_impact`, `exploitability`):
+     `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_targeted_verifier <repo_name>`
    - Chỉ đọc các file trong `--allowed-paths` để tìm cả bằng chứng ủng hộ (`evidence_ids`) lẫn bằng chứng bác bỏ (`counter_evidence_ids`).
    - Nộp: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> targeted_verifier <json_file>`
 7. **Bước 2.7 — `security_consequence_mapper`** (Tham chiếu `.agents/skills/phase-2-security-consequence-mapper/SKILL.md`):
@@ -52,3 +68,14 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session phase_status <repo_nam
 9. **Bước 2.9 — `business_aware_synthesizer` & Khóa sổ (`finalize_basv_repo`)**:
    - Nộp tổng hợp: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> business_aware_synthesizer <json_file>`
    - Khóa sổ và xuất `./documents/<repo_name>/basv/`: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_basv_repo <repo_name>`
+
+---
+
+## Bước Tổng hợp Toàn Hệ thống (System-Level BASV Synthesis)
+
+Sau khi tất cả repositories đã chạy xong `finalize_basv_repo`:
+1. Xuất trọn bộ báo cáo BASV cấp hệ thống vào `./documents/_system/basv/` (gồm Ma trận Liên kết Dịch vụ, Đồ thị Mâu thuẫn 5 Trục, và Báo cáo Tổng hợp BASV Toàn Hệ thống):
+   ```bash
+   PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_basv_system
+   ```
+   *(Tùy chọn truyền thêm `--synthesis <json_file> --sys-audit <json_file> --interconnections <json_file>` nếu có bản tổng hợp/kiểm toán cấp hệ thống riêng).*

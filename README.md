@@ -39,10 +39,12 @@ Khi bạn cần áp dụng bộ Skills này vào một dự án thực tế (`<P
 
 ### Tại sao thiết kế theo cấu trúc này?
 1. **Không làm bẩn `<Project-Root>`**: Bạn không phải rải `localsec/`, `schemas/`, `contracts/`, `skills/`, `tests/`, `localsec.toml` ra ngoài thư mục gốc của dự án.
-2. **Đường dẫn trong 28 file `SKILL.md` đã được chuẩn hóa sang `AI-skills/...`**:
-   - Mọi liên kết Schema/Contract trong `.agents/skills/*/SKILL.md` đều chỉ thẳng vào `AI-skills/schemas/...` và `AI-skills/contracts/...`. AI đọc `SKILL.md` sẽ tìm đúng trong thư mục `AI-skills/` ngay trước mặt nó.
+2. **Đường dẫn trong 28 file `SKILL.md` đã được chuẩn hóa 100% sang `AI-skills/...`**:
+   - Mọi liên kết Prompt, Registry, Schema và Contract trong `.agents/skills/*/SKILL.md` đều chỉ thẳng vào `AI-skills/skills/...`, `AI-skills/schemas/...` và `AI-skills/contracts/...`. AI đọc `SKILL.md` sẽ tìm đúng trong thư mục `AI-skills/` ngay trước mặt nó.
    - Mọi lệnh CLI trong `SKILL.md` đều dùng `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session ...`.
-   - Bản thân `AI-skills/localsec/manual_session.py` tự động nhận biết nó đang nằm trong `<Project-Root>/AI-skills/` để đọc các `<service-repo>` ở ngoài `<Project-Root>/` và ghi báo cáo ra `<Project-Root>/documents/`.
+   - **Tự động hỗ trợ cả Multi-Repo Workspace và Single-Repo Project**:
+     - Nếu `<Project-Root>` chứa nhiều thư mục repo con (`service-a/`, `service-b/`): truyền `<repo_name>` là tên thư mục con.
+     - Nếu `<Project-Root>` chính là một repo đơn lẻ: truyền `<repo_name>` là `.` (hoặc tên thư mục gốc `<Project-Root>`); Engine tự động loại trừ `AI-skills/`, `.agents/`, `.localsec/`, `documents/` khỏi phạm vi quét.
 
 ---
 
@@ -54,11 +56,11 @@ Khi bạn cần áp dụng bộ Skills này vào một dự án thực tế (`<P
 # 1. Clone bộ AI-skills vào trong <Project-Root>
 git clone https://github.com/TimoMangCut/AI-skills.git
 
-# 2. Chạy script cài đặt (tự động copy .agents/, AGENTS.md, SOUL.md ra ngoài <Project-Root> và chạy test)
+# 2. Chạy script cài đặt (tự động đồng bộ .agents/, AGENTS.md, SOUL.md ra ngoài <Project-Root> và chạy test)
 sh AI-skills/setup.sh
 ```
 
-*(Hoặc nếu muốn copy thủ công không qua script: `cp -R AI-skills/.agents AI-skills/AGENTS.md AI-skills/SOUL.md .`)*
+*(Hoặc nếu muốn copy thủ công không qua script: `rm -rf .agents && cp -R AI-skills/.agents AI-skills/AGENTS.md AI-skills/SOUL.md .`)*
 
 ---
 

@@ -15,6 +15,7 @@ Kiểm tra критически tại mỗi ranh giới tin cậy (Trust Boundar
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Xác định `flows[]` (`direction`, `source`, `destination`, `protocol`, `data_types`, `trust_boundary`, `identity_context`, `controls`) và `trust_boundaries[]`.
+- Prompt & Contract gốc: `AI-skills/skills/prompts/dataflow.md` (Registry: `AI-skills/skills/registry.json`).
 - Schema đích: `AI-skills/schemas/dataflow.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

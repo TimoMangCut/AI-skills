@@ -15,6 +15,7 @@ Phase 3.4 — Xác minh độc lập từng mắt xích (`step_results`) và t�
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Được phép đọc mã nguồn độc lập (`list_dir`, `read_file`) để xác nhận hoặc bác bỏ từng bước/cạnh.
+- Prompt & Contract gốc: `AI-skills/contracts/attack-chain-analysis-v1/prompts/chain_step_verifier.md` (Registry: `AI-skills/contracts/attack-chain-analysis-v1/registry.json`).
 - Schema đích: `AI-skills/contracts/attack-chain-analysis-v1/schemas/chain_verification.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

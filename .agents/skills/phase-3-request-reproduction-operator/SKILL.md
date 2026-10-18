@@ -15,6 +15,7 @@ Nếu không có môi trường local/test được phê duyệt tường minh (
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Thực thi qua adapter an toàn `execute_constrained_local_request()`.
+- Prompt & Contract gốc: `AI-skills/contracts/attack-chain-analysis-v1/prompts/request_reproduction_operator.md` (Registry: `AI-skills/contracts/attack-chain-analysis-v1/registry.json`).
 - Schema đích: `AI-skills/contracts/attack-chain-analysis-v1/schemas/request_reproduction.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

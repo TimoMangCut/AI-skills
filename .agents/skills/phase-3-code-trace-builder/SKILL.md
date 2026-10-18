@@ -15,6 +15,7 @@ Không nhảy cóc qua các lớp trung gian: mỗi hop đánh dấu `directly_r
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Được phép gọi `list_dir` và `read_file` trên toàn bộ repositories (`<repo_name>:<rel_path>`).
+- Prompt & Contract gốc: `AI-skills/contracts/attack-chain-analysis-v1/prompts/code_trace_builder.md` (Registry: `AI-skills/contracts/attack-chain-analysis-v1/registry.json`).
 - Schema đích: `AI-skills/contracts/attack-chain-analysis-v1/schemas/code_trace.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

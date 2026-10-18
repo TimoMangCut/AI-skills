@@ -15,6 +15,7 @@ Tự phản biện: một cơ chế phòng thủ có trong thư viện dùng chu
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Ghi nhận các nhận định kiến trúc (`observations[]`) và điểm mạnh có bằng chứng (`strengths[]`).
+- Prompt & Contract gốc: `AI-skills/skills/prompts/architecture_review.md` (Registry: `AI-skills/skills/registry.json`).
 - Schema đích: `AI-skills/schemas/architecture_review.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

@@ -15,6 +15,7 @@ Không liệt kê lý thuyết chung chung: mỗi kịch bản đe dọa phải 
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Ánh xạ các mối đe dọa thực tế (`threats[]`) gắn với `existing_controls`, `control_gaps`, `validation_needed`, và ưu tiên theo ngữ cảnh nghiệp vụ.
+- Prompt & Contract gốc: `AI-skills/skills/prompts/threat_model.md` (Registry: `AI-skills/skills/registry.json`).
 - Schema đích: `AI-skills/schemas/threat_model.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

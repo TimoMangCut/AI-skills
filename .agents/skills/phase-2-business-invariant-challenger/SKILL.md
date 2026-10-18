@@ -15,9 +15,11 @@ Phase 2.2 — Phản biện đối kháng mô hình ý định nghiệp vụ tro
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Nhận ngữ cảnh đã làm mù từ `build_blinded_challenger_context()` và sinh các `challenge_cases[]` cùng `coverage_gaps[]`.
+- Prompt & Contract gốc: `AI-skills/contracts/business-aware-security-verification-v1/prompts/business_invariant_challenger.md` (Registry: `AI-skills/contracts/business-aware-security-verification-v1/registry.json`).
 - Schema đích: `AI-skills/contracts/business-aware-security-verification-v1/schemas/business_invariant_challenge.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_challenger <repo_name>
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> business_invariant_challenger <json_file>
 ```

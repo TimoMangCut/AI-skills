@@ -15,6 +15,7 @@ Phân tầng trung thực giữa chuỗi đã xác nhận động (`confirmed`),
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Xuất báo cáo tổng hợp `./documents/_analysis/07_attack_chain_analysis.md`, `09_unknowns_and_counterevidence.md`, `99_project_chain_report.md` và các thư mục `./documents/_analysis/chains/<chain_id>/`.
+- Prompt & Contract gốc: `AI-skills/contracts/attack-chain-analysis-v1/prompts/chain_synthesizer.md` (Registry: `AI-skills/contracts/attack-chain-analysis-v1/registry.json`).
 - Schema đích: `AI-skills/contracts/attack-chain-analysis-v1/schemas/chain_synthesis_report.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

@@ -15,6 +15,7 @@ Tập trung tìm sự bất đối xứng tin cậy: nơi Service A giả địn
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Tổng hợp `system_architecture`, `shared_trust_patterns`, `cross_repo_flows`, `cross_repo_findings`, và `priority_remediations`.
+- Prompt & Contract gốc: `AI-skills/skills/prompts/cross_repo_review.md` (Registry: `AI-skills/skills/registry.json`).
 - Schema đích: `AI-skills/schemas/cross_repo_review.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

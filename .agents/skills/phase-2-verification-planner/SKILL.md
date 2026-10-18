@@ -15,6 +15,7 @@ Tuyệt đối không cài kết luận mỏ neo vào câu hỏi: hãy hỏi 'H�
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Xác định `candidate_paths`, `expected_evidence`, `acceptance_criteria`, và `stop_if` cho mỗi nhiệm vụ kiểm chứng.
+- Prompt & Contract gốc: `AI-skills/contracts/business-aware-security-verification-v1/prompts/verification_planner.md` (Registry: `AI-skills/contracts/business-aware-security-verification-v1/registry.json`).
 - Schema đích: `AI-skills/contracts/business-aware-security-verification-v1/schemas/verification_plan.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

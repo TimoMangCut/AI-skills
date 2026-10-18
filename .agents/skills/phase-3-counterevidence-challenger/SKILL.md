@@ -15,6 +15,7 @@ Nếu phát hiện chốt chặn làm gãy một mắt xích, hãy hạ cấp k�
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Nhận ngữ cảnh làm mù từ `prepare_blinded_chain_verifier` và được phép đọc source code để tìm phản chứng (`counterevidence_refs`).
+- Prompt & Contract gốc: `AI-skills/contracts/attack-chain-analysis-v1/prompts/counterevidence_challenger.md` (Registry: `AI-skills/contracts/attack-chain-analysis-v1/registry.json`).
 - Schema đích: `AI-skills/contracts/attack-chain-analysis-v1/schemas/counterevidence_challenge.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

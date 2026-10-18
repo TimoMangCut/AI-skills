@@ -15,6 +15,7 @@ Mọi kết nối liên dịch vụ chưa xác minh đủ cả hai đầu phải
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Xuất `repo_diagrams[]` và `system_diagram` đúng cú pháp `flowchart LR` / `flowchart TD`.
+- Prompt & Contract gốc: `AI-skills/skills/prompts/diagram_author.md` (Registry: `AI-skills/skills/registry.json`).
 - Schema đích: `AI-skills/schemas/diagrams.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

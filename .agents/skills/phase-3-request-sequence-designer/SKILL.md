@@ -15,6 +15,7 @@ Mỗi bước request phải định nghĩa rõ tiêu chí phân biệt: phản 
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Mặc định `execution_status: "plan_only"` và `executed: false` đối với mọi request chưa thực thi.
+- Prompt & Contract gốc: `AI-skills/contracts/attack-chain-analysis-v1/prompts/request_sequence_designer.md` (Registry: `AI-skills/contracts/attack-chain-analysis-v1/registry.json`).
 - Schema đích: `AI-skills/contracts/attack-chain-analysis-v1/schemas/request_reproduction.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

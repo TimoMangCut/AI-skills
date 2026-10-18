@@ -15,6 +15,7 @@ Kiểm tra đủ 5 chiều: xác thực/phân quyền, kiểm tra đầu vào, r
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Tạo danh sách `traces[]` với từng bước `execution_steps[]` có gắn `evidence_ids` và `counter_evidence_ids`.
+- Prompt & Contract gốc: `AI-skills/contracts/business-aware-security-verification-v1/prompts/implementation_trace_verifier.md` (Registry: `AI-skills/contracts/business-aware-security-verification-v1/registry.json`).
 - Schema đích: `AI-skills/contracts/business-aware-security-verification-v1/schemas/implementation_trace.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

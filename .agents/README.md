@@ -130,6 +130,7 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session list_evidence <repo_na
 
 # 6. Tạo gói ngữ cảnh làm mù (Context-Blinding) cho Phase 2 & Phase 3
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_challenger <repo_name>
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_targeted_verifier <repo_name>
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_chain_verifier _analysis
 
 # 7. Nộp và kiểm định JSON đầu ra của một skill (Schema + Evidence IDs + Epistemic Gates)
@@ -160,13 +161,13 @@ Khi bắt đầu kiểm toán bảo mật cho một dự án mới (`<Project-Ro
    git clone https://github.com/TimoMangCut/AI-skills.git
    sh AI-skills/setup.sh
    ```
-   *(Hoặc chạy thủ công: `cp -R AI-skills/.agents AI-skills/AGENTS.md AI-skills/SOUL.md .`)*
+   *(Hoặc chạy thủ công: `rm -rf .agents && cp -R AI-skills/.agents AI-skills/AGENTS.md AI-skills/SOUL.md .`)*
    - Khi đó, `.agents/` và `AGENTS.md` nằm ở `<Project-Root>` để Antigravity nhận diện 28 lệnh `/phase-*` và rule `Refute-first`.
    - Toàn bộ bộ máy `localsec/`, `schemas/`, `contracts/`, `skills/`, `localsec.toml` vẫn nằm gọn trong `<Project-Root>/AI-skills/` và được các `SKILL.md` ánh xạ trực tiếp qua đường dẫn `AI-skills/...` cùng `PYTHONPATH=AI-skills:.`.
 2. **Kiểm tra bộ cổng kiểm định (Unit Tests)**:
    ```bash
    PYTHONPATH=AI-skills:. python3 -m unittest discover -s AI-skills/tests
    ```
-   Đảm bảo toàn bộ **28/28 tests** đều `OK`.
+   Đảm bảo toàn bộ unit tests đều `OK`.
 3. **Khởi chạy tuần tự**:
    Mở `<Project-Root>` trong Antigravity IDE và gọi lần lượt `/phase-1-orchestrator` $\rightarrow$ `/phase-2-orchestrator` $\rightarrow$ `/phase-3-orchestrator` theo đúng các mẫu Prompt ở **Mục 2**.

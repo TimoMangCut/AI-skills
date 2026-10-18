@@ -15,6 +15,7 @@ Phase 1.1 — Khảo sát thủ công mục đích nghiệp vụ, mức độ tr
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Đọc manifest, `Program.cs`/`main.go`/`package.json`/`pubspec.yaml`, Dockerfile, cấu hình môi trường để xác định `purpose`, `criticality`, `techstack`, `business_capabilities`, `entrypoints`, `sensitive_data`.
+- Prompt & Contract gốc: `AI-skills/skills/prompts/repo_profile.md` (Registry: `AI-skills/skills/registry.json`).
 - Schema đích: `AI-skills/schemas/repo_profile.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

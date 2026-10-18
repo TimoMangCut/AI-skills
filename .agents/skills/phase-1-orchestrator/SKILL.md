@@ -1,6 +1,18 @@
 ---
 name: phase-1-orchestrator
 description: Master Orchestrator duy nhất cần gọi để chạy trọn bộ Phase 1 (Manual Code Reconnaissance v0.2 — 8 bước bắt buộc) trên toàn bộ repositories của dự án.
+
+## Bản Đồ Đường Dẫn Nội Bộ (Internal Resource Mapping tại `AI-skills/`)
+> **LƯU Ý QUAN TRỌNG CHO AI AGENT**: Khi bộ kỹ năng được tích hợp vào một Project mục tiêu (`<Project-Root>`), toàn bộ mã nguồn Engine, Prompts và JSON Schemas nằm gọn bên trong thư mục `AI-skills/` (không nằm rời rạc ở gốc Project). Hãy truy cập trực tiếp các đường dẫn chuẩn hóa sau:
+- **Engine CLI**: `AI-skills/localsec/manual_session.py` (gọi qua `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session ...`)
+- **Cấu hình Runtime**: `AI-skills/localsec.toml` (hoặc `<Project-Root>/localsec.toml` nếu muốn ghi đè)
+- **Skill Registry**: `AI-skills/skills/registry.json`
+- **Thư mục Prompts gốc**: `AI-skills/skills/prompts/`
+- **Thư mục JSON Schemas**: `AI-skills/schemas/`
+- **Quy ước `<repo_name>`**:
+  - **Multi-repo Workspace** (nhiều repo con nằm trong `<Project-Root>`): truyền tên thư mục con (ví dụ: `auth-service`, `payment-api`).
+  - **Single-repo Project** (`<Project-Root>` chính là repo cần review): truyền `.` hoặc tên thư mục gốc của project; Engine tự động bỏ qua `AI-skills/`, `.agents/`, `.localsec/`, `documents/`.
+
 ---
 
 # `phase-1-orchestrator` — Master Orchestrator cho Phase 1 (Manual Code Reconnaissance)

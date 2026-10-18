@@ -16,6 +16,7 @@ Không chấp nhận suy diễn hợp lý bề ngoài: nếu trích đoạn ev_.
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Không có quyền đọc thêm file (`read_scope: none`); chỉ kiểm toán dựa trên bằng chứng đã thu thập.
 - **Semantic Claim-to-Excerpt Verifier Gate**: Bắt buộc chạy `verify_semantic_claims <repo_name>` để đối chiếu tự động các ký hiệu mã nguồn (ví dụ: `TokenValidationParameters.SignatureValidator`, `SecurityAlgorithms.None`, `JwtClearToken`, tên hàm/thuộc tính) được nêu trong claim với nội dung thực tế trong `excerpt` của `ev_...`. Mọi trường hợp LLM gắn `evidence_id` thật nhưng nội dung `excerpt` không chứa ký hiệu được tuyên bố hoặc mâu thuẫn ngữ nghĩa sẽ bị cổng kiểm định tự động ép về `verdict: "unsupported"` (hạ cấp fail-closed về `unknown`).
+- Prompt & Contract gốc: `AI-skills/skills/prompts/evidence_auditor.md` (Registry: `AI-skills/skills/registry.json`).
 - Schema đích: `AI-skills/schemas/evidence_audit.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

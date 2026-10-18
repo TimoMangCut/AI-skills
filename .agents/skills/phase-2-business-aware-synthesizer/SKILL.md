@@ -15,6 +15,7 @@ Không một sai lệch nào được đưa vào nhóm Confirmed nếu chưa vư
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Xuất báo cáo `./documents/<repo_name>/basv/18_business_aware_synthesis.md` và cấp hệ thống `./documents/_system/basv/`.
+- Prompt & Contract gốc: `AI-skills/contracts/business-aware-security-verification-v1/prompts/business_aware_synthesizer.md` (Registry: `AI-skills/contracts/business-aware-security-verification-v1/registry.json`).
 - Schema đích: `AI-skills/contracts/business-aware-security-verification-v1/schemas/business_aware_synthesis.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

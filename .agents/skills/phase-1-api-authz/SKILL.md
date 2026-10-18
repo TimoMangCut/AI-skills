@@ -15,6 +15,7 @@ Bác bỏ giả định 'chắc middleware hoặc gateway đã chặn': nếu kh
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Truy vết route definitions, controllers/handlers, JWT/session middleware, Casbin/policy guards, và kiểm tra `object_level_authz`.
+- Prompt & Contract gốc: `AI-skills/skills/prompts/api_authz.md` (Registry: `AI-skills/skills/registry.json`).
 - Schema đích: `AI-skills/schemas/api_authz.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)

@@ -351,6 +351,167 @@ class TestBASVPipeline(unittest.TestCase):
         self.assertEqual(comp0["status"], "unknown")
         self.assertEqual(comp0["comparison_result"], "not_verified")
 
+    def test_all_agent_skills_paths_and_cli_subcommands_are_valid(self) -> None:
+        import re
+        from localsec import manual_session
+
+        toolkit_root = manual_session._toolkit_root()
+        agents_dir = toolkit_root / ".agents"
+        md_files = [agents_dir / "README.md"] + sorted((agents_dir / "skills").glob("*/SKILL.md"))
+        self.assertEqual(len(md_files), 29)
+
+        ms_source = Path(manual_session.__file__).read_text(encoding="utf-8")
+        registered_subcmds = set(re.findall(r'sub\.add_parser\("([a-z0-9_]+)"', ms_source))
+
+        for md_file in md_files:
+            text = md_file.read_text(encoding="utf-8")
+            # 1. Every concrete `AI-skills/<path>` reference must exist inside toolkit_root
+            for match in re.findall(r"`(AI-skills/[A-Za-z0-9_./-]+)`", text):
+                rel = match.removeprefix("AI-skills/").rstrip("/")
+                if not rel or "..." in rel:
+                    continue
+                target = toolkit_root / rel
+                self.assertTrue(
+                    target.exists(),
+                    f"Broken path reference '{match}' in {md_file.relative_to(toolkit_root)} -> {target} does not exist",
+                )
+            # 2. Every `python3 -m localsec.manual_session <subcmd>` must be a registered CLI subparser
+            for subcmd in re.findall(r"python3 -m localsec\.manual_session\s+([a-z0-9_]+)", text):
+                self.assertIn(
+                    subcmd,
+                    registered_subcmds,
+                    f"Unregistered CLI subcommand '{subcmd}' referenced in {md_file.relative_to(toolkit_root)}",
+                )
+
+    def test_manual_session_blinded_commands_and_allowed_paths(self) -> None:
+        import io
+        import json
+        import os
+        from contextlib import redirect_stdout
+        from localsec import manual_session
+
+        with tempfile.TemporaryDirectory() as tmp:
+            proj_root = Path(tmp)
+            (proj_root / ".agents").mkdir()
+            svc = proj_root / "sample-svc"
+            svc.mkdir()
+            (svc / "Handler.cs").write_text("public class Handler {}\n", encoding="utf-8")
+            (svc / "Other.cs").write_text("public class Other {}\n", encoding="utf-8")
+
+            run_dir = proj_root / ".localsec" / "runs" / manual_session.DEFAULT_RUN_ID / "sample-svc"
+            run_dir.mkdir(parents=True)
+            (run_dir / "business_intent_modeler.json").write_text(
+                json.dumps(
+                    {
+                        "status": "ok",
+                        "result": {
+                            "business_invariants": [
+                                {"id": "INV-1", "expected_behavior": "Must verify caller ownership"}
+                            ]
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (run_dir / "repo_profile.json").write_text(
+                json.dumps({"status": "ok", "result": {"threats": ["STRIP_ME"], "summary": "ok"}}),
+                encoding="utf-8",
+            )
+            (run_dir / "verification_planner.json").write_text(
+                json.dumps(
+                    {
+                        "status": "ok",
+                        "result": {
+                            "verification_tasks": [
+                                {
+                                    "task_id": "TV-01",
+                                    "repo_name": "sample-svc",
+                                    "related_invariant_id": "INV-1",
+                                    "question": "Does Handler check ownership?",
+                                    "candidate_paths": ["Handler.cs", "Other.cs"],
+                                    "comparison_result": "mismatch",
+                                    "security_impact": "critical",
+                                }
+                            ]
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            aca_dir = proj_root / ".localsec" / "runs" / manual_session.DEFAULT_RUN_ID / "_analysis"
+            aca_dir.mkdir(parents=True)
+            (aca_dir / "attack_chain_constructor.json").write_text(
+                json.dumps(
+                    {
+                        "status": "ok",
+                        "result": {
+                            "chain_id": "CHAIN-01",
+                            "chain_verdict": "code_supported",
+                            "steps": [
+                                {
+                                    "step_id": "S1",
+                                    "purpose": "Call handler",
+                                    "verification_status": "confirmed_by_source",
+                                    "linked_next_steps": [],
+                                }
+                            ],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(proj_root)
+                # 1. prepare_blinded_challenger
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = manual_session.main(["prepare_blinded_challenger", "sample-svc"])
+                self.assertEqual(rc, 0)
+                chal_out = json.loads(buf.getvalue())
+                self.assertNotIn("threats", chal_out["service_and_interface_map"]["repo_profile"])
+
+                # 2. prepare_blinded_targeted_verifier
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = manual_session.main(["prepare_blinded_targeted_verifier", "sample-svc"])
+                self.assertEqual(rc, 0)
+                tv_out = json.loads(buf.getvalue())
+                self.assertEqual(len(tv_out["blinded_tasks"]), 1)
+                self.assertNotIn("comparison_result", tv_out["blinded_tasks"][0]["neutral_verification_task"])
+
+                # 3. prepare_blinded_chain_verifier _analysis
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = manual_session.main(["prepare_blinded_chain_verifier", "_analysis"])
+                self.assertEqual(rc, 0)
+                chain_out = json.loads(buf.getvalue())
+                self.assertNotIn("chain_verdict", chain_out["candidate_chain_structure"])
+                self.assertNotIn("verification_status", chain_out["candidate_chain_structure"]["steps"][0])
+
+                # 4. read_file --allowed-paths supports both space-separated and comma-separated paths
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = manual_session.main(
+                        [
+                            "read_file",
+                            "sample-svc",
+                            "Other.cs",
+                            "1",
+                            "10",
+                            "--skill",
+                            "targeted_verifier",
+                            "--allowed-paths",
+                            "Handler.cs",
+                            "Other.cs",
+                        ]
+                    )
+                self.assertEqual(rc, 0)
+            finally:
+                os.chdir(old_cwd)
+
 
 if __name__ == "__main__":
     unittest.main()
+

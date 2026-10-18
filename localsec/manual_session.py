@@ -49,9 +49,11 @@ def _project_root() -> Path:
         return Path(env_root).expanduser().resolve()
     toolkit = _toolkit_root()
     cwd = Path.cwd().resolve()
-    # When cloned into a target project as <Project-Root>/AI-skills and executed from <Project-Root>,
-    # resolve project_root to <Project-Root> while keeping schemas/contracts/config inside AI-skills/.
+    # When cloned into a target project (e.g. <Project-Root>/AI-skills) and executed from <Project-Root>,
+    # resolve project_root to <Project-Root> while keeping schemas/contracts/config inside the toolkit folder.
     if toolkit.parent == cwd:
+        return cwd
+    if cwd != toolkit and (cwd / ".agents").is_dir():
         return cwd
     if toolkit.name.lower() in {"ai-skills", "localsec-antigravity-skills"} and cwd != toolkit:
         return toolkit.parent
@@ -75,13 +77,22 @@ def _load_workspace(
     if repo_name in {"_analysis", "_system"}:
         repo_path = root
         safe_name = repo_name
+    elif repo_name == "." or (repo_name == root.name and not (root / repo_name).exists()):
+        repo_path = root
+        safe_name = _safe_name(root.name)
     else:
         repo_path = (root / repo_name).resolve(strict=True)
         safe_name = _safe_name(repo_name)
+    analysis_cfg = dict(cfg.get("analysis", {}))
+    ignored = list(analysis_cfg.get("ignored_dirs", []))
+    for extra_ignore in (_toolkit_root().name, ".agents", ".localsec", str(analysis_cfg.get("output_dir", "documents"))):
+        if extra_ignore and extra_ignore not in ignored:
+            ignored.append(extra_ignore)
+    analysis_cfg["ignored_dirs"] = ignored
     ws = ManualWorkspace(
         repo_path,
         safe_name,
-        cfg.get("analysis", {}),
+        analysis_cfg,
         run_id,
         allowed_read_paths=allowed_read_paths,
         project_root=root,
@@ -154,7 +165,12 @@ def main(argv: list[str] | None = None) -> int:
     p_rf.add_argument("start_line", nargs="?", type=int, default=1)
     p_rf.add_argument("end_line", nargs="?", type=int, default=180)
     p_rf.add_argument("--skill", default="repo_profile")
-    p_rf.add_argument("--allowed-paths", default=None, help="Comma-separated exact_paths allow-list for targeted_verifier")
+    p_rf.add_argument(
+        "--allowed-paths",
+        nargs="+",
+        default=None,
+        help="Comma- or space-separated exact_paths allow-list for targeted_verifier",
+    )
 
     p_ev = sub.add_parser("list_evidence", help="List all minted evidence_ids for a repo")
     p_ev.add_argument("repo_name")
@@ -168,8 +184,15 @@ def main(argv: list[str] | None = None) -> int:
     p_acl = sub.add_parser("extract_aca_claims", help="Extract claims from Phase 3 ACA specialist skills for evidence_auditor")
     p_acl.add_argument("repo_name", nargs="?", default="_analysis")
 
+    p_pbc = sub.add_parser("prepare_blinded_challenger", help="Prepare blinded context for Phase 2 business_invariant_challenger")
+    p_pbc.add_argument("repo_name")
+
+    p_pbtv = sub.add_parser("prepare_blinded_targeted_verifier", help="Prepare blinded context for Phase 2 targeted_verifier")
+    p_pbtv.add_argument("repo_name")
+    p_pbtv.add_argument("--task-id", default=None)
+
     p_bcv = sub.add_parser("prepare_blinded_chain_verifier", help="Prepare blinded context for chain_step_verifier or counterevidence_challenger")
-    p_bcv.add_argument("chain_json")
+    p_bcv.add_argument("chain_json", nargs="?", default="_analysis")
 
     p_rplan = sub.add_parser("run_aca_request_plan", help="Execute constrained local request plan or mark not_executed fail-closed")
     p_rplan.add_argument("request_json")
@@ -199,6 +222,9 @@ def main(argv: list[str] | None = None) -> int:
     p_bfin.add_argument("--output-dir", default=None, help="Override output directory (e.g., documents_phase1_v2)")
 
     p_bsys_fin = sub.add_parser("finalize_basv_system", help="Write system-wide BASV documents and 5-axis contradiction graph")
+    p_bsys_fin.add_argument("--synthesis", default=None, help="Optional path to system business_aware_synthesizer JSON")
+    p_bsys_fin.add_argument("--sys-audit", default=None, help="Optional path to system BASV evidence_auditor JSON")
+    p_bsys_fin.add_argument("--interconnections", default=None, help="Optional path to service interconnection matrix JSON")
     p_bsys_fin.add_argument("--output-dir", default=None, help="Override output directory (e.g., documents_phase1_v2)")
 
     p_sys_ctx = sub.add_parser("prepare_system_context", help="Prepare cross-repo context and Round-Robin evidence catalog")
@@ -274,7 +300,11 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if res.get("ok") else 1
 
     if args.cmd == "read_file":
-        allowed = [p.strip() for p in args.allowed_paths.split(",") if p.strip()] if args.allowed_paths else None
+        allowed = (
+            [p.strip() for token in args.allowed_paths for p in token.split(",") if p.strip()]
+            if args.allowed_paths
+            else None
+        )
         ws, run_dir = _load_workspace(args.repo_name, cfg, allowed_read_paths=allowed)
         res = ws.execute_tool(
             args.skill,
@@ -570,12 +600,114 @@ def main(argv: list[str] | None = None) -> int:
         print(f"OK: validated and saved {args.skill} ({out_name}) for {ws.repo_name} ({len(ws.evidence)} local / {len(valid_eids)} project evidence records)")
         return 0
 
-    if args.cmd == "prepare_blinded_chain_verifier":
-        chain_data = json.loads(Path(args.chain_json).read_text(encoding="utf-8"))
-        if isinstance(chain_data.get("result"), dict):
-            chain_data = chain_data["result"]
-        blinded = build_blinded_chain_verifier_context(attack_chain=chain_data)
+    if args.cmd == "prepare_blinded_challenger":
+        ws, run_dir = _load_workspace(args.repo_name, cfg)
+
+        def _unwrap_skill(skill_name: str) -> dict[str, Any]:
+            sf = run_dir / f"{skill_name}.json"
+            if not sf.is_file():
+                return {}
+            data = json.loads(sf.read_text(encoding="utf-8"))
+            return data["result"] if isinstance(data.get("result"), dict) else data
+
+        blinded = build_blinded_challenger_context(
+            intent_model=_unwrap_skill("business_intent_modeler"),
+            repo_profile=_unwrap_skill("repo_profile"),
+            api_authz=_unwrap_skill("api_authz"),
+            dataflow=_unwrap_skill("dataflow"),
+            coverage=ws.coverage(),
+        )
         print(json.dumps(blinded, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "prepare_blinded_targeted_verifier":
+        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        planner_path = run_dir / "verification_planner.json"
+        if not planner_path.is_file():
+            print(f"MISSING_PREREQUISITE: verification_planner.json not found in {run_dir}", file=sys.stderr)
+            return 1
+        planner_raw = json.loads(planner_path.read_text(encoding="utf-8"))
+        planner = planner_raw["result"] if isinstance(planner_raw.get("result"), dict) else planner_raw
+        intent_path = run_dir / "business_intent_modeler.json"
+        inv_map: dict[str, str] = {}
+        if intent_path.is_file():
+            intent_raw = json.loads(intent_path.read_text(encoding="utf-8"))
+            intent = intent_raw["result"] if isinstance(intent_raw.get("result"), dict) else intent_raw
+            for inv in intent.get("business_invariants", []):
+                if isinstance(inv, dict) and inv.get("id"):
+                    inv_map[str(inv["id"])] = str(inv.get("expected_behavior") or inv.get("statement") or "")
+        tasks = [t for t in planner.get("verification_tasks", []) if isinstance(t, dict)]
+        if args.task_id:
+            tasks = [t for t in tasks if str(t.get("task_id")) == args.task_id]
+        blinded_tasks = [
+            build_blinded_targeted_verifier_context(
+                task=t,
+                related_invariant_expected_behavior=inv_map.get(str(t.get("related_invariant_id", "")), ""),
+            )
+            for t in tasks
+        ]
+        if args.task_id and len(blinded_tasks) == 1:
+            print(json.dumps(blinded_tasks[0], ensure_ascii=False, indent=2))
+        else:
+            print(
+                json.dumps(
+                    {
+                        "repo_name": ws.repo_name,
+                        "context_blinding_policy": (
+                            "comparison_result, security_impact, exploitability, and "
+                            "previous_agent_recommended_conclusion are strictly excluded"
+                        ),
+                        "blinded_tasks": blinded_tasks,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+        return 0
+
+    if args.cmd == "prepare_blinded_chain_verifier":
+        cand_path = Path(args.chain_json)
+        if cand_path.is_file():
+            chain_data = json.loads(cand_path.read_text(encoding="utf-8"))
+            if isinstance(chain_data.get("result"), dict):
+                chain_data = chain_data["result"]
+            blinded = build_blinded_chain_verifier_context(attack_chain=chain_data)
+            print(json.dumps(blinded, ensure_ascii=False, indent=2))
+            return 0
+        _, run_dir = _load_workspace(args.chain_json, cfg)
+        traces: list[dict[str, Any]] = []
+        tb_file = run_dir / "code_trace_builder.json"
+        if tb_file.is_file():
+            tb_raw = json.loads(tb_file.read_text(encoding="utf-8"))
+            traces.append(tb_raw["result"] if isinstance(tb_raw.get("result"), dict) else tb_raw)
+        traces_dir = run_dir / "traces"
+        if traces_dir.is_dir():
+            for tf in sorted(traces_dir.glob("*.json")):
+                tr_raw = json.loads(tf.read_text(encoding="utf-8"))
+                traces.append(tr_raw["result"] if isinstance(tr_raw.get("result"), dict) else tr_raw)
+        chains: list[dict[str, Any]] = []
+        chains_dir = run_dir / "chains"
+        if chains_dir.is_dir():
+            for cf in sorted(chains_dir.glob("*.json")):
+                ch_raw = json.loads(cf.read_text(encoding="utf-8"))
+                chains.append(ch_raw["result"] if isinstance(ch_raw.get("result"), dict) else ch_raw)
+        if not chains and (run_dir / "attack_chain_constructor.json").is_file():
+            ac_raw = json.loads((run_dir / "attack_chain_constructor.json").read_text(encoding="utf-8"))
+            chains.append(ac_raw["result"] if isinstance(ac_raw.get("result"), dict) else ac_raw)
+        blinded_chains = [build_blinded_chain_verifier_context(attack_chain=c, code_traces=traces) for c in chains]
+        if len(blinded_chains) == 1:
+            print(json.dumps(blinded_chains[0], ensure_ascii=False, indent=2))
+        else:
+            print(
+                json.dumps(
+                    {
+                        "repo_name": args.chain_json,
+                        "blinded_chains": blinded_chains,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
         return 0
 
     if args.cmd == "run_aca_request_plan":
@@ -991,33 +1123,52 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "finalize_basv_system":
         run_root = root / ".localsec" / "runs" / DEFAULT_RUN_ID
         repo_basv_results: list[dict[str, Any]] = []
-        for child in sorted(run_root.iterdir()):
-            if child.is_dir() and (child / "basv_repo_result.json").is_file():
-                rbr = json.loads((child / "basv_repo_result.json").read_text(encoding="utf-8"))
-                repo_basv_results.append(rbr)
+        if run_root.is_dir():
+            for child in sorted(run_root.iterdir()):
+                if child.is_dir() and (child / "basv_repo_result.json").is_file():
+                    rbr = json.loads((child / "basv_repo_result.json").read_text(encoding="utf-8"))
+                    repo_basv_results.append(rbr)
         all_eids = _all_project_evidence_ids(root)
-        old_basv_sys = root / "documents" / "_system" / "basv"
-        interconnections = []
-        if (old_basv_sys / "01_service_interconnection_matrix.json").is_file():
-            interconnections = json.loads(
-                (old_basv_sys / "01_service_interconnection_matrix.json").read_text(encoding="utf-8")
-            ).get("inter_service_connections", [])
-        sys_syn = {}
-        if (old_basv_sys / "03_system_business_aware_synthesis.json").is_file():
-            sys_syn = json.loads(
-                (old_basv_sys / "03_system_business_aware_synthesis.json").read_text(encoding="utf-8")
-            )
-        sys_aud = {}
-        if (old_basv_sys / "04_system_basv_evidence_audit.json").is_file():
-            sys_aud = json.loads(
-                (old_basv_sys / "04_system_basv_evidence_audit.json").read_text(encoding="utf-8")
-            )
-        topo_mmd = None
-        if (old_basv_sys / "diagrams" / "service_interconnection_topology.mmd").is_file():
-            topo_mmd = (old_basv_sys / "diagrams" / "service_interconnection_topology.mmd").read_text(encoding="utf-8")
-
         out_dir_name = args.output_dir or cfg.get("analysis", {}).get("output_dir", "documents")
         output_root = (root / out_dir_name).resolve()
+        basv_sys_dir = output_root / "_system" / "basv"
+        sys_run_dir = run_root / "_system"
+
+        def _load_json_unwrapped(path: Path) -> Any:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            return raw["result"] if isinstance(raw, dict) and isinstance(raw.get("result"), dict) else raw
+
+        interconnections = []
+        if getattr(args, "interconnections", None) and Path(args.interconnections).is_file():
+            ic_raw = json.loads(Path(args.interconnections).read_text(encoding="utf-8"))
+            interconnections = ic_raw.get("inter_service_connections", ic_raw) if isinstance(ic_raw, dict) else ic_raw
+        elif (basv_sys_dir / "01_service_interconnection_matrix.json").is_file():
+            interconnections = json.loads(
+                (basv_sys_dir / "01_service_interconnection_matrix.json").read_text(encoding="utf-8")
+            ).get("inter_service_connections", [])
+
+        sys_syn = {}
+        if getattr(args, "synthesis", None) and Path(args.synthesis).is_file():
+            sys_syn = _load_json_unwrapped(Path(args.synthesis))
+        elif (sys_run_dir / "business_aware_synthesizer.json").is_file():
+            sys_syn = _load_json_unwrapped(sys_run_dir / "business_aware_synthesizer.json")
+        elif (basv_sys_dir / "03_system_business_aware_synthesis.json").is_file():
+            sys_syn = _load_json_unwrapped(basv_sys_dir / "03_system_business_aware_synthesis.json")
+
+        sys_aud = {}
+        if getattr(args, "sys_audit", None) and Path(args.sys_audit).is_file():
+            sys_aud = _load_json_unwrapped(Path(args.sys_audit))
+        elif (sys_run_dir / "basv_evidence_auditor.json").is_file():
+            sys_aud = _load_json_unwrapped(sys_run_dir / "basv_evidence_auditor.json")
+        elif (sys_run_dir / "evidence_auditor.json").is_file():
+            sys_aud = _load_json_unwrapped(sys_run_dir / "evidence_auditor.json")
+        elif (basv_sys_dir / "04_system_basv_evidence_audit.json").is_file():
+            sys_aud = _load_json_unwrapped(basv_sys_dir / "04_system_basv_evidence_audit.json")
+
+        topo_mmd = None
+        if (basv_sys_dir / "diagrams" / "service_interconnection_topology.mmd").is_file():
+            topo_mmd = (basv_sys_dir / "diagrams" / "service_interconnection_topology.mmd").read_text(encoding="utf-8")
+
         write_basv_system_documents(
             output_root / "_system",
             sys_syn,

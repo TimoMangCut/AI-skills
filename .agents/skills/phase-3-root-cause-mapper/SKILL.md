@@ -15,6 +15,7 @@ Tìm xem cùng một khiếm khuyết gốc rễ đó đang đồng thời mở 
 
 ## Trách nhiệm & Cổng Kiểm định (Epistemic Gates)
 - Được phép đọc mã nguồn (`list_dir`, `read_file`) để xác minh mẫu lỗi lặp lại xuyên dịch vụ.
+- Prompt & Contract gốc: `AI-skills/contracts/attack-chain-analysis-v1/prompts/root_cause_mapper.md` (Registry: `AI-skills/contracts/attack-chain-analysis-v1/registry.json`).
 - Schema đích: `AI-skills/contracts/attack-chain-analysis-v1/schemas/root_cause.schema.json`.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
