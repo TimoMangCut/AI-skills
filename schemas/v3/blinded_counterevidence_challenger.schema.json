@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalSec v3.0 Phase 2.3 Blinded Counterevidence Challenger Schema",
+  "type": "object",
+  "properties": {
+    "repo_name": {
+      "type": "string"
+    },
+    "challenged_chains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "chain_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "challenge_verdict": {
+            "type": "string",
+            "enum": [
+              "upheld",
+              "partially_mitigated",
+              "refuted",
+              "inconclusive",
+              "confirmed",
+              "code_supported",
+              "weakened"
+            ]
+          },
+          "control_search_checklist": {
+            "type": [
+              "object",
+              "array"
+            ]
+          },
+          "counter_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "challenges": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "chain_challenges": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "control_search_checklist": {
+      "type": [
+        "object",
+        "array"
+      ]
+    },
+    "empirical_refutations": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "challenged_chains"
+      ]
+    },
+    {
+      "required": [
+        "challenges"
+      ]
+    },
+    {
+      "required": [
+        "chain_challenges"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalSec v3.0 Phase 1.1 Codebase Scout Schema",
+  "type": "object",
+  "required": [
+    "repo_tier",
+    "coding_conventions",
+    "target_modules"
+  ],
+  "properties": {
+    "repo_tier": {
+      "type": "string",
+      "enum": [
+        "tier_1",
+        "tier_2",
+        "tier_3"
+      ]
+    },
+    "detected_archetypes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "product_archetypes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "coding_conventions": {
+      "type": [
+        "object",
+        "array",
+        "string"
+      ]
+    },
+    "target_modules": {
+      "type": "array",
+      "minItems": 1
+    },
+    "ignored_modules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "module_path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3
+          },
+          "rationale": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "canary_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sample_evidence_ids": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  }
+}

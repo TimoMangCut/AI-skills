@@ -1,0 +1,83 @@
+{
+  "id": "authz-bola-bfla-multitenant",
+  "companion_id": "authz-bola-bfla-multitenant",
+  "file": "authz-bola-bfla-multitenant.md",
+  "companion_json": "companions/authz-bola-bfla-multitenant.json",
+  "group": "I. Web, Mobile & API Core",
+  "title": "Authorization, BOLA/IDOR, BFLA & Multi-Tenant / Partner Isolation",
+  "always_inject": true,
+  "triggers": [
+    "authz",
+    "bola",
+    "idor",
+    "bfla",
+    "rbac",
+    "abac",
+    "preauthorize",
+    "permission",
+    "ownership",
+    "tenant",
+    "vincode",
+    "billid",
+    "orderid",
+    "partnerid"
+  ],
+  "trigger_signals": [
+    "authz",
+    "bola",
+    "idor",
+    "bfla",
+    "rbac",
+    "abac",
+    "preauthorize",
+    "permission",
+    "ownership",
+    "tenant",
+    "vincode",
+    "billid",
+    "orderid",
+    "partnerid",
+    "api_microservice_gateway",
+    "b2b_partner_portal",
+    "multi_tenant_saas"
+  ],
+  "archetypes": [
+    "API_Microservice_Gateway",
+    "B2B_Partner_Portal",
+    "Multi_Tenant_SaaS"
+  ],
+  "blocks": [
+    "object-ownership-bola-idor",
+    "function-level-bfla-and-filter-bypass",
+    "multi-role-lending-and-delegation",
+    "bopla-field-level-authz-and-tenant-context-spoofing"
+  ],
+  "standard_mappings": [
+    "OWASP-API1:2023",
+    "OWASP-API3:2023",
+    "OWASP-API5:2023",
+    "ASVS-V4",
+    "CWE-639",
+    "CWE-285",
+    "CWE-862"
+  ],
+  "safe_patterns": [
+    "Database query scopes resource lookup by both object ID and authenticated subject/tenant from verified JWT security context (WHERE id = :id AND owner_id = :sub)",
+    "Method-level and route-level RBAC/ABAC guards (@PreAuthorize, Depends(require_role), policy enforcer) verified on all sibling and admin endpoints",
+    "Immediate revocation of delegated/secondary driver permissions and cached sessions upon asset ownership transfer"
+  ],
+  "vulnerable_patterns": [
+    "Repository lookup by primary key alone (findById(id)) without verifying resource.ownerId == currentUser.id",
+    "Trusting client-supplied userId, tenantId, partnerId, or vinCode from request body/header/query instead of the authenticated token subject",
+    "Admin or internal state-changing endpoints missing role guards or relying on easily bypassed URL path prefix matching"
+  ],
+  "required_evidence": [
+    "ev_... excerpt of the route handler and security guard/middleware wiring",
+    "ev_... excerpt of the service/repository method showing whether authenticated subject/tenant ownership is enforced on the target object ID"
+  ],
+  "questions_when_unclear": [
+    "Is row-level security (RLS) or a global ORM tenant filter automatically injected by a shared database library not visible in this repository?",
+    "Does an external policy engine (OPA / IAM authorizer) validate resource ownership before forwarding the request?"
+  ],
+  "markdown": "# Authorization, BOLA/IDOR, BFLA & Multi-Tenant / Partner Isolation (`authz-bola-bfla-multitenant`)\n\n> **Group:** I. Web, Mobile & API Core\n> **Product Archetypes:** API_Microservice_Gateway, B2B_Partner_Portal, Multi_Tenant_SaaS\n> **Trigger Signals:** authz, bola, idor, bfla, rbac, abac, preauthorize, permission, ownership, tenant, vincode, billid, orderid, partnerid\n\n## [ BLOCK: object-ownership-bola-idor ]\n### Broken Object Level Authorization (BOLA/IDOR) on Resource Identifiers\n- For every endpoint accepting an object identifier (`vinCode`, `billId`, `orderId`, `tokenNumber`, `target` Cognito ID, `partnerId`), verify a deterministic join/check binding the authenticated subject (`sub`/`userId`) to that object.\n- Check both read paths (e.g., `/parked-images`, `/bills/{id}`) and state-changing paths (`DELETE /cards/{token}`, `POST /transfer-ownership`, `POST /attach-policy`).\n\n## [ BLOCK: function-level-bfla-and-filter-bypass ]\n### Broken Function Level Authorization (BFLA) & Security Filter Chain Bypass\n- Compare controller-level and method-level guards across sibling routes (e.g., `/user/**`, `/admin/**`, `/internal/**`).\n- Check for path matching discrepancies between API Gateway (Kong/KrakenD/ALB) and backend framework (Spring Security Ant/PathPattern matcher, trailing slash, matrix params `;`).\n\n## [ BLOCK: multi-role-lending-and-delegation ]\n### Temporary Delegation, Vehicle Lending/Valet Mode & Ownership Transfer\n- Trace lifecycle revocation: when a vehicle/asset is transferred or a secondary driver/valet permission expires, are active JWTs, refresh tokens, AWS IoT policies, and BLE digital keys immediately revoked?\n\n## [ BLOCK: bopla-field-level-authz-and-tenant-context-spoofing ]\n### Object Property Level Authz (BOPLA) & Cross-Tenant Context Spoofing\n- Verify whether callers can overwrite `tenantId`, `partnerId`, `ownerId`, `vinCode`, or `role` in PUT/PATCH/POST bodies or query parameters to pivot across tenants.\n- Check whether list/search/export endpoints enforce tenant and ownership predicates inside the database WHERE clause rather than filtering only in UI or post-query code.\n\n### Standard Mappings\n- OWASP-API1:2023, OWASP-API3:2023, OWASP-API5:2023, ASVS-V4, CWE-639, CWE-285, CWE-862\n\n### Safe Patterns (Refutation Anchors)\n- Database query scopes resource lookup by both object ID and authenticated subject/tenant from verified JWT security context (WHERE id = :id AND owner_id = :sub)\n- Method-level and route-level RBAC/ABAC guards (@PreAuthorize, Depends(require_role), policy enforcer) verified on all sibling and admin endpoints\n- Immediate revocation of delegated/secondary driver permissions and cached sessions upon asset ownership transfer\n\n### Vulnerable Patterns\n- Repository lookup by primary key alone (findById(id)) without verifying resource.ownerId == currentUser.id\n- Trusting client-supplied userId, tenantId, partnerId, or vinCode from request body/header/query instead of the authenticated token subject\n- Admin or internal state-changing endpoints missing role guards or relying on easily bypassed URL path prefix matching\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of the route handler and security guard/middleware wiring\n- ev_... excerpt of the service/repository method showing whether authenticated subject/tenant ownership is enforced on the target object ID\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Is row-level security (RLS) or a global ORM tenant filter automatically injected by a shared database library not visible in this repository?\n- Does an external policy engine (OPA / IAM authorizer) validate resource ownership before forwarding the request?\n"
+}

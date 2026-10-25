@@ -1,0 +1,87 @@
+{
+  "id": "automotive-connected-car-ota-tbox",
+  "companion_id": "automotive-connected-car-ota-tbox",
+  "file": "automotive-connected-car-ota-tbox.md",
+  "companion_json": "companions/automotive-connected-car-ota-tbox.json",
+  "group": "IV. IoT, Automotive, Robotics & OT",
+  "title": "Connected Car, AWS IoT Core / EMQX Telemetry, T-Box/MHU & FOTA/SOTA (ISO 21434)",
+  "always_inject": false,
+  "triggers": [
+    "iot",
+    "mqtt",
+    "emqx",
+    "tbox",
+    "mhu",
+    "fota",
+    "sota",
+    "ota",
+    "vin",
+    "telematics",
+    "ecu",
+    "can",
+    "uds",
+    "autosar",
+    "vehicle",
+    "ccar",
+    "ccp"
+  ],
+  "trigger_signals": [
+    "iot",
+    "mqtt",
+    "emqx",
+    "tbox",
+    "mhu",
+    "fota",
+    "sota",
+    "ota",
+    "vin",
+    "telematics",
+    "ecu",
+    "can",
+    "uds",
+    "autosar",
+    "vehicle",
+    "ccar",
+    "ccp",
+    "iot_telematics_broker",
+    "automotive_connected_car",
+    "cyberphysical_ot_robotics"
+  ],
+  "archetypes": [
+    "IoT_Telematics_Broker",
+    "Automotive_Connected_Car",
+    "CyberPhysical_OT_Robotics"
+  ],
+  "blocks": [
+    "mqtt-broker-acl-and-telemetry-surveillance",
+    "fota-sota-signing-and-tbox-pairing",
+    "tbox-session-revocation-and-command-audit-logging"
+  ],
+  "standard_mappings": [
+    "ISO-SAE-21434",
+    "UNECE-R155",
+    "UNECE-R156",
+    "OWASP-API1:2023",
+    "ASVS-V7",
+    "ASVS-V16"
+  ],
+  "safe_patterns": [
+    "Per-device X.509 mTLS certificate and IoT broker ACL restricting publish/subscribe strictly to the device's own VIN topic",
+    "End-to-end cryptographic signature verification (Ed25519/RSA-PSS) and anti-rollback version check on FOTA/SOTA manifests before ECU flashing",
+    "Remote actuation API enforces caller-to-VIN ownership, monotonic command nonce/timestamp, and vehicle stationary safety state"
+  ],
+  "vulnerable_patterns": [
+    "MQTT broker ACL allowing wildcard subscriptions (+, #) across all VIN telemetry or remote-control topics",
+    "Remote vehicle command endpoint accepting a VIN parameter without verifying that the authenticated user is the active owner/authorized driver",
+    "OTA package download or installation over plain HTTP or without cryptographic signature and anti-rollback verification"
+  ],
+  "required_evidence": [
+    "ev_... excerpt of MQTT/IoT policy template or broker ACL verifier",
+    "ev_... excerpt of remote command handler or FOTA/SOTA package verification and pairing flow"
+  ],
+  "questions_when_unclear": [
+    "Does the in-vehicle T-Box / Gateway ECU independently verify command signatures and vehicle speed/park state before forwarding frames to the CAN bus?",
+    "Are AWS IoT Core / EMQX topic ACLs dynamically scoped per certificate CN=${iot:ClientId}?"
+  ],
+  "markdown": "# Connected Car, AWS IoT Core / EMQX Telemetry, T-Box/MHU & FOTA/SOTA (ISO 21434) (`automotive-connected-car-ota-tbox`)\n\n> **Group:** IV. IoT, Automotive, Robotics & OT\n> **Product Archetypes:** IoT_Telematics_Broker, Automotive_Connected_Car, CyberPhysical_OT_Robotics\n> **Trigger Signals:** iot, mqtt, emqx, tbox, mhu, fota, sota, ota, vin, telematics, ecu, can, uds, autosar, vehicle, ccar, ccp\n\n## [ BLOCK: mqtt-broker-acl-and-telemetry-surveillance ]\n### MQTT Broker ACLs (AWS IoT Core / EMQX), Topic Wildcards & Live GPS/Telemetry Leak\n- Verify whether MQTT clients can subscribe to wildcard topics (`#`, `+`, `/mobile/{VIN}/push`, `/server/{VIN}/remctrl`) for VINs they do not own.\n- Audit telemetry payloads (2,000+ keys) for leaked owner PII, pre-signed camera URLs, PKI material, or remote command acknowledgments.\n\n## [ BLOCK: fota-sota-signing-and-tbox-pairing ]\n### FOTA/SOTA Package Signing, Anti-Rollback & T-Box / Head-Unit (MHU) Pairing\n- Trace the OTA trust chain (UN/ECE R156): verify cryptographic signature verification, version anti-rollback checks, and e-contract signing before firmware installation.\n- Audit MHU/T-Box pairing flows (`/mhu/send-otp/{vinCode}`, `/tbox/frs`) to ensure staging OTP sinks (`/fake/otp`) or unauthenticated device endpoints cannot hijack vehicle pairing.\n\n## [ BLOCK: tbox-session-revocation-and-command-audit-logging ]\n### Vehicle Session/Key Revocation (ASVS V7) & Remote Actuation Audit Trail (ASVS V16)\n- Verify that remote vehicle commands (unlock, climate, immobilizer, trunk, horn, FOTA trigger) require fresh token/PIN verification, monotonic anti-replay nonces, and vehicle speed/gear safety preconditions (`speed == 0`, `gear == PARK`).\n- Check that ownership transfer or stolen-vehicle mode immediately revokes cached T-Box/MHU tokens, MQTT ACLs, and BLE keys, and writes an immutable audit log.\n\n### Standard Mappings\n- ISO-SAE-21434, UNECE-R155, UNECE-R156, OWASP-API1:2023, ASVS-V7, ASVS-V16\n\n### Safe Patterns (Refutation Anchors)\n- Per-device X.509 mTLS certificate and IoT broker ACL restricting publish/subscribe strictly to the device's own VIN topic\n- End-to-end cryptographic signature verification (Ed25519/RSA-PSS) and anti-rollback version check on FOTA/SOTA manifests before ECU flashing\n- Remote actuation API enforces caller-to-VIN ownership, monotonic command nonce/timestamp, and vehicle stationary safety state\n\n### Vulnerable Patterns\n- MQTT broker ACL allowing wildcard subscriptions (+, #) across all VIN telemetry or remote-control topics\n- Remote vehicle command endpoint accepting a VIN parameter without verifying that the authenticated user is the active owner/authorized driver\n- OTA package download or installation over plain HTTP or without cryptographic signature and anti-rollback verification\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of MQTT/IoT policy template or broker ACL verifier\n- ev_... excerpt of remote command handler or FOTA/SOTA package verification and pairing flow\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Does the in-vehicle T-Box / Gateway ECU independently verify command signatures and vehicle speed/park state before forwarding frames to the CAN bus?\n- Are AWS IoT Core / EMQX topic ACLs dynamically scoped per certificate CN=${iot:ClientId}?\n"
+}

@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalSec v3.0 Phase 1.5 Cross-Repo & Architecture Review Schema",
+  "type": "object",
+  "properties": {
+    "repo_name": {
+      "type": "string"
+    },
+    "interactions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "trust_assumptions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "architecture_findings": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "architecture_observations": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "trust_boundary_mismatches": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "boundary_mismatches": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "matched_cross_repo_boundaries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "boundary_id": {
+            "type": "string"
+          },
+          "producer_repo": {
+            "type": "string"
+          },
+          "consumer_repo": {
+            "type": "string"
+          },
+          "protocol_or_channel": {
+            "type": "string"
+          },
+          "trust_assumption_mismatch": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "diagrams": {
+      "type": [
+        "array",
+        "object"
+      ]
+    },
+    "mermaid_diagram": {
+      "type": "string"
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "architecture_findings"
+      ]
+    },
+    {
+      "required": [
+        "trust_boundary_mismatches"
+      ]
+    },
+    {
+      "required": [
+        "interactions"
+      ]
+    },
+    {
+      "required": [
+        "matched_cross_repo_boundaries"
+      ]
+    }
+  ]
+}

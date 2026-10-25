@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalSec v3.0 Phase 3.2 Beyond-Code Control Mapper Schema",
+  "type": "object",
+  "required": [],
+  "properties": {
+    "beyond_code_controls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "control_id",
+          "chain_id",
+          "layer",
+          "status",
+          "mitigation_effect",
+          "evidence_ids"
+        ],
+        "properties": {
+          "control_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "chain_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "finding_id": {
+            "type": "string"
+          },
+          "layer": {
+            "type": "string",
+            "minLength": 1
+          },
+          "control": {
+            "type": "string"
+          },
+          "exposure_tier": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "hypothesis",
+              "absent",
+              "observed",
+              "derived",
+              "unknown"
+            ]
+          },
+          "mitigation_effect": {
+            "type": "string",
+            "enum": [
+              "blocks_exploit",
+              "reduces_likelihood",
+              "limits_blast_radius",
+              "partial_mitigation",
+              "none"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "assessments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "finding_id",
+          "exposure_tier",
+          "compensating_controls"
+        ],
+        "properties": {
+          "finding_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "exposure_tier": {
+            "type": "string",
+            "enum": [
+              "internet_public_behind_cloudflare_waf",
+              "internet_public_bare_alb_direct_ip",
+              "partner_b2b_mtls_vpn",
+              "internal_vpc_rfc1918",
+              "air_gapped_ot_cell_vlan"
+            ]
+          },
+          "compensating_controls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "layer",
+                "control",
+                "status",
+                "mitigation_effect",
+                "evidence_ids"
+              ],
+              "properties": {
+                "layer": {
+                  "type": "string"
+                },
+                "control": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "confirmed",
+                    "hypothesis",
+                    "absent"
+                  ]
+                },
+                "mitigation_effect": {
+                  "type": "string",
+                  "enum": [
+                    "blocks_exploit",
+                    "reduces_likelihood",
+                    "limits_blast_radius",
+                    "none"
+                  ]
+                },
+                "evidence_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "beyond_code_controls"
+      ]
+    },
+    {
+      "required": [
+        "assessments"
+      ]
+    }
+  ]
+}

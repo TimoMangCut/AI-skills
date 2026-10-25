@@ -1,0 +1,77 @@
+{
+  "id": "onprem-k8s-network-rfc1918",
+  "companion_id": "onprem-k8s-network-rfc1918",
+  "file": "onprem-k8s-network-rfc1918.md",
+  "companion_json": "companions/onprem-k8s-network-rfc1918.json",
+  "group": "II. Identity, Gateways & Multi-Cloud / On-Prem",
+  "title": "Kubernetes (EKS/On-Prem), Internal RFC1918 Subnets & Split-Horizon DNS",
+  "always_inject": false,
+  "triggers": [
+    "kubernetes",
+    "k8s",
+    "helm",
+    "docker",
+    "container",
+    "rfc1918",
+    "10.135",
+    "10.133",
+    "10.228",
+    "10.250",
+    "vpc",
+    "subnet",
+    "onprem"
+  ],
+  "trigger_signals": [
+    "kubernetes",
+    "k8s",
+    "helm",
+    "docker",
+    "container",
+    "rfc1918",
+    "10.135",
+    "10.133",
+    "10.228",
+    "10.250",
+    "vpc",
+    "subnet",
+    "onprem",
+    "cloud_infra_iac",
+    "onprem_enterprise_network"
+  ],
+  "archetypes": [
+    "Cloud_Infra_IaC",
+    "OnPrem_Enterprise_Network"
+  ],
+  "blocks": [
+    "internal-dns-leak-and-vpc-colocation",
+    "k8s-manifests-helm-and-service-mesh",
+    "k8s-secrets-logging-and-container-escape"
+  ],
+  "standard_mappings": [
+    "OWASP-API8:2023",
+    "ASVS-V14",
+    "ASVS-V16",
+    "IEC-62443-3-3",
+    "CWE-250",
+    "CWE-668"
+  ],
+  "safe_patterns": [
+    "Pod securityContext with runAsNonRoot: true, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, and automountServiceAccountToken: false",
+    "Default-deny Kubernetes NetworkPolicies restricting east-west pod traffic to explicit service ports and namespaces",
+    "Secrets injected via External Secrets Operator / Vault / KMS rather than plaintext values.yaml"
+  ],
+  "vulnerable_patterns": [
+    "Containers running with privileged: true, hostNetwork: true, or docker.sock / hostPath volume mounts",
+    "ClusterRoleBinding granting cluster-admin or wildcard secrets/pods verbs to default application ServiceAccounts",
+    "Internal RFC1918 IPs (10.x.x.x) and unauthenticated internal service ports exposed in public DNS or OpenAPI specs"
+  ],
+  "required_evidence": [
+    "ev_... excerpt of Kubernetes Deployment/Pod/Helm chart manifests showing securityContext, volumes, and RBAC bindings",
+    "ev_... excerpt of NetworkPolicy or Ingress/Service definitions"
+  ],
+  "questions_when_unclear": [
+    "Are Pod Security Standards (Restricted) or Kyverno/OPA Gatekeeper admission policies enforced at the cluster level?",
+    "Do VPC security groups or hardware firewalls segment the 10.x subnets between staging and production?"
+  ],
+  "markdown": "# Kubernetes (EKS/On-Prem), Internal RFC1918 Subnets & Split-Horizon DNS (`onprem-k8s-network-rfc1918`)\n\n> **Group:** II. Identity, Gateways & Multi-Cloud / On-Prem\n> **Product Archetypes:** Cloud_Infra_IaC, OnPrem_Enterprise_Network\n> **Trigger Signals:** kubernetes, k8s, helm, docker, container, rfc1918, 10.135, 10.133, 10.228, 10.250, vpc, subnet, onprem\n\n## [ BLOCK: internal-dns-leak-and-vpc-colocation ]\n### Split-Horizon DNS Leaks (RFC1918 10.x) & High-Blast VPC Co-Location\n- Identify internal hostnames (`10.135.x.x`, `10.133.x.x`, `10.228.x.x`, `10.250.x.x`) leaked in public DNS, config files, or OpenAPI `servers[]` blocks.\n- Assess co-location blast radius where critical control planes (ArgoCD, Central Auth, KMS, Core DB, Doris/Flink/Superset) share the same internal IP or K8s node without NetworkPolicy isolation.\n\n## [ BLOCK: k8s-manifests-helm-and-service-mesh ]\n### Kubernetes RBAC, Pod Security, ServiceAccount Tokens & East-West Trust\n- Audit Helm charts and K8s manifests for `privileged: true`, hostPath mounts, automounted ServiceAccount tokens, and unauthenticated internal service ports (`:8000`, `:8202`).\n\n## [ BLOCK: k8s-secrets-logging-and-container-escape ]\n### Kubernetes Secret Exposure, Audit Logging & Pod-to-Node Escalation\n- Check K8s manifests and ConfigMaps for plaintext credentials, database URLs, or private keys committed in git.\n- Verify `NetworkPolicy` enforcement isolating internet-facing pods from internal RFC1918 control planes (`10.x.x.x`), databases, and OT gateways.\n\n### Standard Mappings\n- OWASP-API8:2023, ASVS-V14, ASVS-V16, IEC-62443-3-3, CWE-250, CWE-668\n\n### Safe Patterns (Refutation Anchors)\n- Pod securityContext with runAsNonRoot: true, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, and automountServiceAccountToken: false\n- Default-deny Kubernetes NetworkPolicies restricting east-west pod traffic to explicit service ports and namespaces\n- Secrets injected via External Secrets Operator / Vault / KMS rather than plaintext values.yaml\n\n### Vulnerable Patterns\n- Containers running with privileged: true, hostNetwork: true, or docker.sock / hostPath volume mounts\n- ClusterRoleBinding granting cluster-admin or wildcard secrets/pods verbs to default application ServiceAccounts\n- Internal RFC1918 IPs (10.x.x.x) and unauthenticated internal service ports exposed in public DNS or OpenAPI specs\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of Kubernetes Deployment/Pod/Helm chart manifests showing securityContext, volumes, and RBAC bindings\n- ev_... excerpt of NetworkPolicy or Ingress/Service definitions\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Are Pod Security Standards (Restricted) or Kyverno/OPA Gatekeeper admission policies enforced at the cluster level?\n- Do VPC security groups or hardware firewalls segment the 10.x subnets between staging and production?\n"
+}

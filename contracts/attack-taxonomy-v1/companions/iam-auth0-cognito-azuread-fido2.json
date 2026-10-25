@@ -1,0 +1,82 @@
+{
+  "id": "iam-auth0-cognito-azuread-fido2",
+  "companion_id": "iam-auth0-cognito-azuread-fido2",
+  "file": "iam-auth0-cognito-azuread-fido2.md",
+  "companion_json": "companions/iam-auth0-cognito-azuread-fido2.json",
+  "group": "II. Identity, Gateways & Multi-Cloud / On-Prem",
+  "title": "Identity Fabric: Auth0, AWS Cognito, Azure AD, FIDO2/WebAuthn & Internal JWT",
+  "always_inject": false,
+  "triggers": [
+    "auth0",
+    "cognito",
+    "azuread",
+    "entra",
+    "oidc",
+    "oauth",
+    "saml",
+    "fido2",
+    "webauthn",
+    "jwt",
+    "jwks",
+    "nimbus",
+    "sts",
+    "refresh_token"
+  ],
+  "trigger_signals": [
+    "auth0",
+    "cognito",
+    "azuread",
+    "entra",
+    "oidc",
+    "oauth",
+    "saml",
+    "fido2",
+    "webauthn",
+    "jwt",
+    "jwks",
+    "nimbus",
+    "sts",
+    "refresh_token",
+    "identity_sso_provider",
+    "api_microservice_gateway"
+  ],
+  "archetypes": [
+    "Identity_SSO_Provider",
+    "API_Microservice_Gateway"
+  ],
+  "blocks": [
+    "jwt-issuer-audience-and-token-exchange",
+    "cognito-identity-pools-and-sts-vending",
+    "fido2-webauthn-and-qr-sso",
+    "asvs-v7-session-revocation-password-reset-and-otp-bruteforce"
+  ],
+  "standard_mappings": [
+    "OWASP-API2:2023",
+    "ASVS-V2",
+    "ASVS-V3",
+    "ASVS-V7",
+    "CWE-287",
+    "CWE-307",
+    "CWE-613",
+    "CWE-640"
+  ],
+  "safe_patterns": [
+    "Strict JWT verification pinning allowed asymmetric algorithms (RS256/ES256), expected issuer (iss), audience (aud), and expiration (exp)",
+    "Single-use cryptographically random password-reset / OTP tokens with strict per-account attempt lockout and TTL <= 10 minutes",
+    "Refresh token rotation with reuse detection and immediate server-side session revocation on password/privilege change"
+  ],
+  "vulnerable_patterns": [
+    "JWT decoding without signature verification (jwt.decode(..., options={'verify_signature': False}), parseClaimsJwt) or accepting alg: none",
+    "Cognito Identity Pool allowing unauthenticated identities with over-privileged IAM/IoT policy attachment",
+    "OTP or password-reset verification lacking per-target attempt counters, allowing brute-force or cross-user token replay"
+  ],
+  "required_evidence": [
+    "ev_... excerpt of JWT/OIDC verifier configuration showing issuer, audience, and signature algorithm checks",
+    "ev_... excerpt of session/refresh-token lifecycle, OTP verification, or STS/IoT policy vending handler"
+  ],
+  "questions_when_unclear": [
+    "Is brute-force lockout or token revocation enforced directly within the upstream IdP (Auth0 / Cognito / Azure AD) tenant configuration?",
+    "What IAM permissions are attached to the Cognito Unauthenticated Role in the production AWS account?"
+  ],
+  "markdown": "# Identity Fabric: Auth0, AWS Cognito, Azure AD, FIDO2/WebAuthn & Internal JWT (`iam-auth0-cognito-azuread-fido2`)\n\n> **Group:** II. Identity, Gateways & Multi-Cloud / On-Prem\n> **Product Archetypes:** Identity_SSO_Provider, API_Microservice_Gateway\n> **Trigger Signals:** auth0, cognito, azuread, entra, oidc, oauth, saml, fido2, webauthn, jwt, jwks, nimbus, sts, refresh_token\n\n## [ BLOCK: jwt-issuer-audience-and-token-exchange ]\n### Multi-Tenant JWT Validation, Audience Isolation & Refresh Token Exchange\n- Verify strict validation of `iss`, `aud`, `alg` (no `none` or RS256->HS256 confusion), and `exp`.\n- Audit token-exchange and refresh endpoints (e.g., `/exchange-refresh-token`) for missing client authentication, scope escalation, or cross-region token acceptance.\n\n## [ BLOCK: cognito-identity-pools-and-sts-vending ]\n### AWS Cognito Unauthenticated Pools, STS Vending & Policy Attachment\n- Check Cognito Identity Pools for `AllowUnauthenticatedIdentities` and inspect the IAM/IoT permissions bound to the Unauth Role.\n- Audit backend endpoints that vend AWS STS credentials (`/client/credentials`) or attach policies (`/attach-policy`) to ensure caller identity and resource ownership are verified.\n\n## [ BLOCK: fido2-webauthn-and-qr-sso ]\n### FIDO2/WebAuthn Attestation/Assertion & Cross-Device QR/SSE Login\n- In WebAuthn flows (`/attestation/result`, `/assertion/result`, `/recovery/key`), verify server-side challenge single-use binding, `rpId` verification, and signCount checks.\n- In QR-code / SSE login flows (`/qr/:type/:sseEncryptKey/:signature/:nonce`), check for session fixation or cross-user QR approval hijacking.\n\n## [ BLOCK: asvs-v7-session-revocation-password-reset-and-otp-bruteforce ]\n### ASVS V7 Session/Token Revocation, Password Reset Poisoning & OTP Brute-Force\n- Verify server-side revocation of active JWTs/refresh tokens upon logout, password change, role downgrade, or account lock (`jti` denylist / token version check).\n- Audit password reset and account recovery flows for Host-header poisoning, predictable reset tokens, token reuse, and missing OTP brute-force lockout (e.g., 4-6 digit OTP without attempt cap).\n\n### Standard Mappings\n- OWASP-API2:2023, ASVS-V2, ASVS-V3, ASVS-V7, CWE-287, CWE-307, CWE-613, CWE-640\n\n### Safe Patterns (Refutation Anchors)\n- Strict JWT verification pinning allowed asymmetric algorithms (RS256/ES256), expected issuer (iss), audience (aud), and expiration (exp)\n- Single-use cryptographically random password-reset / OTP tokens with strict per-account attempt lockout and TTL <= 10 minutes\n- Refresh token rotation with reuse detection and immediate server-side session revocation on password/privilege change\n\n### Vulnerable Patterns\n- JWT decoding without signature verification (jwt.decode(..., options={'verify_signature': False}), parseClaimsJwt) or accepting alg: none\n- Cognito Identity Pool allowing unauthenticated identities with over-privileged IAM/IoT policy attachment\n- OTP or password-reset verification lacking per-target attempt counters, allowing brute-force or cross-user token replay\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of JWT/OIDC verifier configuration showing issuer, audience, and signature algorithm checks\n- ev_... excerpt of session/refresh-token lifecycle, OTP verification, or STS/IoT policy vending handler\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Is brute-force lockout or token revocation enforced directly within the upstream IdP (Auth0 / Cognito / Azure AD) tenant configuration?\n- What IAM permissions are attached to the Cognito Unauthenticated Role in the production AWS account?\n"
+}

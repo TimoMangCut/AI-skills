@@ -1,0 +1,173 @@
+{
+  "version": "3.0.0",
+  "default_flow": "v3",
+  "flow": "v3",
+  "canonical_pipeline": "localsec-v3-unified-refute-first",
+  "legacy_v2_deprecated": true,
+  "phases": {
+    "1": {
+      "name": "Unified Reconnaissance",
+      "ordered_steps": [
+        "codebase_scout",
+        "intent_invariant_modeler",
+        "extractor_tailor",
+        "unified_surface_mapper",
+        "cross_repo_and_arch_review",
+        "coverage_and_evidence_auditor"
+      ],
+      "order": [
+        "codebase_scout",
+        "intent_invariant_modeler",
+        "extractor_tailor",
+        "unified_surface_mapper",
+        "cross_repo_and_arch_review",
+        "coverage_and_evidence_auditor"
+      ],
+      "required_artifacts": [
+        "inventory_repo.json",
+        "codebase_scout.json",
+        "intent_invariant_modeler.json",
+        "extractor_tailor.json",
+        "unified_surface_mapper.json",
+        "coverage_ledger.json",
+        "coverage_matrix.json",
+        "candidate_queue.json"
+      ],
+      "system_steps": [
+        "cross_repo_and_arch_review"
+      ],
+      "finalize_command": "finalize_v3_phase1",
+      "finalizer": "finalize_v3_phase1",
+      "gate_receipt": "phase1_gate_receipt.json"
+    },
+    "2": {
+      "name": "Deep Analysis & Falsification",
+      "ordered_steps": [
+        "candidate_intake_planner",
+        "deep_trace_chain_analyst",
+        "blinded_counterevidence_challenger",
+        "analysis_evidence_gate"
+      ],
+      "order": [
+        "candidate_intake_planner",
+        "deep_trace_chain_analyst",
+        "blinded_counterevidence_challenger",
+        "analysis_evidence_gate"
+      ],
+      "required_artifacts": [
+        "candidate_intake_planner.json",
+        "deep_trace_chain_analyst.json",
+        "blinded_counterevidence_challenger.json",
+        "analysis_evidence_gate.json"
+      ],
+      "finalize_command": "finalize_v3_phase2",
+      "finalizer": "finalize_v3_phase2",
+      "gate_receipt": "phase2_gate_receipt.json"
+    },
+    "3": {
+      "name": "Contextual Risk & Exploitability Assessment",
+      "ordered_steps": [
+        "actor_and_feasibility_assessor",
+        "beyond_code_control_mapper",
+        "sfop_risk_calibrator"
+      ],
+      "order": [
+        "actor_and_feasibility_assessor",
+        "beyond_code_control_mapper",
+        "sfop_risk_calibrator"
+      ],
+      "required_artifacts": [
+        "actor_and_feasibility_assessor.json",
+        "beyond_code_control_mapper.json",
+        "sfop_risk_calibrator.json",
+        "key_questions.json"
+      ],
+      "finalize_command": "finalize_v3_phase3",
+      "finalizer": "finalize_v3_phase3",
+      "gate_receipt": "phase3_gate_receipt.json"
+    }
+  },
+  "surface_checklist_types": [
+    "public_http",
+    "internal_or_admin_http",
+    "queue_or_event_consumer",
+    "scheduler_or_batch",
+    "webhook_or_callback",
+    "websocket_mqtt_ocpp",
+    "cli_or_maintenance_job",
+    "mobile_deeplink_or_exported_component",
+    "ble_or_hardware_bus"
+  ],
+  "challenger_6_locations": [
+    "global_middleware_or_filter",
+    "gateway_or_ingress_config",
+    "service_or_domain_guard",
+    "orm_global_filter_or_scoped_query",
+    "db_constraint_rls_or_trigger",
+    "upstream_caller_validation"
+  ],
+  "allowed_ignored_module_reasons": [
+    "test_or_mock",
+    "generated_code",
+    "third_party_vendor",
+    "deprecated_dead_code",
+    "docs_or_assets"
+  ],
+  "allowed_owner_roles": [
+    "dev_team",
+    "infra_cloud_sec",
+    "iam_platform",
+    "ot_safety_engineering",
+    "data_privacy_dpo",
+    "unassigned_pending_roster"
+  ],
+  "blast_radius_levels": [
+    "component",
+    "service",
+    "domain",
+    "cross_domain",
+    "platform"
+  ],
+  "sfop_rubric": {
+    "safety": {
+      "negligible": "No physical actuation, kinetic energy, thermal, or life-safety pathway (pure digital/informational).",
+      "low": "Minor physical inconvenience or non-hazardous comfort setting change (e.g., HVAC/infotainment preference) with hardware interlock intact.",
+      "medium": "Single-device/vehicle non-lethal operational hazard or immobilizer/charging interruption while stationary (ISO 26262 S1 / IEC 62443 SL-2).",
+      "high": "Single vehicle/charger/robot hazardous actuation or loss of safety monitoring without immediate multi-unit propagation (ISO 26262 S2 / ASIL-B).",
+      "critical": "Fleet-wide, BESS/grid, factory OT, or kinetic actuation capable of severe injury, thermal runaway, or loss of life (ISO 26262 S3 / ASIL-C/D, Gate 0 Emergency Brake).",
+      "catastrophic": "Alias for critical: irreversible multi-vehicle/BESS/plant safety hazard or human life threat requiring immediate Gate 0 Emergency Brake."
+    },
+    "financial": {
+      "negligible": "No direct monetary loss, billing manipulation, or settlement discrepancy (< $100 equivalent).",
+      "low": "Isolated single-transaction coupon/fee rounding or minor credit abuse (< $1,000, manually reversible).",
+      "medium": "Repeatable single-account billing/charging/voucher fraud or B2B reconciliation drift ($1,000 - $50,000).",
+      "high": "Automated multi-account wallet/refund/charging subsidy drain, paid OTA bypass, or partner settlement manipulation ($50,000 - $500,000).",
+      "critical": "Unbounded treasury/wallet drain, mass fleet billing fraud, or ERP/SAP financial ledger corruption (> $500,000).",
+      "catastrophic": "Alias for critical: systemic financial or ERP ledger compromise (> $500,000)."
+    },
+    "operational": {
+      "negligible": "No measurable service degradation or operational disruption.",
+      "low": "Single non-critical component degradation or cosmetic workflow error affecting < 1% of users.",
+      "medium": "Single service or regional feature outage, background worker stall, or support queue spike with manual workaround.",
+      "high": "Multi-tenant/domain outage (dealer portal, charging CSMS, or CI/CD pipeline disruption) affecting core business operations.",
+      "critical": "Platform-wide outage, fleet/factory/BESS command-and-control lockout, or central IAM/K8s/ERP control plane compromise.",
+      "catastrophic": "Alias for critical: complete platform, factory MES, or fleet operations halt."
+    },
+    "privacy": {
+      "negligible": "No PII, credentials, telemetry, or confidential customer data exposed.",
+      "low": "Single-user non-sensitive profile metadata or anonymized technical identifier exposure.",
+      "medium": "Single-user PII (name, phone, email, VIN) or limited historical telemetry exposed via authenticated BOLA.",
+      "high": "Bulk multi-user PII/KYC documents, live GPS vehicle tracking, in-cabin camera/voice recordings, or proprietary AI training datasets.",
+      "critical": "Mass exfiltration of national ID/KYC/financial records, fleet-wide live surveillance, or cryptographic identity/key material across tenants.",
+      "catastrophic": "Alias for critical: population-scale PII/biometric/location or cryptographic key breach."
+    },
+    "compliance": {
+      "negligible": "No regulatory, statutory, or contractual standard violation.",
+      "low": "Minor internal policy deviation or low-severity audit log formatting gap.",
+      "medium": "Single-control non-conformance under OWASP ASVS/MASVS or internal security baseline requiring remediation.",
+      "high": "Reportable control failure under UNECE R155/R156 (CSMS/SUMS), ISO/SAE 21434, IEC 62443, or PCI-DSS.",
+      "critical": "Statutory violation of Vietnam PDPD/Luat BVDLCN 91/2025, Cybersecurity Law 116/2025, GDPR, TT 05/2025/TT-BCT, or mandatory type-approval revocation.",
+      "catastrophic": "Alias for critical: statutory breach triggering license/type-approval suspension or regulatory enforcement."
+    }
+  }
+}

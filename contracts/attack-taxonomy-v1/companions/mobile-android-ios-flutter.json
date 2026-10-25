@@ -1,0 +1,85 @@
+{
+  "id": "mobile-android-ios-flutter",
+  "companion_id": "mobile-android-ios-flutter",
+  "file": "mobile-android-ios-flutter.md",
+  "companion_json": "companions/mobile-android-ios-flutter.json",
+  "group": "I. Web, Mobile & API Core",
+  "title": "Mobile Super-Apps & Companion Apps (Android/Kotlin/Smali, iOS/Swift, Flutter, BLE)",
+  "always_inject": false,
+  "triggers": [
+    "android",
+    "ios",
+    "kotlin",
+    "swift",
+    "flutter",
+    "dart",
+    "react-native",
+    "retrofit",
+    "okhttp",
+    "smali",
+    "apk",
+    "deeplink",
+    "bluetooth",
+    "ble",
+    "firebase"
+  ],
+  "trigger_signals": [
+    "android",
+    "ios",
+    "kotlin",
+    "swift",
+    "flutter",
+    "dart",
+    "react-native",
+    "retrofit",
+    "okhttp",
+    "smali",
+    "apk",
+    "deeplink",
+    "bluetooth",
+    "ble",
+    "firebase",
+    "mobile_client_android_ios",
+    "connected_vehicle_companion_app"
+  ],
+  "archetypes": [
+    "Mobile_Client_Android_iOS",
+    "Connected_Vehicle_Companion_App"
+  ],
+  "blocks": [
+    "mobile-exported-components-and-deeplinks",
+    "dynamic-host-routing-and-client-signing",
+    "ble-phone-as-a-key-and-device-ota",
+    "masvs-local-storage-keystore-and-cert-pinning"
+  ],
+  "standard_mappings": [
+    "MASVS-STORAGE-1",
+    "MASVS-STORAGE-2",
+    "MASVS-CRYPTO-1",
+    "MASVS-NETWORK-1",
+    "MASVS-NETWORK-2",
+    "MASVS-PLATFORM-1",
+    "ISO-SAE-21434"
+  ],
+  "safe_patterns": [
+    "EncryptedSharedPreferences / iOS Keychain with hardware-backed KeyStore and kSecAttrAccessibleWhenUnlockedThisDeviceOnly",
+    "OkHttp CertificatePinner with valid SHA-256 public key pins and no debug TrustManager overrides in release builds",
+    "android:exported=\"false\" on internal Activities/Services/BroadcastReceivers and strict host/scheme validation on DeepLinks",
+    "Ephemeral ECDH + monotonic nonce/counter validation on BLE Phone-as-a-Key (PAAK) GATT command frames"
+  ],
+  "vulnerable_patterns": [
+    "Plaintext JWT/refresh tokens or vehicle BLE keys written to MODE_WORLD_READABLE SharedPreferences, SQLite, or logcat",
+    "Custom X509TrustManager with empty checkServerTrusted() or HostnameVerifier returning true",
+    "Exported WebView Activity loading untrusted Intent extras via webView.loadUrl() with JavaScript and universal file access enabled",
+    "Hardcoded HMAC signing secrets or OAuth client secrets embedded in Kotlin/Swift constants, Dart snapshots, or JNI .so binaries"
+  ],
+  "required_evidence": [
+    "ev_... excerpt of AndroidManifest.xml / Info.plist showing exported components and intent-filter / Universal Link definitions",
+    "ev_... excerpt of network client initialization (OkHttp/Retrofit/Dio) and token storage implementation"
+  ],
+  "questions_when_unclear": [
+    "Is certificate pinning enforced via an external SDK or mobile app shielding wrapper applied post-compilation?",
+    "Are BLE digital keys revoked immediately on the vehicle BCM/T-Box when ownership or lending status changes in the cloud?"
+  ],
+  "markdown": "# Mobile Super-Apps & Companion Apps (Android/Kotlin/Smali, iOS/Swift, Flutter, BLE) (`mobile-android-ios-flutter`)\n\n> **Group:** I. Web, Mobile & API Core\n> **Product Archetypes:** Mobile_Client_Android_iOS, Connected_Vehicle_Companion_App\n> **Trigger Signals:** android, ios, kotlin, swift, flutter, dart, react-native, retrofit, okhttp, smali, apk, deeplink, bluetooth, ble, firebase\n\n## [ BLOCK: mobile-exported-components-and-deeplinks ]\n### Exported Activities/Services/Receivers, DeepLinks & WebView Bridges\n- Audit `AndroidManifest.xml` (`android:exported=\"true\"`, intent filters, custom URL schemes) and iOS `Info.plist` Universal Links.\n- Trace untrusted DeepLink parameters flowing into `WebView.loadUrl()`, `addJavascriptInterface`, or internal authenticated API calls.\n- Verify whether tokens or session cookies are automatically attached when a WebView loads an attacker-controlled URL.\n\n## [ BLOCK: dynamic-host-routing-and-client-signing ]\n### Retrofit/OkHttp Interceptors, Firebase Remote Config & Static Signing\n- Enumerate ALL Retrofit/OkHttp service modules (do not stop at the primary client; check secondary modules like Auth0, Guest, EV, OwnerManual).\n- Inspect `DynamicHostInterceptor` / Firebase Remote Config routing that switches endpoints per region or environment.\n- Refute client-side HMAC/request-signing theater (`X-HASH`, static secrets in native `.so` or Dart/Kotlin constants) — treat client-known secrets as public.\n\n## [ BLOCK: ble-phone-as-a-key-and-device-ota ]\n### BLE Phone-as-a-Key (PAAK) & Mobile-Relayed Firmware Updates\n- When the mobile app acts as a BLE key (e.g., eScooter/Vehicle PAAK) or relays firmware (`Cloud -> Phone -> BLE -> Vehicle`), trace pairing, nonce/anti-replay, and key revocation on lending/transfer.\n- Verify whether the mobile app can flash downgraded or modified firmware packages onto the vehicle/device over BLE.\n\n## [ BLOCK: masvs-local-storage-keystore-and-cert-pinning ]\n### MASVS Local Storage, Android Keystore / iOS Keychain & Certificate Pinning\n- Audit local persistence (`SharedPreferences`, `MMKV`, `SQLite`, `Realm`, `UserDefaults`, `FlutterSecureStorage`, external storage) for plaintext tokens, PII, VINs, or BLE keys.\n- Verify hardware-backed `AndroidKeyStore` / iOS Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`) usage with biometric/user-presence binding where required.\n- Inspect `network_security_config.xml`, `OkHttpCertificatePinner`, `TrustManager`, and Flutter `SecurityContext` for disabled TLS verification (`checkServerTrusted` no-op, `badCertificateCallback => true`) or expired/missing certificate pins.\n\n### Standard Mappings\n- MASVS-STORAGE-1, MASVS-STORAGE-2, MASVS-CRYPTO-1, MASVS-NETWORK-1, MASVS-NETWORK-2, MASVS-PLATFORM-1, ISO-SAE-21434\n\n### Safe Patterns (Refutation Anchors)\n- EncryptedSharedPreferences / iOS Keychain with hardware-backed KeyStore and kSecAttrAccessibleWhenUnlockedThisDeviceOnly\n- OkHttp CertificatePinner with valid SHA-256 public key pins and no debug TrustManager overrides in release builds\n- android:exported=\"false\" on internal Activities/Services/BroadcastReceivers and strict host/scheme validation on DeepLinks\n- Ephemeral ECDH + monotonic nonce/counter validation on BLE Phone-as-a-Key (PAAK) GATT command frames\n\n### Vulnerable Patterns\n- Plaintext JWT/refresh tokens or vehicle BLE keys written to MODE_WORLD_READABLE SharedPreferences, SQLite, or logcat\n- Custom X509TrustManager with empty checkServerTrusted() or HostnameVerifier returning true\n- Exported WebView Activity loading untrusted Intent extras via webView.loadUrl() with JavaScript and universal file access enabled\n- Hardcoded HMAC signing secrets or OAuth client secrets embedded in Kotlin/Swift constants, Dart snapshots, or JNI .so binaries\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of AndroidManifest.xml / Info.plist showing exported components and intent-filter / Universal Link definitions\n- ev_... excerpt of network client initialization (OkHttp/Retrofit/Dio) and token storage implementation\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Is certificate pinning enforced via an external SDK or mobile app shielding wrapper applied post-compilation?\n- Are BLE digital keys revoked immediately on the vehicle BCM/T-Box when ownership or lending status changes in the cloud?\n"
+}

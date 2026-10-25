@@ -1,0 +1,87 @@
+{
+  "id": "api-rest-graphql-grpc-websocket",
+  "companion_id": "api-rest-graphql-grpc-websocket",
+  "file": "api-rest-graphql-grpc-websocket.md",
+  "companion_json": "companions/api-rest-graphql-grpc-websocket.json",
+  "group": "I. Web, Mobile & API Core",
+  "title": "REST, GraphQL, gRPC/Protobuf & WebSocket API Surfaces",
+  "always_inject": true,
+  "triggers": [
+    "openapi",
+    "swagger",
+    "rest",
+    "graphql",
+    "grpc",
+    "protobuf",
+    "proto",
+    "websocket",
+    "ws",
+    "wss",
+    "ssrf",
+    "webhook",
+    "fileupload",
+    "multipart"
+  ],
+  "trigger_signals": [
+    "openapi",
+    "swagger",
+    "rest",
+    "graphql",
+    "grpc",
+    "protobuf",
+    "proto",
+    "websocket",
+    "ws",
+    "wss",
+    "ssrf",
+    "webhook",
+    "fileupload",
+    "multipart",
+    "api_microservice_gateway",
+    "realtime_websocket_service"
+  ],
+  "archetypes": [
+    "API_Microservice_Gateway",
+    "Realtime_WebSocket_Service"
+  ],
+  "blocks": [
+    "openapi-shadow-routes-and-debug-sinks",
+    "ssrf-webhooks-and-url-fetchers",
+    "websocket-and-grpc-stream-auth",
+    "api3-bopla-mass-assignment-and-data-exposure",
+    "api4-rate-limiting-pagination-and-resource-dos",
+    "asvs-v5-file-upload-path-traversal-zipslip-and-injection",
+    "asvs-v16-logging-error-handling-and-audit-integrity"
+  ],
+  "standard_mappings": [
+    "OWASP-API3:2023",
+    "OWASP-API4:2023",
+    "OWASP-API7:2023",
+    "OWASP-API8:2023",
+    "OWASP-API9:2023",
+    "ASVS-V5",
+    "ASVS-V13",
+    "ASVS-V16"
+  ],
+  "safe_patterns": [
+    "Explicit allowlisted Request/Response DTOs with strict field-level validation and no direct ORM entity binding",
+    "Enforced maximum pageSize cap (e.g., Math.min(limit, 100)) and rate-limiting middleware on public/expensive routes",
+    "Parameterized SQL queries, canonicalized path verification (Path.resolve().startsWith(baseDir)), and ZipEntry path checks",
+    "Structured JSON audit logging with sanitized fields and generic client error messages hiding internal stack traces"
+  ],
+  "vulnerable_patterns": [
+    "Direct binding of req.body / request JSON into ORM update/save calls allowing role, balance, or tenant_id mass assignment",
+    "Unbounded pagination (LIMIT $limit without cap), unthrottled batch arrays, or deeply nested GraphQL queries",
+    "Archive extraction or file write using unvalidated entry.getName() / filename allowing ../ ZipSlip or path traversal",
+    "String-concatenated SQL/NoSQL/shell commands or outbound HTTP fetchers accepting unvalidated user URLs (SSRF)"
+  ],
+  "required_evidence": [
+    "ev_... excerpt of controller/router endpoint signature, request DTO/schema definition, and response serializer",
+    "ev_... excerpt of downstream service/DAO query, file handler, or outbound HTTP client call"
+  ],
+  "questions_when_unclear": [
+    "Are pagination limits, payload size caps, or rate limits enforced at an upstream API Gateway (Kong/KrakenD) rather than in application code?",
+    "Are uploaded files scanned and rewritten by an isolated object-storage worker before being served to users?"
+  ],
+  "markdown": "# REST, GraphQL, gRPC/Protobuf & WebSocket API Surfaces (`api-rest-graphql-grpc-websocket`)\n\n> **Group:** I. Web, Mobile & API Core\n> **Product Archetypes:** API_Microservice_Gateway, Realtime_WebSocket_Service\n> **Trigger Signals:** openapi, swagger, rest, graphql, grpc, protobuf, proto, websocket, ws, wss, ssrf, webhook, fileupload, multipart\n\n## [ BLOCK: openapi-shadow-routes-and-debug-sinks ]\n### Undocumented Shadow Routes, Staging Backdoors & Schema Exposure\n- Compare code-level route registrations against published OpenAPI/Swagger specs to uncover shadow endpoints.\n- Hunt for non-prod/test/debug handlers (`/fake/otp/*`, `/test/user-vehicle/*`, `/api/sample/*`, `/actuator/*`, Django `DEBUG=True` URL dumps) compiled into shared builds.\n\n## [ BLOCK: ssrf-webhooks-and-url-fetchers ]\n### Server-Side Request Forgery (SSRF), Webhooks & Media/Avatar Fetchers\n- Trace all user-supplied URLs (webhooks, avatar/document imports, OIDC discovery, PDF/headless-browser rendering) to outbound HTTP clients.\n- Check if DNS resolution, HTTP redirects (301/302), or IPv6 mapped addresses bypass RFC1918 (`10.x.x.x`) and cloud metadata (`169.254.169.254`) filters.\n\n## [ BLOCK: websocket-and-grpc-stream-auth ]\n### WebSocket Upgrade Handshake, Message-Level Authz & gRPC Interceptors\n- Verify whether WebSocket (`ws://`/`wss://`) servers validate `Origin`, authenticate the HTTP `101 Switching Protocols` upgrade, AND enforce per-message/per-topic authorization.\n- Check gRPC unary and streaming interceptors for unauthenticated reflection or missing metadata token checks.\n\n## [ BLOCK: api3-bopla-mass-assignment-and-data-exposure ]\n### OWASP API3:2023 BOPLA — Mass Assignment & Excessive Data Exposure\n- Check whether request DTOs/models bind directly to ORM entities (`Object.assign`, `Model.create(req.body)`, `BeanUtils.copyProperties`, Pydantic/Jackson/Ginauto-binding) allowing privilege/role/balance/status tampering.\n- Check whether response serializers return raw database entities leaking sensitive fields (`passwordHash`, `otpCode`, internal tenant metadata, PII).\n\n## [ BLOCK: api4-rate-limiting-pagination-and-resource-dos ]\n### OWASP API4:2023 Unrestricted Resource Consumption, Pagination & Batch DoS\n- Verify upper bounds on pagination parameters (`limit`, `pageSize`, `first`), GraphQL query depth/complexity, batch array sizes, and synchronous report/export endpoints.\n- Check for missing per-user/per-IP rate limiting on expensive compute, SMS/email dispatch, or third-party billing calls.\n\n## [ BLOCK: asvs-v5-file-upload-path-traversal-zipslip-and-injection ]\n### ASVS V5 File Upload, Path Traversal, ZipSlip & General Injection (SQLi/Cmd/NoSQLi/SSTI)\n- Trace multipart file uploads and archive extractors (`zipfile`, `tarfile`, `ZipInputStream`) for `../` Path Traversal / ZipSlip, unrestricted file extensions, and SSRF via SVG/XML (XXE).\n- Hunt for raw string interpolation in SQL queries, NoSQL operators (`$where`, `$gt`, `$ne`), OS command execution (`subprocess`, `exec`, `Runtime.exec`), and template engines.\n\n## [ BLOCK: asvs-v16-logging-error-handling-and-audit-integrity ]\n### ASVS V16 Security Logging, Error Handling & Audit Trail Tampering\n- Check global exception handlers for stack trace, SQL query, or internal environment leakage in error responses.\n- Verify that security-critical mutations emit immutable audit logs resistant to log injection (CRLF/JSON spoofing) and silent exception swallowing.\n\n### Standard Mappings\n- OWASP-API3:2023, OWASP-API4:2023, OWASP-API7:2023, OWASP-API8:2023, OWASP-API9:2023, ASVS-V5, ASVS-V13, ASVS-V16\n\n### Safe Patterns (Refutation Anchors)\n- Explicit allowlisted Request/Response DTOs with strict field-level validation and no direct ORM entity binding\n- Enforced maximum pageSize cap (e.g., Math.min(limit, 100)) and rate-limiting middleware on public/expensive routes\n- Parameterized SQL queries, canonicalized path verification (Path.resolve().startsWith(baseDir)), and ZipEntry path checks\n- Structured JSON audit logging with sanitized fields and generic client error messages hiding internal stack traces\n\n### Vulnerable Patterns\n- Direct binding of req.body / request JSON into ORM update/save calls allowing role, balance, or tenant_id mass assignment\n- Unbounded pagination (LIMIT $limit without cap), unthrottled batch arrays, or deeply nested GraphQL queries\n- Archive extraction or file write using unvalidated entry.getName() / filename allowing ../ ZipSlip or path traversal\n- String-concatenated SQL/NoSQL/shell commands or outbound HTTP fetchers accepting unvalidated user URLs (SSRF)\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of controller/router endpoint signature, request DTO/schema definition, and response serializer\n- ev_... excerpt of downstream service/DAO query, file handler, or outbound HTTP client call\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Are pagination limits, payload size caps, or rate limits enforced at an upstream API Gateway (Kong/KrakenD) rather than in application code?\n- Are uploaded files scanned and rewritten by an isolated object-storage worker before being served to users?\n"
+}

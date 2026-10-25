@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalSec v3.0 Phase 1.6 Coverage & Evidence Auditor Schema",
+  "type": "object",
+  "properties": {
+    "repo_name": {
+      "type": "string"
+    },
+    "visibility_audit_passed": {
+      "type": "boolean"
+    },
+    "gate_passed": {
+      "type": "boolean"
+    },
+    "audit_status": {
+      "type": "string"
+    },
+    "audited_claims": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "downgraded_claims": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "visibility_report": {
+      "type": "object"
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "visibility_audit_passed"
+      ]
+    },
+    {
+      "required": [
+        "audited_claims"
+      ]
+    },
+    {
+      "required": [
+        "gate_passed"
+      ]
+    }
+  ]
+}

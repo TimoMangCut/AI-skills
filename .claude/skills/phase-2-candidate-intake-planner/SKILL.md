@@ -7,17 +7,20 @@ description: >-
 # Phase 2.1: Candidate Intake & Attack Companion Planner (`candidate_intake_planner`)
 
 Bạn đang thực thi **Bước 2.1 (`candidate_intake_planner`)** trong **Phase 2: Deep Analysis & Falsification (LocalSec v3.0)**.
-Thay vì quét lại toàn bộ mã nguồn từ đầu, Phase 2 **chỉ tập trung nguồn lực đọc sâu vào các mục trong `Candidate Queue`** phát sinh từ Phase 1 (các `outliers` từ gom cụm ngữ nghĩa, các điểm lệch giữa Ý định & Triển khai, và các điểm đứt gãy ranh giới tin cậy liên repo).
+Trước khi nộp kết quả, hãy đối chiếu hợp đồng điều phối `AI-skills/contracts/v3-orchestration.json` và schema mục tiêu `AI-skills/schemas/v3/candidate_intake_planner.schema.json`.
+
+Thay vì quét lại toàn bộ mã nguồn từ đầu, Phase 2 **đọc trực tiếp `.localsec/runs/default/<repo_name>/candidate_queue.json` do `finalize_v3_phase1` sinh ra (`ARCH-3G`)** và nạp các mô-đun `Attack-Class Companion` tương ứng.
 
 ---
 
-## 1. Quy tắc Thực thi Bắt buộc
+## 1. Quy tắc Thực thi Bắt buộc (`ARCH-3G`, `DEPTH-4.5`)
 
-1. **Lọc và Xếp hạng Ưu tiên `Candidate Queue`**:
-   - Ưu tiên `P0`: Các ứng viên tác động trực tiếp đến trục **Safety (S)** (điều khiển xe, trạm sạc, BESS, robot, y tế) hoặc **Financial (F)** / **AuthZ BOLA đa thuê bao**.
-   - Ưu tiên `P1`: Các ứng viên có chuỗi leo thang quyền hạn xuyên dịch vụ hoặc thực thi mã từ xa (RCE/Deserialization/SSRF).
-2. **Tiêm Nguyên văn Khối `Attack-Class Companion` (`## [ BLOCK: ... ]`)**:
-   - Chạy `select_attack_companions` để nạp nguyên văn các khối kiểm tra chuyên sâu từ `contracts/attack-taxonomy-v1/` (16 mô-đun).
+1. **Đọc `candidate_queue.json` & Không Bỏ rơi Ứng viên (`ARCH-3G`)**:
+   - Đọc danh sách ứng viên từ `.localsec/runs/default/<repo_name>/candidate_queue.json`.
+   - Bảo toàn 100% mã `candidate_id` từ Phase 1: xếp hạng ưu tiên `P0` (Safety/Financial/BOLA/RCE), `P1` (Privilege Escalation/SSRF/Deserialization), `P2` (Defense-in-Depth).
+   - Sử dụng `python -m localsec.manual_session show_evidence <repo_name> <ev_id>` để xem lại các trích đoạn bằng chứng Phase 1 mà không cần mở đọc lại toàn bộ file (`DEPTH-4.5`).
+2. **Tiêm Nguyên văn Khối `Attack-Class Companion` (`selected_attack_companions.json` — `DEPTH-4.5`)**:
+   - Chạy `python -m localsec.manual_session select_attack_companions <repo_name> --archetypes ...` để nạp nguyên văn các khối kiểm tra chuyên sâu từ `AI-skills/contracts/attack-taxonomy-v1/manifest.json` (16 mô-đun) và tự động lưu vào `.localsec/runs/default/<repo_name>/selected_attack_companions.json`.
    - **CẤM tóm tắt hoặc viết lại nội dung bên trong khối `## [ BLOCK: ... ]`**. Nếu loại trừ bất kỳ khối nào, phải ghi rõ lý do trong `excluded_blocks`.
 
 ---
@@ -25,9 +28,35 @@ Thay vì quét lại toàn bộ mã nguồn từ đầu, Phase 2 **chỉ tập t
 ## 2. Giao thức Thực thi CLI
 
 ```bash
-# 1. Chọn các khối Attack-Class Companion nguyên văn cho từng repo liên quan
-python -m localsec.manual_session select_attack_companions <repo_name>
+# 1. Xem lại trích đoạn bằng chứng từ Phase 1 mà không cần đọc lại file
+python -m localsec.manual_session show_evidence <repo_name> <ev_id>
 
-# 2. Lưu danh sách Candidate Queue đã chuẩn hóa
-python -m localsec.manual_session submit_skill _analysis candidate_intake_planner .localsec/tmp/candidate_intake_planner.json
+# 2. Chọn các khối Attack-Class Companion nguyên văn và xuất ra .localsec/runs/default/<repo_name>/selected_attack_companions.json
+python -m localsec.manual_session select_attack_companions <repo_name> --archetypes ev_charging_ocpp_ocpi_bess api_rest_graphql_grpc_websocket
+
+# 3. Lưu danh sách Candidate Queue đã chuẩn hóa (đối chiếu AI-skills/schemas/v3/candidate_intake_planner.schema.json)
+python -m localsec.manual_session submit_skill <repo_name> candidate_intake_planner .localsec/tmp/candidate_intake_planner_<repo_name>.json
+```
+
+---
+
+## 3. Định dạng Đầu ra JSON (`AI-skills/schemas/v3/candidate_intake_planner.schema.json`)
+
+```json
+{
+  "intake_candidates": [
+    {
+      "candidate_id": "CAND-OCPP-BOLA-01",
+      "priority": "P0",
+      "affected_axis": "O",
+      "hypothesis": "Authenticated B2C user can call POST /api/v1/sessions/{sessionId}/remote-stop with another user's sessionId to terminate active charging",
+      "selected_companion_modules": [
+        "authz-bola-bfla-multitenant",
+        "ev-charging-ocpp-ocpi-battery"
+      ],
+      "evidence_ids": ["ev_..."]
+    }
+  ],
+  "excluded_blocks": []
+}
 ```

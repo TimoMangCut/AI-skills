@@ -1,0 +1,81 @@
+{
+  "id": "cloud-aws-gcp-azure-iam-storage",
+  "companion_id": "cloud-aws-gcp-azure-iam-storage",
+  "file": "cloud-aws-gcp-azure-iam-storage.md",
+  "companion_json": "companions/cloud-aws-gcp-azure-iam-storage.json",
+  "group": "II. Identity, Gateways & Multi-Cloud / On-Prem",
+  "title": "Multi-Cloud Infrastructure: AWS, GCP, Azure Storage, IAM, KMS & DNS",
+  "always_inject": false,
+  "triggers": [
+    "aws",
+    "s3",
+    "ec2",
+    "eks",
+    "kms",
+    "gcp",
+    "gcs",
+    "cloudrun",
+    "azure",
+    "blob",
+    "appservice",
+    "cname",
+    "dns",
+    "acm",
+    "cloudfront"
+  ],
+  "trigger_signals": [
+    "aws",
+    "s3",
+    "ec2",
+    "eks",
+    "kms",
+    "gcp",
+    "gcs",
+    "cloudrun",
+    "azure",
+    "blob",
+    "appservice",
+    "cname",
+    "dns",
+    "acm",
+    "cloudfront",
+    "cloud_infra_iac",
+    "api_microservice_gateway"
+  ],
+  "archetypes": [
+    "Cloud_Infra_IaC",
+    "API_Microservice_Gateway"
+  ],
+  "blocks": [
+    "dangling-dns-and-subdomain-takeover",
+    "cloud-storage-pre-signed-urls-and-iam",
+    "asvs-v5-storage-upload-validation-and-path-prefix-isolation"
+  ],
+  "standard_mappings": [
+    "OWASP-API8:2023",
+    "ASVS-V5",
+    "ASVS-V14",
+    "CWE-22",
+    "CWE-284",
+    "CWE-732"
+  ],
+  "safe_patterns": [
+    "Server-generated UUID object keys under a strict tenant prefix (${tenantId}/${uuid}) with Content-Type and size conditions on pre-signed URLs",
+    "S3 PublicAccessBlock enabled and IAM policies scoped to least-privilege resource ARNs without wildcard s3:* or sts:AssumeRole *",
+    "Automated DNS lifecycle cleanup removing CNAME records before deprovisioning cloud apps or buckets"
+  ],
+  "vulnerable_patterns": [
+    "Generating pre-signed S3/GCS PUT/GET URLs directly from user-supplied file paths or bucket names without ownership/prefix validation",
+    "Publicly listable or readable S3/GCS/Azure Blob buckets containing customer KYC docs, vehicle camera images, or build sourcemaps",
+    "IAM roles with Action: '*' and Resource: '*' shared across dev, staging, and production workloads"
+  ],
+  "required_evidence": [
+    "ev_... excerpt of S3/GCS/Blob client code generating pre-signed URLs or performing object reads/writes",
+    "ev_... excerpt of IaC (Terraform/CloudFormation/Helm) defining bucket ACLs and IAM role policies"
+  ],
+  "questions_when_unclear": [
+    "Is S3 Block Public Access enabled at the AWS Account level and enforced via AWS Organizations SCP?",
+    "Are bucket policies restricting object access to specific VPC Endpoints?"
+  ],
+  "markdown": "# Multi-Cloud Infrastructure: AWS, GCP, Azure Storage, IAM, KMS & DNS (`cloud-aws-gcp-azure-iam-storage`)\n\n> **Group:** II. Identity, Gateways & Multi-Cloud / On-Prem\n> **Product Archetypes:** Cloud_Infra_IaC, API_Microservice_Gateway\n> **Trigger Signals:** aws, s3, ec2, eks, kms, gcp, gcs, cloudrun, azure, blob, appservice, cname, dns, acm, cloudfront\n\n## [ BLOCK: dangling-dns-and-subdomain-takeover ]\n### Subdomain Takeover (Azure App Service, S3, CloudFront, GCS) & Expired TLS\n- Inspect CNAME records pointing to unprovisioned Azure App Services (`*.azurewebsites.net`), S3/GCS buckets, or dangling CloudFront distributions.\n- Verify TLS certificate validity and CA issuance across multi-cloud endpoints.\n\n## [ BLOCK: cloud-storage-pre-signed-urls-and-iam ]\n### S3/GCS/Azure Blob ACLs, Pre-Signed URL Scope & Cross-Account IAM\n- Check whether staging/prod buckets (`gcs`, `s3`) allow public listing or leak sourcemaps, backups, or vehicle camera images.\n- Verify whether shared AWS accounts across dev/staging regions allow cross-environment privilege escalation via overly broad IAM/KMS policies.\n\n## [ BLOCK: asvs-v5-storage-upload-validation-and-path-prefix-isolation ]\n### Pre-Signed Upload Key Prefix Traversal & Content-Type Enforcement\n- Check whether S3/GCS/Azure Blob pre-signed upload URL generators allow caller-controlled object keys (`../../other-tenant/file` or overwriting static web assets).\n- Verify whether pre-signed PUT/POST policies constrain `Content-Type`, maximum file size (`content-length-range`), and tenant key prefixes.\n\n### Standard Mappings\n- OWASP-API8:2023, ASVS-V5, ASVS-V14, CWE-22, CWE-284, CWE-732\n\n### Safe Patterns (Refutation Anchors)\n- Server-generated UUID object keys under a strict tenant prefix (${tenantId}/${uuid}) with Content-Type and size conditions on pre-signed URLs\n- S3 PublicAccessBlock enabled and IAM policies scoped to least-privilege resource ARNs without wildcard s3:* or sts:AssumeRole *\n- Automated DNS lifecycle cleanup removing CNAME records before deprovisioning cloud apps or buckets\n\n### Vulnerable Patterns\n- Generating pre-signed S3/GCS PUT/GET URLs directly from user-supplied file paths or bucket names without ownership/prefix validation\n- Publicly listable or readable S3/GCS/Azure Blob buckets containing customer KYC docs, vehicle camera images, or build sourcemaps\n- IAM roles with Action: '*' and Resource: '*' shared across dev, staging, and production workloads\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of S3/GCS/Blob client code generating pre-signed URLs or performing object reads/writes\n- ev_... excerpt of IaC (Terraform/CloudFormation/Helm) defining bucket ACLs and IAM role policies\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Is S3 Block Public Access enabled at the AWS Account level and enforced via AWS Organizations SCP?\n- Are bucket policies restricting object access to specific VPC Endpoints?\n"
+}

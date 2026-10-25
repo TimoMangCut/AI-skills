@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalSec v3.0 Phase 2.4 Analysis Evidence Gate Schema",
+  "type": "object",
+  "properties": {
+    "repo_name": {
+      "type": "string"
+    },
+    "gate_passed": {
+      "type": "boolean"
+    },
+    "audit_status": {
+      "type": "string"
+    },
+    "audited_claims": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "empirical_refutations_ledger": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "candidate_or_chain_id": {
+            "type": "string"
+          },
+          "chain_id": {
+            "type": "string"
+          },
+          "blocking_control": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "counter_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "confirmed_reachable_chains": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "string"
+        ]
+      }
+    },
+    "surviving_chains": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "string"
+        ]
+      }
+    },
+    "downgraded_or_refuted_chains": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "string"
+        ]
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "confirmed_reachable_chains"
+      ]
+    },
+    {
+      "required": [
+        "empirical_refutations_ledger"
+      ]
+    },
+    {
+      "required": [
+        "audited_claims"
+      ]
+    },
+    {
+      "required": [
+        "gate_passed"
+      ]
+    }
+  ]
+}

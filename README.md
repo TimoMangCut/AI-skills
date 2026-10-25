@@ -1,9 +1,9 @@
 # AI-skills — LocalSec v3.0 Security Review Pipeline (Windows Edition — Antigravity & Claude Code)
 
-Bộ **16 Skills (`.agents/skills/` & `.claude/skills/`) + Always-On Rules (`AGENTS.md`, `SOUL.md`, `CLAUDE.md`) + Python Epistemic Engine (`localsec`)** tối ưu hóa cho môi trường **Windows (PowerShell, CMD, Git Bash)** dùng để kiểm toán bảo mật mã nguồn & hệ sinh thái Cyber-Physical (Vingroup / VinSOC) qua **3 Phase chuẩn hóa v3.0**:
-- **Phase 1**: Unified Reconnaissance (`/phase-1-orchestrator` — 6 bước v3.0: AI Scouting $\rightarrow$ Tailored Extractor $\rightarrow$ S-F-O-P-C Invariants $\rightarrow$ Single-Pass Semantic Clustering $\rightarrow$ Cross-Repo Review $\rightarrow$ Physical Visibility Tracker & Evidence Audit)
-- **Phase 2**: Deep Analysis & Falsification (`/phase-2-orchestrator` — 4 bước v3.0: Candidate Intake + 16 Attack-Class Companions $\rightarrow$ Deep Trace & Chain Analyst $\rightarrow$ Context-Blinded Challenger $\rightarrow$ Empirical Refutations Ledger Gate)
-- **Phase 3**: Contextual Risk & Exploitability Assessment (`/phase-3-orchestrator` — 3 bước v3.0: Actor & Attack Feasibility $\rightarrow$ Beyond-Code Controls Cloudflare/WAF/VPC/OT Interlock $\rightarrow$ 5-Axis S-F-O-P-C Risk Calibrator)
+Bộ **16 Skills (`.agents/skills/` & `.claude/skills/`) + Always-On Rules (`AGENTS.md`, `SOUL.md`, `CLAUDE.md`) + Python Epistemic Engine (`localsec`)** tối ưu hóa cho môi trường **Windows (PowerShell, CMD, Git Bash)** dùng để kiểm toán bảo mật mã nguồn & hệ sinh thái Cyber-Physical (Vingroup / VinSOC) qua **3 Phase chuẩn hóa v3.0** (`AI-skills/contracts/v3-orchestration.json`):
+- **Phase 1**: Unified Reconnaissance (`/phase-1-orchestrator` — 6 bước v3.0 theo thứ tự **Intent Before Code (`1.1 -> 1.3 -> 1.2 -> 1.4 -> 1.5 -> 1.6`)**: `inventory_repo` + AI Scouting $\rightarrow$ S-F-O-P-C Invariants trước khi đọc code $\rightarrow$ Tailored Extractor $\rightarrow$ Single-Pass Safe Semantic Clustering $\rightarrow$ Cross-Repo Boundary Matching & Arch Review $\rightarrow$ Physical Visibility Tracker, Evidence Audit & `finalize_v3_phase1`)
+- **Phase 2**: Deep Analysis & Falsification (`/phase-2-orchestrator` — 4 bước v3.0 (`2.1 -> 2.4`): Candidate Queue Intake + 16 Attack-Class Companions $\rightarrow$ Deep Trace & Chain Analyst (100% candidate accounting + `hop_kind`) $\rightarrow$ Isolated Context-Blinded Challenger (6-item `control_search_checklist`) $\rightarrow$ Analysis Evidence Gate & `finalize_v3_phase2`)
+- **Phase 3**: Contextual Risk & Exploitability Assessment (`/phase-3-orchestrator` — 3 bước v3.0 (`3.1 -> 3.3` + Report): Actor & Structured Precondition Feasibility $\rightarrow$ Beyond-Code Controls Cloudflare/WAF/VPC/OT Interlock (`ingest_runtime_facts`) $\rightarrow$ 5-Axis S-F-O-P-C Quantitative Risk Calibrator, `finalize_v3_phase3` & `render_v3_report`)
 
 ---
 
@@ -16,8 +16,8 @@ Khi áp dụng bộ Skills này vào một dự án thực tế (`<Project-Root>
 ├── <service-repo-1>\                  <-- Các repo mã nguồn của dự án cần review
 ├── <service-repo-2>\
 ├── <docs-or-brd>\                     <-- Tài liệu nghiệp vụ BRD/BRS/Specs của dự án (nếu có)
-├── documents\                         <-- Báo cáo đầu ra (Phase 1, 2, 3) sẽ tự động xuất ra đây
-├── .localsec\                         <-- Trạng thái phiên làm việc, .localsec\tmp\ & mã bằng chứng ev_...
+├── documents\                         <-- Báo cáo đầu ra (render_v3_report) sẽ tự động xuất ra đây
+├── .localsec\                         <-- Trạng thái phiên làm việc, .localsec\tmp\, .localsec\runs\ & mã bằng chứng ev_...
 ├── localsec\__init__.py               <-- [Auto-Bridge] Cầu nối package giúp `python -m localsec.manual_session` chạy trực tiếp trên PowerShell/CMD
 │
 ├── AGENTS.md                          <-- [Copy/Merge từ AI-skills] Rule Refute-first & 5 trục S-F-O-P-C
@@ -37,8 +37,8 @@ Khi áp dụng bộ Skills này vào một dự án thực tế (`<Project-Root>
     ├── setup_bootstrap.py             <-- Bộ cài đặt & đồng bộ đa nền tảng (Windows / POSIX)
     ├── localsec\                      <-- Bộ máy Python CLI (manual_session.py, validators.py, workspace.py...)
     ├── skills\                        <-- Prompts & Registry gốc
-    ├── schemas\                       <-- JSON Schemas (AI-skills/schemas/*.schema.json)
-    ├── contracts\                     <-- Contracts, Schemas & 16 Attack-Class Companions (AI-skills/contracts/...)
+    ├── schemas\                       <-- JSON Schemas (AI-skills/schemas/v3/*.schema.json)
+    ├── contracts\                     <-- Contracts, v3-orchestration.json & 16 Attack-Class Companions
     ├── examples\                      <-- Repo mẫu (demo-go)
     ├── tests\                         <-- Unit Tests kiểm định toàn bộ cổng an toàn
     └── localsec.toml                  <-- Cấu hình mặc định của bộ tool
@@ -90,22 +90,22 @@ Script `setup.ps1` / `setup.bat` thực hiện an toàn 5 việc:
 
 Mở `<Project-Root>` trong Antigravity IDE hoặc Claude Code và gọi tuần tự:
 
-### Bước A — Chạy Phase 1 (Unified Reconnaissance v3.0)
+### Bước A — Chạy Phase 1 (Unified Reconnaissance v3.0 — Intent Before Code)
 ```text
-/phase-1-orchestrator Thực hiện Phase 1 (Unified Reconnaissance v3.0) cho toàn bộ repositories.
-Áp dụng kỷ luật Refute-first: chạy Bước 1.1 codebase_scout trước để lập Target Modules Map và phân loại Repo Tier, kiểm thử Python extractor trên canary files ở Bước 1.2, dựng mô hình bất biến S-F-O-P-C ở Bước 1.3, đọc code 1 lượt kèm AI Semantic Clustering ở Bước 1.4, đánh giá kiến trúc xuyên repo ở Bước 1.5 và kiểm toán Visibility Tracker + Evidence Audit ở Bước 1.6.
+/phase-1-orchestrator Thực hiện Phase 1 (Unified Reconnaissance v3.0) cho toàn bộ repositories theo đúng thứ tự Intent Before Code (1.1 -> 1.3 -> 1.2 -> 1.4 -> 1.5 -> 1.6):
+Chạy inventory_repo và Bước 1.1 codebase_scout trước để lập Target Modules Map bao phủ 100% entrypoint/security files, chạy Bước 1.3 intent_invariant_modeler trước khi đọc code thực thi, kiểm thử Python extractor trên canary files ở Bước 1.2, đọc code 1 lượt kèm Safe Semantic Clustering ở Bước 1.4, chạy match_cross_repo_boundaries và đánh giá kiến trúc xuyên repo ở Bước 1.5, cuối cùng chạy Bước 1.6 coverage_and_evidence_auditor và finalize_v3_phase1 để xuất coverage_matrix.json và candidate_queue.json.
 ```
 
 ### Bước B — Chạy Phase 2 (Deep Analysis & Falsification v3.0)
 ```text
-/phase-2-orchestrator Thực hiện Phase 2 (Deep Analysis & Falsification v3.0) trên Candidate Queue từ Phase 1.
-Chạy tuần tự 4 bước (2.1 -> 2.4): nạp nguyên văn các mô-đun Attack-Class Companion phù hợp, truy vết sâu hops[] + dựng chuỗi tấn công + tìm Root-Cause, chạy phản biện đối kháng ở chế độ Mù Kết luận (Context-Blinded), và qua cổng kiểm toán Empirical Refutations Ledger trước khi chuyển sang Phase 3.
+/phase-2-orchestrator Thực hiện Phase 2 (Deep Analysis & Falsification v3.0) trên candidate_queue.json từ Phase 1:
+Chạy tuần tự 4 bước (2.1 -> 2.4): nạp nguyên văn các mô-đun Attack-Class Companion vào selected_attack_companions.json, truy vết sâu hops[] (kèm hop_kind) + dựng chuỗi tấn công + tìm Root-Cause cho 100% ứng viên, khởi chạy Subagent cô lập để phản biện đối kháng ở chế độ Mù Kết luận trên đủ 6 vị trí control_search_checklist, và khóa sổ qua analysis_evidence_gate cùng finalize_v3_phase2.
 ```
 
 ### Bước C — Chạy Phase 3 (Contextual Risk & Exploitability Assessment v3.0)
 ```text
-/phase-3-orchestrator Thực hiện Phase 3 (Contextual Risk & Exploitability Assessment v3.0) cho các lỗ hổng đã chứng minh Reachable từ Phase 2.
-Chạy tuần tự 3 bước (3.1 -> 3.3): chứng minh Actor/Role tối thiểu nào chạm được code path, kiểm tra bằng chứng cấu hình các lớp kiểm soát ngoài code (Cloudflare WAF vs Bare ALB, VPC 10.x, mTLS, OT Interlock), và hiệu chuẩn rủi ro thực tế trên 5 trục S-F-O-P-C (overall_risk <= max_impact, tách biệt Safety Owner với Security Risk Owner).
+/phase-3-orchestrator Thực hiện Phase 3 (Contextual Risk & Exploitability Assessment v3.0) cho 100% các chain_id sống sót từ Phase 2:
+Chạy tuần tự 3 bước (3.1 -> 3.3): chứng minh Actor/Role tối thiểu và điều kiện tiên quyết yes/no/unknown, kiểm tra bằng chứng cấu hình các lớp kiểm soát ngoài code (Cloudflare WAF vs Bare ALB, VPC 10.x, mTLS, OT Interlock), hiệu chuẩn rủi ro thực tế trên 5 trục S-F-O-P-C theo rubric định lượng (overall_risk <= max_impact, tách biệt Safety Owner với Security Risk Owner), sau đó chạy finalize_v3_phase3 và render_v3_report.
 ```
 
-👉 Tra cứu chi tiết từng sub-skill riêng lẻ (41 skills) và bảng lệnh CLI chuẩn Windows tại **[`.agents/README.md`](./.agents/README.md)**.
+👉 Tra cứu chi tiết từng sub-skill trong bộ 16 skills v3.0 và bảng lệnh CLI chuẩn Windows tại **[`.agents/README.md`](./.agents/README.md)**.

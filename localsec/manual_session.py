@@ -173,7 +173,16 @@ def _resolve_json_arg(raw_path: str, root: Path) -> Path:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # BUG-08: Reconfigure stdout/stderr to UTF-8 on Windows to prevent cp1252 UnicodeEncodeError on Vietnamese text.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure") and getattr(stream, "encoding", "").lower() != "utf-8":
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
     parser = argparse.ArgumentParser(prog="python -m localsec.manual_session")
+    parser.add_argument("--project-root", default=None, help="Optional project root override")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_ls = sub.add_parser("list_dir", help="List directory via ManualWorkspace")
@@ -189,6 +198,8 @@ def main(argv: list[str] | None = None) -> int:
     p_rf.add_argument("path")
     p_rf.add_argument("start_line", nargs="?", type=int, default=1)
     p_rf.add_argument("end_line", nargs="?", type=int, default=180)
+    p_rf.add_argument("--start-line", dest="opt_start_line", type=int, default=None)
+    p_rf.add_argument("--end-line", dest="opt_end_line", type=int, default=None)
     p_rf.add_argument("--skill", default="repo_profile")
     p_rf.add_argument(
         "--allowed-paths",
@@ -196,6 +207,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Comma- or space-separated exact_paths allow-list for targeted_verifier",
     )
+
+    p_sev = sub.add_parser("show_evidence", help="DEPTH-4.5: Show cached evidence excerpt by evidence_id without re-reading disk")
+    p_sev.add_argument("repo_name")
+    p_sev.add_argument("evidence_id")
+    p_sev.add_argument("--start-line", type=int, default=None)
+    p_sev.add_argument("--end-line", type=int, default=None)
 
     p_ev = sub.add_parser("list_evidence", help="List all minted evidence_ids for a repo")
     p_ev.add_argument("repo_name")
@@ -216,7 +233,7 @@ def main(argv: list[str] | None = None) -> int:
     p_pbtv.add_argument("repo_name")
     p_pbtv.add_argument("--task-id", default=None)
 
-    p_bcv = sub.add_parser("prepare_blinded_chain_verifier", help="Prepare blinded context for chain_step_verifier or counterevidence_challenger")
+    p_bcv = sub.add_parser("prepare_blinded_chain_verifier", help="Prepare blinded context for chain_step_verifier, counterevidence_challenger, or blinded_counterevidence_challenger")
     p_bcv.add_argument("chain_json", nargs="?", default="_analysis")
 
     p_rplan = sub.add_parser("run_aca_request_plan", help="Execute constrained local request plan or mark not_executed fail-closed")
@@ -230,6 +247,7 @@ def main(argv: list[str] | None = None) -> int:
     p_stat = sub.add_parser("phase_status", help="Show completed vs remaining steps and next required step for a phase")
     p_stat.add_argument("repo_name", nargs="?", default="_analysis")
     p_stat.add_argument("--phase", type=int, choices=[1, 2, 3], default=1)
+    p_stat.add_argument("--flow", choices=["v3", "v2"], default=None, help="Pipeline flow version (default: v3 unless v2 artifacts detected)")
 
     p_sub = sub.add_parser("submit_skill", help="Validate and save a skill JSON output for a repo")
     p_sub.add_argument("repo_name")
@@ -264,11 +282,16 @@ def main(argv: list[str] | None = None) -> int:
     p_vsem = sub.add_parser("verify_semantic_claims", help="Run deterministic Semantic Claim-to-Excerpt Verifier Gate on a repo or _analysis")
     p_vsem.add_argument("repo_name", nargs="?", default="_analysis")
 
+    p_inv = sub.add_parser("inventory_repo", help="ARCH-3C: Deterministic pre-scout file tree, mandatory surface, secret lead, and dependency inventory")
+    p_inv.add_argument("repo_name")
+    p_inv.add_argument("--tier", default=None, help="Optional operator-assigned tier (1, 2, 3)")
+
     p_sac = sub.add_parser("select_attack_companions", help="Select verbatim Attack-Class Companion blocks for a repo based on scouted archetypes/techstack")
     p_sac.add_argument("repo_name")
     p_sac.add_argument("--techstack", nargs="*", default=[])
     p_sac.add_argument("--archetypes", nargs="*", default=[])
     p_sac.add_argument("--signals", nargs="*", default=[])
+    p_sac.add_argument("--candidate-classes", nargs="*", default=[])
 
     p_rsm = sub.add_parser("register_scout_map", help="Validate and save Phase 1.1 codebase_scout output (Target Modules Map & Repo Tier)")
     p_rsm.add_argument("repo_name")
@@ -278,9 +301,42 @@ def main(argv: list[str] | None = None) -> int:
     p_rte.add_argument("repo_name")
     p_rte.add_argument("--mode", choices=["USE_STANDARD_EXTRACTOR", "TAILOR_CUSTOM_EXTRACTOR", "SKIP_EXTRACTOR_DIRECT_READ"], default="USE_STANDARD_EXTRACTOR")
     p_rte.add_argument("--canary-files", nargs="*", default=[])
+    p_rte.add_argument("--patterns-file", default=None, help="Optional JSON file containing custom extractor regex patterns")
+    p_rte.add_argument("--expected-canary-hits", type=int, default=1)
+    p_rte.add_argument("--target-modules", nargs="*", default=None)
 
     p_avis = sub.add_parser("audit_visibility", help="Phase 1.6: Run physical Visibility Tracker and Coverage Ledger gate")
     p_avis.add_argument("repo_name")
+
+    p_avist = sub.add_parser("audit_visibility_tracker", help="Phase 1.6: Alias for audit_visibility")
+    p_avist.add_argument("repo_name")
+
+    p_gcm = sub.add_parser("generate_coverage_matrix", help="DEPTH-4.3a: Generate deterministic coverage_matrix.json for a repo")
+    p_gcm.add_argument("repo_name")
+
+    p_bcq = sub.add_parser("build_v3_candidate_queue", help="ARCH-3G: Collect all 7 candidate sources into candidate_queue.json")
+    p_bcq.add_argument("repo_name")
+
+    p_mcb = sub.add_parser("match_cross_repo_boundaries", help="DEPTH-4.1f: Match cross-repo outbound producers and inbound consumers")
+
+    p_fp1 = sub.add_parser("finalize_v3_phase1", help="ARCH-3D: Finalize v3 Phase 1 and emit phase1_gate_Certificate.json")
+    p_fp1.add_argument("repo_name")
+
+    p_fp2 = sub.add_parser("finalize_v3_phase2", help="ARCH-3D: Finalize v3 Phase 2, reconcile challenger verdicts, and emit phase2_gate_Certificate.json")
+    p_fp2.add_argument("repo_name")
+
+    p_fp3 = sub.add_parser("finalize_v3_phase3", help="ARCH-3D: Finalize v3 Phase 3, audit beyond-code controls & SFOP hard laws, and emit phase3_gate_Certificate.json")
+    p_fp3.add_argument("repo_name")
+
+    p_irf = sub.add_parser("ingest_runtime_facts", help="DEPTH-4.4a: Ingest operator-supplied runtime_environment_facts.json")
+    p_irf.add_argument("repo_name")
+    p_irf.add_argument("facts_json")
+
+    p_rv3 = sub.add_parser("render_v3_report", help="ARCH-3I: Render the 3 v3 audience-tailored Markdown deliverables")
+    p_rv3.add_argument("repo_name", nargs="?", default=None)
+
+    p_rv3s = sub.add_parser("render_v3_reports", help="ARCH-3I: Alias for render_v3_report")
+    p_rv3s.add_argument("repo_name", nargs="?", default=None)
 
     p_dpr = sub.add_parser("diff_prior_run", help="Incremental delta-recon: reopen coverage_ledger records affected by changed files")
     p_dpr.add_argument("repo_name")
@@ -288,9 +344,44 @@ def main(argv: list[str] | None = None) -> int:
     p_dpr.add_argument("--prior-ledger", default=None)
 
     args = parser.parse_args(argv)
+    if args.project_root:
+        os.environ["LOCALSEC_PROJECT_ROOT"] = str(Path(args.project_root).expanduser().resolve())
     root = _project_root()
     (root / ".localsec" / "tmp").mkdir(parents=True, exist_ok=True)
     cfg = load_config(_resolve_config_path(root))
+
+    def _effective_v3_run_id(repo_name: str | None = None) -> str:
+        if repo_name:
+            default_dir = root / ".localsec" / "runs" / "default" / repo_name
+            manual_dir = root / ".localsec" / "runs" / DEFAULT_RUN_ID / repo_name
+            if default_dir.is_dir() and not manual_dir.is_dir():
+                return "default"
+        return DEFAULT_RUN_ID
+
+    if args.cmd == "inventory_repo":
+        from .orchestrator import inventory_repo
+
+        eff_run = _effective_v3_run_id(args.repo_name)
+        res = inventory_repo(root, args.repo_name, run_id=eff_run, operator_tier=args.tier)
+        if eff_run != DEFAULT_RUN_ID:
+            write_json(root / ".localsec" / "runs" / DEFAULT_RUN_ID / args.repo_name / "inventory_repo.json", res)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "show_evidence":
+        ws, _ = _load_workspace(args.repo_name, cfg)
+        try:
+            res = ws.show_evidence(
+                repo_name=ws.repo_name,
+                evidence_id=args.evidence_id,
+                start_line=args.start_line,
+                end_line=args.end_line,
+            )
+            print(json.dumps({"ok": True, "result": res}, ensure_ascii=False, indent=2))
+            return 0
+        except Exception as exc:
+            print(json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, ensure_ascii=False, indent=2))
+            return 1
 
     if args.cmd == "select_attack_companions":
         from .prompts import select_companion_blocks
@@ -300,10 +391,12 @@ def main(argv: list[str] | None = None) -> int:
         archetypes = list(args.archetypes or [])
         techstack = list(args.techstack or [])
         signals = list(args.signals or [])
+        cand_classes = list(getattr(args, "candidate_classes", None) or [])
         if scout_file.is_file():
             sdata = json.loads(scout_file.read_text(encoding="utf-8"))
             sres = sdata.get("result") if isinstance(sdata.get("result"), dict) else sdata
             archetypes.extend(str(x) for x in sres.get("product_archetypes", []))
+            archetypes.extend(str(x) for x in sres.get("detected_archetypes", []))
             conv = sres.get("coding_conventions", {})
             if isinstance(conv, dict):
                 for v in conv.values():
@@ -311,17 +404,37 @@ def main(argv: list[str] | None = None) -> int:
                         signals.append(v)
                     elif isinstance(v, list):
                         signals.extend(str(i) for i in v)
-        selected = select_companion_blocks(techstack=techstack, archetypes=archetypes, signals=signals)
+        selected = select_companion_blocks(
+            techstack=techstack,
+            archetypes=archetypes,
+            signals=signals,
+            candidate_classes=cand_classes,
+            run_dir=run_dir,
+        )
         write_json(run_dir / "selected_attack_companions.json", selected)
         print(json.dumps(selected, ensure_ascii=False, indent=2))
         return 0
 
     if args.cmd == "register_scout_map":
+        from .orchestrator import validate_scout_map_against_inventory
+
         ws, run_dir = _load_workspace(args.repo_name, cfg)
         payload = json.loads(_resolve_json_arg(args.json_file, root).read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and isinstance(payload.get("result"), dict) and "status" in payload:
+            payload = payload["result"]
         valid_eids = set(ws.evidence.keys()) | set(_all_project_evidence_ids(root).keys())
         validate_agent_output("codebase_scout", payload, valid_eids, evidence_catalog=ws.evidence)
-        env = {"skill": "codebase_scout", "version": "3.0.0", "status": "ok", "result": payload}
+        inv_data = None
+        if (run_dir / "inventory_repo.json").is_file():
+            inv_data = json.loads((run_dir / "inventory_repo.json").read_text(encoding="utf-8"))
+        inv_check = validate_scout_map_against_inventory(payload, inv_data)
+        if not inv_check.get("valid", True):
+            print(
+                f"VALIDATION_ERROR (codebase_scout vs inventory_repo): unaccounted_mandatory_directories={inv_check.get('unaccounted_mandatory_directories')}, invalid_ignored_modules={inv_check.get('invalid_ignored_modules')}",
+                file=sys.stderr,
+            )
+            return 1
+        env = {"skill": "codebase_scout", "version": "3.0.0", "status": "ok", "result": payload, "inventory_validation": inv_check}
         write_json(run_dir / "codebase_scout.json", env)
         print(f"OK: registered codebase_scout map for {ws.repo_name} (tier={payload.get('repo_tier')}, target_modules={len(payload.get('target_modules', []))})")
         return 0
@@ -334,12 +447,16 @@ def main(argv: list[str] | None = None) -> int:
             repo_root=ws.root,
             mode=args.mode,
             canary_files=args.canary_files,
+            patterns_file=args.patterns_file,
+            expected_canary_hits=args.expected_canary_hits,
+            target_modules=args.target_modules,
+            run_dir=run_dir,
         )
         write_json(run_dir / "extractor_tailor.json", {"skill": "extractor_tailor", "version": "3.0.0", "status": "ok" if res.get("canary_verified") else "failed_canary", "result": res})
         print(json.dumps(res, ensure_ascii=False, indent=2))
         return 0 if res.get("canary_verified") else 2
 
-    if args.cmd == "audit_visibility":
+    if args.cmd in {"audit_visibility", "audit_visibility_tracker"}:
         from .orchestrator import audit_visibility_and_coverage
 
         ws, run_dir = _load_workspace(args.repo_name, cfg)
@@ -351,10 +468,89 @@ def main(argv: list[str] | None = None) -> int:
         if (run_dir / "coverage_ledger.json").is_file():
             raw_c = json.loads((run_dir / "coverage_ledger.json").read_text(encoding="utf-8"))
             cov_ledger = raw_c.get("result") if isinstance(raw_c.get("result"), dict) else raw_c
-        report = audit_visibility_and_coverage(workspace=ws, scout_map=scout_map, coverage_ledger=cov_ledger)
+        inv_data = None
+        if (run_dir / "inventory_repo.json").is_file():
+            inv_data = json.loads((run_dir / "inventory_repo.json").read_text(encoding="utf-8"))
+        surf_data = None
+        if (run_dir / "unified_surface_mapper.json").is_file():
+            surf_data = json.loads((run_dir / "unified_surface_mapper.json").read_text(encoding="utf-8"))
+        report = audit_visibility_and_coverage(
+            workspace=ws,
+            scout_map=scout_map,
+            coverage_ledger=cov_ledger,
+            inventory=inv_data,
+            surface_map=surf_data,
+        )
         write_json(run_dir / "visibility_audit.json", report)
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return 0 if report.get("gate_passed") else 2
+
+    if args.cmd == "generate_coverage_matrix":
+        from .orchestrator import generate_coverage_matrix
+
+        _, run_dir = _load_workspace(args.repo_name, cfg)
+        res = generate_coverage_matrix(run_dir, args.repo_name)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "build_v3_candidate_queue":
+        from .orchestrator import build_v3_candidate_queue
+
+        _, run_dir = _load_workspace(args.repo_name, cfg)
+        res = build_v3_candidate_queue(run_dir, args.repo_name)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "match_cross_repo_boundaries":
+        from .orchestrator import match_cross_repo_boundaries
+
+        eff_run = "default" if (root / ".localsec" / "runs" / "default").is_dir() and not (root / ".localsec" / "runs" / DEFAULT_RUN_ID).is_dir() else DEFAULT_RUN_ID
+        res = match_cross_repo_boundaries(root, run_id=eff_run)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "finalize_v3_phase1":
+        from .orchestrator import finalize_v3_phase1
+
+        eff_run = _effective_v3_run_id(args.repo_name)
+        res = finalize_v3_phase1(root, args.repo_name, run_id=eff_run)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 0 if res.get("gate_passed") else 2
+
+    if args.cmd == "finalize_v3_phase2":
+        from .orchestrator import finalize_v3_phase2
+
+        eff_run = _effective_v3_run_id(args.repo_name)
+        res = finalize_v3_phase2(root, args.repo_name, run_id=eff_run)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 0 if res.get("gate_passed") else 2
+
+    if args.cmd == "finalize_v3_phase3":
+        from .orchestrator import finalize_v3_phase3
+
+        eff_run = _effective_v3_run_id(args.repo_name)
+        res = finalize_v3_phase3(root, args.repo_name, run_id=eff_run)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 0 if res.get("gate_passed") else 2
+
+    if args.cmd == "ingest_runtime_facts":
+        from .orchestrator import ingest_runtime_facts
+
+        eff_run = _effective_v3_run_id(args.repo_name)
+        facts_file = _resolve_json_arg(args.facts_json, root)
+        res = ingest_runtime_facts(root, args.repo_name, facts_file, run_id=eff_run)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd in {"render_v3_report", "render_v3_reports"}:
+        from .reporting import render_v3_reports
+
+        eff_run = _effective_v3_run_id(args.repo_name) if args.repo_name else (
+            "default" if (root / ".localsec" / "runs" / "default").is_dir() and not (root / ".localsec" / "runs" / DEFAULT_RUN_ID).is_dir() else DEFAULT_RUN_ID
+        )
+        res = render_v3_reports(root, repo_name=args.repo_name, run_id=eff_run)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 0
 
     if args.cmd == "diff_prior_run":
         from .orchestrator import diff_prior_run
@@ -380,13 +576,34 @@ def main(argv: list[str] | None = None) -> int:
         catalog = _all_project_evidence_ids(root)
         catalog.update(ws.evidence)
         contradictions_found: list[dict[str, Any]] = []
-        skill_candidates = SPECIALIST_ORDER + BASV_SPECIALIST_ORDER + ACA_SPECIALIST_ORDER + ["business_aware_synthesizer", "chain_synthesizer"]
+        v3_skills = [
+            "codebase_scout",
+            "extractor_tailor",
+            "intent_invariant_modeler",
+            "unified_surface_mapper",
+            "cross_repo_and_arch_review",
+            "coverage_and_evidence_auditor",
+            "candidate_intake_planner",
+            "deep_trace_chain_analyst",
+            "blinded_counterevidence_challenger",
+            "analysis_evidence_gate",
+            "actor_and_feasibility_assessor",
+            "beyond_code_control_mapper",
+            "sfop_risk_calibrator",
+        ]
+        skill_candidates = (
+            SPECIALIST_ORDER
+            + BASV_SPECIALIST_ORDER
+            + ACA_SPECIALIST_ORDER
+            + ["business_aware_synthesizer", "chain_synthesizer"]
+            + v3_skills
+        )
         for skill in skill_candidates:
             sf = run_dir / f"{skill}.json"
             if not sf.is_file():
                 continue
             entry = json.loads(sf.read_text(encoding="utf-8"))
-            res_obj = entry.get("result") if isinstance(entry.get("result"), dict) else None
+            res_obj = entry.get("result") if isinstance(entry.get("result"), dict) else entry
             if not isinstance(res_obj, dict):
                 continue
             for claim in _iter_claims(res_obj, skill):
@@ -403,6 +620,24 @@ def main(argv: list[str] | None = None) -> int:
                             "contradictions": issues,
                         }
                     )
+            # BUG-02: Also verify v3 list items containing evidence_ids directly
+            for v3_list_key in ("anomalies", "intent_vs_code_gaps", "verified_chains", "calibrated_findings", "trust_boundary_mismatches"):
+                v3_items = res_obj.get(v3_list_key)
+                if isinstance(v3_items, list):
+                    for idx, item in enumerate(v3_items):
+                        if isinstance(item, dict) and isinstance(item.get("evidence_ids"), list) and item["evidence_ids"]:
+                            eids = [str(e) for e in item["evidence_ids"] if str(e).startswith("ev_")]
+                            if eids:
+                                issues = verify_claim_to_excerpt_semantics(item, eids, catalog)
+                                if issues:
+                                    contradictions_found.append(
+                                        {
+                                            "claim_ref": f"{skill}:{v3_list_key}[{idx}]",
+                                            "claim_status": str(item.get("status", "confirmed")),
+                                            "cited_evidence_ids": eids,
+                                            "contradictions": issues,
+                                        }
+                                    )
         print(
             json.dumps(
                 {
@@ -435,10 +670,12 @@ def main(argv: list[str] | None = None) -> int:
             else None
         )
         ws, run_dir = _load_workspace(args.repo_name, cfg, allowed_read_paths=allowed)
+        s_line = args.opt_start_line if args.opt_start_line is not None else args.start_line
+        e_line = args.opt_end_line if args.opt_end_line is not None else args.end_line
         res = ws.execute_tool(
             args.skill,
             "read_file",
-            {"path": args.path, "start_line": args.start_line, "end_line": args.end_line},
+            {"path": args.path, "start_line": s_line, "end_line": e_line},
         )
         ws.tool_log[-1]["skill"] = args.skill
         _save_workspace(ws, run_dir)
@@ -555,34 +792,86 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "phase_status":
         ws, run_dir = _load_workspace(args.repo_name, cfg)
-        if args.phase == 1:
-            req_order = SPECIALIST_ORDER + ["evidence_auditor", "diagram_author"]
-        elif args.phase == 2:
-            req_order = BASV_SPECIALIST_ORDER + ["evidence_auditor", "business_aware_synthesizer"]
+        if not run_dir.is_dir() and (root / ".localsec" / "runs" / "default" / args.repo_name).is_dir():
+            run_dir = root / ".localsec" / "runs" / "default" / args.repo_name
+        v2_indicators = ("repo_profile.json", "business_intent_modeler.json", "finding_intake.json", "attack_chain_constructor.json")
+        v3_indicators = ("codebase_scout.json", "inventory_repo.json", "intent_invariant_modeler.json", "unified_surface_mapper.json", "deep_trace_chain_analyst.json", "sfop_risk_calibrator.json")
+        if args.flow in {"v3", "v2"}:
+            active_flow = args.flow
+        elif any((run_dir / f).is_file() for f in v2_indicators) and not any((run_dir / f).is_file() for f in v3_indicators):
+            active_flow = "v2"
         else:
-            req_order = [
-                "finding_intake",
-                "code_trace_builder",
-                "attack_chain_constructor",
-                "chain_step_verifier",
-                "request_sequence_designer",
-                "root_cause_mapper",
-                "counterevidence_challenger",
-                "aca_evidence_auditor",
-                "chain_synthesizer",
-            ]
+            active_flow = "v3"
+
+        if active_flow == "v3":
+            from .prompts import load_v3_orchestration
+
+            v3_orch = load_v3_orchestration()
+            phase_spec = v3_orch.get("phases", {}).get(str(args.phase), {})
+            req_order = list(
+                phase_spec.get("ordered_steps")
+                or phase_spec.get("order")
+                or (
+                    [
+                        "codebase_scout",
+                        "intent_invariant_modeler",
+                        "extractor_tailor",
+                        "unified_surface_mapper",
+                        "cross_repo_and_arch_review",
+                        "coverage_and_evidence_auditor",
+                    ]
+                    if args.phase == 1
+                    else [
+                        "candidate_intake_planner",
+                        "deep_trace_chain_analyst",
+                        "blinded_counterevidence_challenger",
+                        "analysis_evidence_gate",
+                    ]
+                    if args.phase == 2
+                    else [
+                        "actor_and_feasibility_assessor",
+                        "beyond_code_control_mapper",
+                        "sfop_risk_calibrator",
+                    ]
+                )
+            )
+        else:
+            if args.phase == 1:
+                req_order = SPECIALIST_ORDER + ["evidence_auditor", "diagram_author"]
+            elif args.phase == 2:
+                req_order = BASV_SPECIALIST_ORDER + ["evidence_auditor", "business_aware_synthesizer"]
+            else:
+                req_order = [
+                    "finding_intake",
+                    "code_trace_builder",
+                    "attack_chain_constructor",
+                    "chain_step_verifier",
+                    "request_sequence_designer",
+                    "root_cause_mapper",
+                    "counterevidence_challenger",
+                    "aca_evidence_auditor",
+                    "chain_synthesizer",
+                ]
         completed: list[str] = []
         remaining: list[str] = []
         for s in req_order:
             candidates = [run_dir / f"{s}.json"]
-            if args.phase == 2 and s == "evidence_auditor":
+            if active_flow == "v3" and s == "cross_repo_and_arch_review":
+                candidates.append(run_dir.parent / "_analysis" / "cross_repo_and_arch_review.json")
+            if active_flow == "v2" and args.phase == 2 and s == "evidence_auditor":
                 candidates.insert(0, run_dir / "basv_evidence_auditor.json")
-            if args.phase == 3 and s == "aca_evidence_auditor":
+            if active_flow == "v2" and args.phase == 3 and s == "aca_evidence_auditor":
                 candidates.append(run_dir / "evidence_auditor.json")
-            done = any(
-                c.is_file() and json.loads(c.read_text(encoding="utf-8")).get("status") == "ok"
-                for c in candidates
-            )
+            done = False
+            for c in candidates:
+                if c.is_file():
+                    try:
+                        c_data = json.loads(c.read_text(encoding="utf-8"))
+                        if c_data.get("status", "ok") == "ok":
+                            done = True
+                            break
+                    except Exception:
+                        pass
             if done:
                 completed.append(s)
             else:
@@ -640,6 +929,7 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps(
                 {
                     "repo_name": ws.repo_name,
+                    "flow": active_flow,
                     "phase": args.phase,
                     "completed_steps": completed,
                     "remaining_steps": remaining,
@@ -677,6 +967,9 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 return 1
         payload = json.loads(_resolve_json_arg(args.json_file, root).read_text(encoding="utf-8"))
+        from .validators import V30_SKILLS
+        if args.skill in V30_SKILLS and isinstance(payload, dict) and isinstance(payload.get("result"), dict) and "status" in payload:
+            payload = payload["result"]
         project_ev_map = _all_project_evidence_ids(root)
         merged_catalog = dict(project_ev_map)
         merged_catalog.update(ws.evidence)
@@ -795,15 +1088,82 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "prepare_blinded_chain_verifier":
+        stripped_keys = {
+            "chain_verdict",
+            "verdict",
+            "severity",
+            "confidence",
+            "verification_status",
+            "exploitability",
+            "overall_risk",
+            "recommended_verdict",
+            "recommended_conclusion",
+        }
+
+        def _blind_v3_deep_trace(dt_payload: dict[str, Any], repo_label: str) -> dict[str, Any]:
+            exact_paths_set: set[str] = set()
+            blinded_v3_chains: list[dict[str, Any]] = []
+            raw_chains = dt_payload.get("chains") if isinstance(dt_payload.get("chains"), list) else dt_payload.get("verified_chains", [])
+            for ch in raw_chains:
+                if not isinstance(ch, dict):
+                    continue
+                clean_ch = {k: v for k, v in ch.items() if k not in stripped_keys}
+                if clean_ch.get("path"):
+                    exact_paths_set.add(str(clean_ch["path"]))
+                if clean_ch.get("file"):
+                    exact_paths_set.add(str(clean_ch["file"]))
+                clean_hops: list[dict[str, Any]] = []
+                for hp in ch.get("hops", []):
+                    if isinstance(hp, dict):
+                        clean_hp = {k: v for k, v in hp.items() if k not in stripped_keys}
+                        hpath = str(clean_hp.get("path") or clean_hp.get("file") or "").strip()
+                        if hpath:
+                            exact_paths_set.add(hpath)
+                        clean_hops.append(clean_hp)
+                clean_ch["hops"] = clean_hops
+                blinded_v3_chains.append(clean_ch)
+            tmp_out = root / ".localsec" / "tmp" / f"blinded_chains_{_safe_name(repo_label)}.json"
+            out_obj = {
+                "repo_name": repo_label,
+                "context_blinding_policy": (
+                    "chain_verdict, severity, confidence, and verification_status are strictly stripped "
+                    "to prevent confirmation bias in blinded_counterevidence_challenger"
+                ),
+                "exact_paths": sorted(exact_paths_set),
+                "blinded_chains": blinded_v3_chains,
+                "saved_to": str(tmp_out),
+            }
+            write_json(tmp_out, out_obj)
+            return out_obj
+
         cand_path = _resolve_json_arg(args.chain_json, root)
         if cand_path.is_file():
             chain_data = json.loads(cand_path.read_text(encoding="utf-8"))
             if isinstance(chain_data.get("result"), dict):
                 chain_data = chain_data["result"]
+            if isinstance(chain_data, dict) and ("verified_chains" in chain_data or "chains" in chain_data):
+                out_obj = _blind_v3_deep_trace(chain_data, cand_path.parent.name or "repo")
+                print(json.dumps(out_obj, ensure_ascii=False, indent=2))
+                return 0
             blinded = build_blinded_chain_verifier_context(attack_chain=chain_data)
             print(json.dumps(blinded, ensure_ascii=False, indent=2))
             return 0
+
         _, run_dir = _load_workspace(args.chain_json, cfg)
+        if not (run_dir / "deep_trace_chain_analyst.json").is_file() and (root / ".localsec" / "runs" / "default" / args.chain_json / "deep_trace_chain_analyst.json").is_file():
+            run_dir = root / ".localsec" / "runs" / "default" / args.chain_json
+
+        # BUG-04: Prefer v3 deep_trace_chain_analyst.json when present
+        dt_file = run_dir / "deep_trace_chain_analyst.json"
+        if dt_file.is_file():
+            dt_raw = json.loads(dt_file.read_text(encoding="utf-8"))
+            dt_payload = dt_raw["result"] if isinstance(dt_raw.get("result"), dict) else dt_raw
+            if isinstance(dt_payload, dict):
+                out_obj = _blind_v3_deep_trace(dt_payload, args.chain_json)
+                print(json.dumps(out_obj, ensure_ascii=False, indent=2))
+                return 0
+
+        # Fallback to v2 attack_chain_constructor.json
         traces: list[dict[str, Any]] = []
         tb_file = run_dir / "code_trace_builder.json"
         if tb_file.is_file():
@@ -824,19 +1184,17 @@ def main(argv: list[str] | None = None) -> int:
             ac_raw = json.loads((run_dir / "attack_chain_constructor.json").read_text(encoding="utf-8"))
             chains.append(ac_raw["result"] if isinstance(ac_raw.get("result"), dict) else ac_raw)
         blinded_chains = [build_blinded_chain_verifier_context(attack_chain=c, code_traces=traces) for c in chains]
+        tmp_out = root / ".localsec" / "tmp" / f"blinded_chains_{_safe_name(args.chain_json)}.json"
         if len(blinded_chains) == 1:
+            write_json(tmp_out, blinded_chains[0])
             print(json.dumps(blinded_chains[0], ensure_ascii=False, indent=2))
         else:
-            print(
-                json.dumps(
-                    {
-                        "repo_name": args.chain_json,
-                        "blinded_chains": blinded_chains,
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                )
-            )
+            out_legacy = {
+                "repo_name": args.chain_json,
+                "blinded_chains": blinded_chains,
+            }
+            write_json(tmp_out, out_legacy)
+            print(json.dumps(out_legacy, ensure_ascii=False, indent=2))
         return 0
 
     if args.cmd == "run_aca_request_plan":

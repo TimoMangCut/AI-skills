@@ -87,8 +87,53 @@ V30_SKILLS = {
     "beyond_code_control_mapper",
     "sfop_risk_calibrator",
 }
-ALLOWED_STATUSES = {"observed", "derived", "hypothesis", "unknown", "not_assessed", "confirmed", "absent", "covered_clean", "covered_finding", "reopened", "deferred_out_of_budget"}
-EVIDENCE_ID_KEYS = ("evidence_ids", "intent_evidence_ids", "implementation_evidence_ids", "counter_evidence_ids", "sample_evidence_ids", "representative_deep_read_evidence_ids")
+ALLOWED_STATUSES = {
+    "observed",
+    "derived",
+    "hypothesis",
+    "unknown",
+    "not_assessed",
+    "confirmed",
+    "absent",
+    "covered_clean",
+    "covered_finding",
+    "reopened",
+    "deferred_out_of_budget",
+    "checked_found",
+    "checked_not_found",
+    "not_applicable",
+    "present",
+    "missing",
+    "partial",
+    "refuted",
+    "weakened",
+    "code_supported",
+    "partially_confirmed",
+    "hypothesized",
+    "confirmed_by_source",
+    "confirmed_by_observation",
+    "directly_read",
+    "inferred_from_context",
+    "supported",
+    "partially_supported",
+    "inconclusive",
+    "unsupported",
+    "open",
+    "resolved",
+    "queued_as_candidate",
+    "uncovered_gap",
+}
+EVIDENCE_ID_KEYS = (
+    "evidence_ids",
+    "intent_evidence_ids",
+    "implementation_evidence_ids",
+    "counter_evidence_ids",
+    "sample_evidence_ids",
+    "representative_deep_read_evidence_ids",
+    "caller_evidence_ids",
+    "callee_evidence_ids",
+    "ownership_evidence_ids",
+)
 EVIDENCE_REF_KEYS = ("evidence_refs", "counterevidence_refs", "existing_evidence_refs")
 
 IMPACT_RANK: dict[str, int] = {
@@ -98,6 +143,29 @@ IMPACT_RANK: dict[str, int] = {
     "medium": 2,
     "high": 3,
     "critical": 4,
+}
+
+VALID_OWNER_ROLES = {
+    "dev_team",
+    "infra_cloud_sec",
+    "iam_platform",
+    "ot_safety_engineering",
+    "data_privacy_dpo",
+    "unassigned_pending_roster",
+}
+
+VALID_BLAST_RADIUS = {
+    "component",
+    "service",
+    "domain",
+    "cross_domain",
+    "platform",
+}
+
+VALID_CONTROL_SEARCH_STATUSES = {
+    "checked_found",
+    "checked_not_found",
+    "not_applicable",
 }
 
 V30_INLINE_SCHEMAS: dict[str, dict[str, Any]] = {
@@ -135,6 +203,8 @@ V30_INLINE_SCHEMAS: dict[str, dict[str, Any]] = {
             "canary_files": {"type": "array", "items": {"type": "string"}},
             "canary_verified": {"type": "boolean"},
             "script_path": {"type": "string"},
+            "patterns_file": {"type": "string"},
+            "expected_canary_hits": {"type": "integer", "minimum": 1},
         },
     },
     "__inline_coverage_ledger__": {
@@ -166,11 +236,102 @@ V30_INLINE_SCHEMAS: dict[str, dict[str, Any]] = {
                         "cluster_id": {"type": "string", "minLength": 1},
                         "shared_control_signature": {"type": "string", "minLength": 3},
                         "representative_deep_read_evidence_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-                        "member_endpoints": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-                        "outliers": {"type": "array", "items": {"type": "string"}},
+                        "member_endpoints": {"type": "array", "minItems": 1},
+                        "outliers": {"type": "array"},
                     },
                 },
             },
+        },
+    },
+    "__inline_intent_invariant_modeler__": {
+        "type": "object",
+        "properties": {
+            "repo_name": {"type": "string"},
+            "capabilities": {"type": "array", "items": {"type": "object"}},
+            "invariants": {"type": "array", "items": {"type": "object"}},
+            "sfop_invariants": {"type": "array", "items": {"type": "object"}},
+            "blinded_challenges": {"type": "array", "items": {"type": "object"}},
+            "unknowns": {"type": "array", "items": {"type": "string"}},
+        },
+    },
+    "__inline_unified_surface_mapper__": {
+        "type": "object",
+        "properties": {
+            "repo_name": {"type": "string"},
+            "entrypoints": {"type": "array", "items": {"type": "object"}},
+            "semantic_clusters": {"type": "array", "items": {"type": "object"}},
+            "outliers": {"type": "array"},
+            "invariant_checks": {"type": "array", "items": {"type": "object"}},
+            "surface_checklist": {"type": "array", "items": {"type": "object"}},
+            "data_flows": {"type": "array", "items": {"type": "object"}},
+            "candidate_queue": {"type": "array", "items": {"type": "object"}},
+            "records": {"type": "array", "items": {"type": "object"}},
+            "unknowns": {"type": "array", "items": {"type": "string"}},
+        },
+    },
+    "__inline_cross_repo_and_arch_review__": {
+        "type": "object",
+        "properties": {
+            "repo_name": {"type": "string"},
+            "interactions": {"type": "array", "items": {"type": "object"}},
+            "trust_assumptions": {"type": "array", "items": {"type": "object"}},
+            "boundary_mismatches": {"type": "array", "items": {"type": "object"}},
+            "architecture_observations": {"type": "array", "items": {"type": "object"}},
+            "mermaid_diagram": {"type": "string"},
+            "unknowns": {"type": "array", "items": {"type": "string"}},
+        },
+    },
+    "__inline_coverage_and_evidence_auditor__": {
+        "type": "object",
+        "properties": {
+            "repo_name": {"type": "string"},
+            "gate_passed": {"type": "boolean"},
+            "audit_status": {"type": "string"},
+            "audited_claims": {"type": "array", "items": {"type": "object"}},
+            "visibility_report": {"type": "object"},
+            "summary": {"type": "string"},
+        },
+    },
+    "__inline_candidate_intake_planner__": {
+        "type": "object",
+        "properties": {
+            "repo_name": {"type": "string"},
+            "candidates": {"type": "array", "items": {"type": "object"}},
+            "batches": {"type": "array", "items": {"type": "object"}},
+            "selected_companion_ids": {"type": "array", "items": {"type": "string"}},
+            "excluded_companions": {"type": "array", "items": {"type": "object"}},
+        },
+    },
+    "__inline_deep_trace_chain_analyst__": {
+        "type": "object",
+        "properties": {
+            "repo_name": {"type": "string"},
+            "chains": {"type": "array", "items": {"type": "object"}},
+            "unexploitable_candidates": {"type": "array", "items": {"type": "object"}},
+            "root_causes": {"type": "array", "items": {"type": "object"}},
+            "unknowns": {"type": "array", "items": {"type": "string"}},
+        },
+    },
+    "__inline_blinded_counterevidence_challenger__": {
+        "type": "object",
+        "properties": {
+            "repo_name": {"type": "string"},
+            "challenges": {"type": "array", "items": {"type": "object"}},
+            "chain_challenges": {"type": "array", "items": {"type": "object"}},
+            "control_search_checklist": {"type": ["array", "object"]},
+            "empirical_refutations": {"type": "array", "items": {"type": "object"}},
+        },
+    },
+    "__inline_analysis_evidence_gate__": {
+        "type": "object",
+        "properties": {
+            "repo_name": {"type": "string"},
+            "gate_passed": {"type": "boolean"},
+            "audit_status": {"type": "string"},
+            "audited_claims": {"type": "array", "items": {"type": "object"}},
+            "empirical_refutations_ledger": {"type": "array", "items": {"type": "object"}},
+            "surviving_chains": {"type": "array", "items": {"type": "string"}},
+            "summary": {"type": "string"},
         },
     },
     "__inline_actor_and_feasibility_assessor__": {
@@ -191,6 +352,7 @@ V30_INLINE_SCHEMAS: dict[str, dict[str, Any]] = {
                     ],
                     "properties": {
                         "finding_id": {"type": "string", "minLength": 1},
+                        "chain_id": {"type": "string"},
                         "minimum_viable_actor": {
                             "type": "string",
                             "enum": [
@@ -203,7 +365,7 @@ V30_INLINE_SCHEMAS: dict[str, dict[str, Any]] = {
                             ],
                         },
                         "identity_acquisition_cost": {"type": "string", "enum": ["low", "medium", "high"]},
-                        "operational_preconditions": {"type": "array", "items": {"type": "string"}},
+                        "operational_preconditions": {"type": "array"},
                         "blocked_by_environment": {"type": "boolean"},
                         "blocker_details": {"type": "string"},
                         "evidence_ids": {"type": "array", "items": {"type": "string"}},
@@ -223,6 +385,7 @@ V30_INLINE_SCHEMAS: dict[str, dict[str, Any]] = {
                     "required": ["finding_id", "exposure_tier", "compensating_controls"],
                     "properties": {
                         "finding_id": {"type": "string", "minLength": 1},
+                        "chain_id": {"type": "string"},
                         "exposure_tier": {
                             "type": "string",
                             "enum": [
@@ -241,7 +404,7 @@ V30_INLINE_SCHEMAS: dict[str, dict[str, Any]] = {
                                 "properties": {
                                     "layer": {"type": "string"},
                                     "control": {"type": "string"},
-                                    "status": {"type": "string", "enum": ["confirmed", "hypothesis", "absent"]},
+                                    "status": {"type": "string", "enum": ["confirmed", "observed", "hypothesis", "absent", "unknown"]},
                                     "mitigation_effect": {
                                         "type": "string",
                                         "enum": ["blocks_exploit", "reduces_likelihood", "limits_blast_radius", "none"],
@@ -274,6 +437,7 @@ V30_INLINE_SCHEMAS: dict[str, dict[str, Any]] = {
                     ],
                     "properties": {
                         "finding_id": {"type": "string", "minLength": 1},
+                        "chain_id": {"type": "string"},
                         "code_verified_severity": {
                             "type": "string",
                             "enum": ["critical", "high", "medium", "low", "informational"],
@@ -286,11 +450,11 @@ V30_INLINE_SCHEMAS: dict[str, dict[str, Any]] = {
                             "type": "object",
                             "required": ["safety", "financial", "operational", "privacy", "compliance"],
                             "properties": {
-                                "safety": {"type": "string", "enum": ["critical", "high", "medium", "low", "negligible"]},
-                                "financial": {"type": "string", "enum": ["critical", "high", "medium", "low", "negligible"]},
-                                "operational": {"type": "string", "enum": ["critical", "high", "medium", "low", "negligible"]},
-                                "privacy": {"type": "string", "enum": ["critical", "high", "medium", "low", "negligible"]},
-                                "compliance": {"type": "string", "enum": ["critical", "high", "medium", "low", "negligible"]},
+                                "safety": {"type": ["string", "object"]},
+                                "financial": {"type": ["string", "object"]},
+                                "operational": {"type": ["string", "object"]},
+                                "privacy": {"type": ["string", "object"]},
+                                "compliance": {"type": ["string", "object"]},
                             },
                         },
                         "max_impact": {"type": "string", "enum": ["critical", "high", "medium", "low", "negligible"]},
@@ -299,7 +463,10 @@ V30_INLINE_SCHEMAS: dict[str, dict[str, Any]] = {
                             "enum": ["critical", "high", "medium", "low", "informational", "negligible"],
                         },
                         "risk_owner": {"type": "string", "minLength": 2},
+                        "owner_role": {"type": "string"},
                         "safety_owner": {"type": "string"},
+                        "blast_radius": {"type": "string"},
+                        "sfop_details": {"type": "object"},
                         "rationale": {"type": "string"},
                     },
                 },
@@ -307,35 +474,52 @@ V30_INLINE_SCHEMAS: dict[str, dict[str, Any]] = {
         },
     },
 }
-for _generic_v30 in (
-    "__inline_intent_invariant_modeler__",
-    "__inline_unified_surface_mapper__",
-    "__inline_cross_repo_and_arch_review__",
-    "__inline_coverage_and_evidence_auditor__",
-    "__inline_candidate_intake_planner__",
-    "__inline_deep_trace_chain_analyst__",
-    "__inline_blinded_counterevidence_challenger__",
-    "__inline_analysis_evidence_gate__",
-):
-    V30_INLINE_SCHEMAS[_generic_v30] = {"type": "object"}
 
 
 class OutputValidationError(ValueError):
     pass
 
 
-def _load_schema_file(schema_name: str) -> dict[str, Any]:
-    if schema_name in V30_INLINE_SCHEMAS:
-        return V30_INLINE_SCHEMAS[schema_name]
-    for d in (SCHEMA_DIR, BASV_SCHEMA_DIR, ACA_SCHEMA_DIR):
-        p = d / schema_name
+ValidationError = OutputValidationError
+
+
+def load_schema(skill_name: str) -> dict[str, Any]:
+    """Load JSON schema for skill_name from schemas/v3/<skill_name>.schema.json if present on disk, else fallback to V30_INLINE_SCHEMAS / legacy dirs."""
+    clean_skill = skill_name.removeprefix("__inline_").removesuffix("__").removesuffix(".schema.json")
+    v3_disk_path = SCHEMA_DIR / "v3" / f"{clean_skill}.schema.json"
+    if v3_disk_path.is_file():
+        return json.loads(v3_disk_path.read_text(encoding="utf-8"))
+    if skill_name in V30_INLINE_SCHEMAS:
+        return V30_INLINE_SCHEMAS[skill_name]
+    inline_key = f"__inline_{clean_skill}__"
+    if inline_key in V30_INLINE_SCHEMAS:
+        return V30_INLINE_SCHEMAS[inline_key]
+    mapped = SKILL_SCHEMA.get(clean_skill, skill_name)
+    if mapped in V30_INLINE_SCHEMAS:
+        return V30_INLINE_SCHEMAS[mapped]
+    for d in (SCHEMA_DIR / "v3", SCHEMA_DIR, BASV_SCHEMA_DIR, ACA_SCHEMA_DIR):
+        p = d / Path(mapped).name
         if p.is_file():
             return json.loads(p.read_text(encoding="utf-8"))
-    raise OutputValidationError(f"Schema file not found: {schema_name}")
+    raise OutputValidationError(f"Schema file not found: {skill_name}")
+
+
+def _load_schema_file(schema_name: str) -> dict[str, Any]:
+    return load_schema(schema_name)
 
 
 def _validate_schema(value: Any, schema: dict[str, Any], path: str = "$", issues: list[str] | None = None) -> list[str]:
     issues = issues if issues is not None else []
+    if "anyOf" in schema and isinstance(schema["anyOf"], list):
+        branch_passed = any(len(_validate_schema(value, sub_s, path, [])) == 0 for sub_s in schema["anyOf"] if isinstance(sub_s, dict))
+        if not branch_passed:
+            issues.append(f"{path} did not match anyOf schema options")
+            return issues
+    if "oneOf" in schema and isinstance(schema["oneOf"], list):
+        branch_passed = any(len(_validate_schema(value, sub_s, path, [])) == 0 for sub_s in schema["oneOf"] if isinstance(sub_s, dict))
+        if not branch_passed:
+            issues.append(f"{path} did not match oneOf schema options")
+            return issues
     typ = schema.get("type")
     type_ok = {
         "object": lambda x: isinstance(x, dict),
@@ -638,8 +822,14 @@ def validate_agent_output(
 ) -> None:
     if skill not in SKILL_SCHEMA:
         raise OutputValidationError(f"No schema for skill {skill!r}")
-    schema = _load_schema_file(SKILL_SCHEMA[skill])
+    if skill in V30_SKILLS and isinstance(value, dict) and isinstance(value.get("result"), dict) and "status" in value:
+        value = value["result"]
+    schema = load_schema(skill)
     issues = _validate_schema(value, schema)
+    if skill in V30_SKILLS and issues and SKILL_SCHEMA[skill] in V30_INLINE_SCHEMAS:
+        inline_issues = _validate_schema(value, V30_INLINE_SCHEMAS[SKILL_SCHEMA[skill]])
+        if not inline_issues and all(i.endswith(" is required") or i.endswith(" is not allowed") for i in issues):
+            issues = []
     is_aca = skill in ACA_SKILLS
 
     def check_evidence(node: Any, loc: str = "$", parent_status: str | None = None) -> None:
@@ -669,7 +859,16 @@ def validate_agent_output(
                     for eid in ids:
                         if eid not in valid_evidence_ids:
                             issues.append(f"{loc}.{k} references evidence ID not in this job scope: {eid}")
-                    if k in {"evidence_ids", "intent_evidence_ids", "implementation_evidence_ids", "sample_evidence_ids", "representative_deep_read_evidence_ids"}:
+                    if k in {
+                        "evidence_ids",
+                        "intent_evidence_ids",
+                        "implementation_evidence_ids",
+                        "sample_evidence_ids",
+                        "representative_deep_read_evidence_ids",
+                        "caller_evidence_ids",
+                        "callee_evidence_ids",
+                        "ownership_evidence_ids",
+                    }:
                         combined_primary_ids.extend(ids)
             for rk in EVIDENCE_REF_KEYS:
                 refs = node.get(rk)
@@ -732,8 +931,27 @@ def validate_agent_output(
         raise OutputValidationError("; ".join(issues[:40]))
 
 
+def _extract_anchor_strings(items: Any) -> set[str]:
+    out: set[str] = set()
+    if not isinstance(items, list):
+        return out
+    for item in items:
+        if isinstance(item, str) and item.strip():
+            out.add(item.strip())
+        elif isinstance(item, dict):
+            for k in ("id", "endpoint_id", "entrypoint_id", "candidate_id", "path", "route", "endpoint", "handler", "target", "surface"):
+                v = item.get(k)
+                if isinstance(v, str) and v.strip():
+                    out.add(v.strip())
+            m = str(item.get("method", "")).strip()
+            p = str(item.get("path") or item.get("route") or "").strip()
+            if m and p:
+                out.add(f"{m} {p}")
+    return out
+
+
 def _validate_v30_epistemic_gates(skill: str, value: dict[str, Any], issues: list[str]) -> None:
-    """Enforce LocalSec v3.0 epistemic gates across Phase 1 Scouting/Coverage and Phase 3 S-F-O-P-C Risk Calibration."""
+    """Enforce LocalSec v3.0 epistemic gates across Phase 1, Phase 2, and Phase 3."""
     import re
 
     if skill == "extractor_tailor":
@@ -746,7 +964,7 @@ def _validate_v30_epistemic_gates(skill: str, value: dict[str, Any], issues: lis
             if not value.get("canary_files"):
                 issues.append(f"$.canary_files must be non-empty when mode is {mode!r}")
 
-    if skill == "coverage_ledger":
+    if skill in {"coverage_ledger", "unified_surface_mapper"}:
         cov_re = re.compile(r"^[A-Za-z0-9._~%-]+(::[A-Za-z0-9._~%-]+){3,4}$")
         for idx, rec in enumerate(value.get("records", [])):
             if not isinstance(rec, dict):
@@ -763,7 +981,145 @@ def _validate_v30_epistemic_gates(skill: str, value: dict[str, Any], issues: lis
                     f"$.records[{idx}] is marked 'reopened' but attempts[] has fewer than 2 entries (append-only history violation)"
                 )
 
+    # ARCH-3F: BOLA/IDOR Clustering Gate in unified_surface_mapper
+    if skill == "unified_surface_mapper":
+        entrypoints = value.get("entrypoints", [])
+        clusters = value.get("semantic_clusters", [])
+        if isinstance(entrypoints, list) or isinstance(clusters, list):
+            exempt_anchors = _extract_anchor_strings(value.get("outliers", [])) | _extract_anchor_strings(value.get("candidate_queue", []))
+            clustered_anchors: set[str] = set()
+            if isinstance(clusters, list):
+                for cl_idx, cl in enumerate(clusters):
+                    if not isinstance(cl, dict):
+                        continue
+                    cl_outliers = _extract_anchor_strings(cl.get("outliers", []))
+                    exempt_anchors |= cl_outliers
+                    members = cl.get("member_endpoints") if "member_endpoints" in cl else cl.get("members", [])
+                    clustered_anchors |= (_extract_anchor_strings(members) - cl_outliers)
+                    if isinstance(members, list):
+                        for m_idx, mem in enumerate(members):
+                            if isinstance(mem, dict):
+                                obj_params = mem.get("object_id_params")
+                                if isinstance(obj_params, list) and len(obj_params) > 0:
+                                    mem_anchors = _extract_anchor_strings([mem])
+                                    if not (mem_anchors & exempt_anchors):
+                                        own_chk = mem.get("ownership_check")
+                                        own_eids = mem.get("ownership_evidence_ids") or mem.get("evidence_ids") or []
+                                        if own_chk != "present" or not own_eids:
+                                            issues.append(
+                                                f"$.semantic_clusters[{cl_idx}].member_endpoints[{m_idx}] has object_id_params={obj_params!r} and cannot be clustered as an implicit safe member unless ownership_check=='present' with ownership_evidence_ids/evidence_ids, or moved to outliers/candidate_queue (ARCH-3F)"
+                                            )
+            if isinstance(entrypoints, list):
+                for ep_idx, ep in enumerate(entrypoints):
+                    if not isinstance(ep, dict):
+                        continue
+                    obj_params = ep.get("object_id_params")
+                    if not isinstance(obj_params, list) or len(obj_params) == 0:
+                        continue
+                    ep_anchors = _extract_anchor_strings([ep])
+                    is_exempt = bool(ep_anchors & exempt_anchors) or bool(ep.get("is_outlier") is True)
+                    is_clustered = bool(ep_anchors & clustered_anchors) or bool(ep.get("cluster_id")) or bool(ep.get("clustered_safe") is True)
+                    if is_clustered and not is_exempt:
+                        own_chk = ep.get("ownership_check")
+                        own_eids = ep.get("ownership_evidence_ids") or ep.get("evidence_ids") or []
+                        if own_chk != "present" or not own_eids:
+                            issues.append(
+                                f"$.entrypoints[{ep_idx}] has object_id_params={obj_params!r} and cannot be listed as an unverified member of a cluster unless ownership_check=='present' with non-empty ownership_evidence_ids/evidence_ids, or placed in outliers/candidate_queue (ARCH-3F)"
+                            )
+
+    # DEPTH-4.2b: Cross-Service Hop Gate in deep_trace_chain_analyst
+    if skill == "deep_trace_chain_analyst":
+        chains = value.get("chains")
+        if not isinstance(chains, list):
+            chains = [value] if ("hops" in value or "chain_verdict" in value) else []
+        cross_hop_kinds = {"http", "grpc", "message_queue", "zmq_or_ipc"}
+        for c_idx, chain in enumerate(chains):
+            if not isinstance(chain, dict):
+                continue
+            verdict = str(chain.get("chain_verdict", ""))
+            req_plan = chain.get("request_plan")
+            exec_status = req_plan.get("execution_status") if isinstance(req_plan, dict) else chain.get("execution_status")
+            if verdict == "confirmed" and exec_status in {"request_plan_only", "plan_only", "not_executed", "blocked", "execution_blocked", "not_applicable"}:
+                issues.append(
+                    f"$.chains[{c_idx}].chain_verdict cannot be 'confirmed' when execution_status is {exec_status!r} (request_plan_is_not_execution)"
+                )
+            hops = chain.get("hops") if isinstance(chain.get("hops"), list) else chain.get("steps", [])
+            if isinstance(hops, list):
+                for h_idx, hop in enumerate(hops):
+                    if not isinstance(hop, dict):
+                        continue
+                    h_kind = str(hop.get("hop_kind", "")).strip().lower()
+                    if h_kind in cross_hop_kinds:
+                        caller_eids = [x for x in (hop.get("caller_evidence_ids") or []) if isinstance(x, str) and x.strip()]
+                        callee_eids = [x for x in (hop.get("callee_evidence_ids") or []) if isinstance(x, str) and x.strip()]
+                        generic_eids = [x for x in (hop.get("evidence_ids") or []) if isinstance(x, str) and x.strip()] + _supporting_ref_ids(hop.get("evidence_refs"))
+                        all_hop_eids = set(caller_eids) | set(callee_eids) | set(generic_eids)
+                        both_evidenced = (len(caller_eids) >= 1 and len(callee_eids) >= 1) or (
+                            hop.get("cross_service_verified") is True and len(all_hop_eids) >= 2
+                        )
+                        if not both_evidenced and verdict in {"confirmed", "code_supported"}:
+                            issues.append(
+                                f"$.chains[{c_idx}].hops[{h_idx}] has cross-service hop_kind={h_kind!r} lacking caller_evidence_ids + callee_evidence_ids; chain_verdict={verdict!r} is forbidden unless downgraded to 'partially_confirmed' or 'hypothesized' (DEPTH-4.2b)"
+                            )
+
+    # DEPTH-4.2d: 6-Location Control Search Gate in blinded_counterevidence_challenger
+    if skill == "blinded_counterevidence_challenger":
+        def _check_control_checklist(chk: Any, loc_prefix: str) -> None:
+            if isinstance(chk, list):
+                for idx, entry in enumerate(chk):
+                    if not isinstance(entry, dict):
+                        continue
+                    st = entry.get("status")
+                    if st not in VALID_CONTROL_SEARCH_STATUSES:
+                        issues.append(
+                            f"{loc_prefix}[{idx}].status {st!r} must be one of {sorted(VALID_CONTROL_SEARCH_STATUSES)!r} (DEPTH-4.2d)"
+                        )
+                    elif st == "checked_not_found":
+                        sp = entry.get("searched_paths")
+                        if not isinstance(sp, list) or not [p for p in sp if isinstance(p, str) and p.strip()]:
+                            issues.append(
+                                f"{loc_prefix}[{idx}] has status='checked_not_found' and requires non-empty searched_paths (DEPTH-4.2d)"
+                            )
+            elif isinstance(chk, dict):
+                for k, entry in chk.items():
+                    if isinstance(entry, dict):
+                        st = entry.get("status")
+                        if st not in VALID_CONTROL_SEARCH_STATUSES:
+                            issues.append(
+                                f"{loc_prefix}.{k}.status {st!r} must be one of {sorted(VALID_CONTROL_SEARCH_STATUSES)!r} (DEPTH-4.2d)"
+                            )
+                        elif st == "checked_not_found":
+                            sp = entry.get("searched_paths")
+                            if not isinstance(sp, list) or not [p for p in sp if isinstance(p, str) and p.strip()]:
+                                issues.append(
+                                    f"{loc_prefix}.{k} has status='checked_not_found' and requires non-empty searched_paths (DEPTH-4.2d)"
+                                )
+                    elif isinstance(entry, str):
+                        if entry not in VALID_CONTROL_SEARCH_STATUSES:
+                            issues.append(
+                                f"{loc_prefix}.{k} {entry!r} must be one of {sorted(VALID_CONTROL_SEARCH_STATUSES)!r} (DEPTH-4.2d)"
+                            )
+                        elif entry == "checked_not_found":
+                            issues.append(
+                                f"{loc_prefix}.{k} has status='checked_not_found' and requires an object with non-empty searched_paths (DEPTH-4.2d)"
+                            )
+
+        if "control_search_checklist" in value:
+            _check_control_checklist(value["control_search_checklist"], "$.control_search_checklist")
+        for list_key in ("challenged_chains", "step_challenges", "challenges", "chain_challenges", "verifications"):
+            for c_idx, ch_item in enumerate(value.get(list_key, [])):
+                if isinstance(ch_item, dict) and "control_search_checklist" in ch_item:
+                    _check_control_checklist(
+                        ch_item["control_search_checklist"],
+                        f"$.{list_key}[{c_idx}].control_search_checklist",
+                    )
+
     if skill == "beyond_code_control_mapper":
+        for idx, ctrl in enumerate(value.get("beyond_code_controls", [])):
+            if isinstance(ctrl, dict) and ctrl.get("status") == "hypothesis" and ctrl.get("mitigation_effect") == "blocks_exploit":
+                issues.append(
+                    f"$.beyond_code_controls[{idx}] has status='hypothesis' and cannot claim mitigation_effect='blocks_exploit' without confirmed config/IaC evidence"
+                )
         for idx, item in enumerate(value.get("assessments", [])):
             if not isinstance(item, dict):
                 continue
@@ -779,10 +1135,40 @@ def _validate_v30_epistemic_gates(skill: str, value: dict[str, Any], issues: lis
         for idx, item in enumerate(value.get("calibrated_findings", [])):
             if not isinstance(item, dict):
                 continue
+            if "owner_role" in item and item["owner_role"] is not None:
+                if item["owner_role"] not in VALID_OWNER_ROLES:
+                    issues.append(
+                        f"$.calibrated_findings[{idx}].owner_role {item['owner_role']!r} must be one of {sorted(VALID_OWNER_ROLES)!r} (DEPTH-4.4b)"
+                    )
+            if "blast_radius" in item and item["blast_radius"] is not None:
+                if item["blast_radius"] not in VALID_BLAST_RADIUS:
+                    issues.append(
+                        f"$.calibrated_findings[{idx}].blast_radius {item['blast_radius']!r} must be one of {sorted(VALID_BLAST_RADIUS)!r} (DEPTH-4.4d)"
+                    )
+            sfop_details = item.get("sfop_details")
+            if isinstance(sfop_details, dict):
+                for ax_k, ax_v in sfop_details.items():
+                    if isinstance(ax_v, dict) and "blast_radius" in ax_v and ax_v["blast_radius"] is not None:
+                        if ax_v["blast_radius"] not in VALID_BLAST_RADIUS:
+                            issues.append(
+                                f"$.calibrated_findings[{idx}].sfop_details.{ax_k}.blast_radius {ax_v['blast_radius']!r} must be one of {sorted(VALID_BLAST_RADIUS)!r} (DEPTH-4.4d)"
+                            )
             axes = item.get("impact_axes")
             if not isinstance(axes, dict):
                 continue
-            axis_vals = [str(axes.get(k, "negligible")) for k in ("safety", "financial", "operational", "privacy", "compliance")]
+            axis_vals: list[str] = []
+            for k in ("safety", "financial", "operational", "privacy", "compliance"):
+                raw_ax = axes.get(k, "negligible")
+                if isinstance(raw_ax, dict):
+                    if "blast_radius" in raw_ax and raw_ax["blast_radius"] is not None:
+                        if raw_ax["blast_radius"] not in VALID_BLAST_RADIUS:
+                            issues.append(
+                                f"$.calibrated_findings[{idx}].impact_axes.{k}.blast_radius {raw_ax['blast_radius']!r} must be one of {sorted(VALID_BLAST_RADIUS)!r} (DEPTH-4.4d)"
+                            )
+                    ax_level = str(raw_ax.get("severity") or raw_ax.get("level") or raw_ax.get("impact") or "negligible")
+                    axis_vals.append(ax_level)
+                else:
+                    axis_vals.append(str(raw_ax))
             computed_max_rank = max(IMPACT_RANK.get(v, 0) for v in axis_vals)
             declared_max = str(item.get("max_impact", "negligible"))
             declared_max_rank = IMPACT_RANK.get(declared_max, -1)
@@ -796,7 +1182,12 @@ def _validate_v30_epistemic_gates(skill: str, value: dict[str, Any], issues: lis
                 issues.append(
                     f"$.calibrated_findings[{idx}].contextual_risk_rating ({overall!r}) exceeds max_impact ({declared_max!r}); hard rule overall_risk <= max_impact violated"
                 )
-            safety_val = str(axes.get("safety", "negligible"))
+            safety_raw = axes.get("safety", "negligible")
+            safety_val = (
+                str(safety_raw.get("severity") or safety_raw.get("level") or safety_raw.get("impact") or "negligible")
+                if isinstance(safety_raw, dict)
+                else str(safety_raw)
+            )
             risk_owner = str(item.get("risk_owner", "")).strip()
             safety_owner = str(item.get("safety_owner", "")).strip()
             if safety_val != "negligible":
@@ -808,6 +1199,19 @@ def _validate_v30_epistemic_gates(skill: str, value: dict[str, Any], issues: lis
                     issues.append(
                         f"$.calibrated_findings[{idx}] violates Safety Owner != Security Risk Owner separation (both set to {risk_owner!r})"
                     )
+
+
+def validate_v30_epistemic_gates(
+    skill_name: str,
+    payload: dict[str, Any],
+    issues: list[str] | None = None,
+) -> list[str]:
+    """Public entry point for v3.0 epistemic gates; raises OutputValidationError if called standalone and issues are found."""
+    target_issues = issues if issues is not None else []
+    _validate_v30_epistemic_gates(skill_name, payload, target_issues)
+    if issues is None and target_issues:
+        raise OutputValidationError("; ".join(target_issues[:40]))
+    return target_issues
 
 
 def validate_coverage_ledger(

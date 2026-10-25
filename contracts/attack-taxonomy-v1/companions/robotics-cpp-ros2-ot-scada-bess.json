@@ -1,0 +1,93 @@
+{
+  "id": "robotics-cpp-ros2-ot-scada-bess",
+  "companion_id": "robotics-cpp-ros2-ot-scada-bess",
+  "file": "robotics-cpp-ros2-ot-scada-bess.md",
+  "companion_json": "companions/robotics-cpp-ros2-ot-scada-bess.json",
+  "group": "IV. IoT, Automotive, Robotics & OT",
+  "title": "Robotics (C++/ZeroMQ/ROS2/MQTT), Energy BESS SCADA (OneATS) & Industrial OT (ISA-95 / ETCS)",
+  "always_inject": false,
+  "triggers": [
+    "zeromq",
+    "zmq",
+    "ros2",
+    "dds",
+    "ethercat",
+    "modbus",
+    "opcua",
+    "iec61850",
+    "scada",
+    "bess",
+    "ems",
+    "bms",
+    "plc",
+    "rtu",
+    "isa95",
+    "etcs",
+    "ato",
+    "robot",
+    "agv",
+    "amr"
+  ],
+  "trigger_signals": [
+    "zeromq",
+    "zmq",
+    "ros2",
+    "dds",
+    "ethercat",
+    "modbus",
+    "opcua",
+    "iec61850",
+    "scada",
+    "bess",
+    "ems",
+    "bms",
+    "plc",
+    "rtu",
+    "isa95",
+    "etcs",
+    "ato",
+    "robot",
+    "agv",
+    "amr",
+    "cyberphysical_ot_robotics",
+    "ai_model_serving_engine"
+  ],
+  "archetypes": [
+    "CyberPhysical_OT_Robotics",
+    "AI_Model_Serving_Engine"
+  ],
+  "blocks": [
+    "unauthenticated-robot-and-ipc-command-bridges",
+    "ot-scada-bess-and-ai-in-control-loop",
+    "ot-command-injection-bounds-and-safety-audit"
+  ],
+  "standard_mappings": [
+    "IEC-62443-3-3",
+    "IEC-62443-4-2",
+    "ISO-10218",
+    "ISO-26262",
+    "NIST-AI-RMF",
+    "OWASP-API4:2023",
+    "ASVS-V5",
+    "ASVS-V16"
+  ],
+  "safe_patterns": [
+    "ZeroMQ CURVE / ROS2 SROS2 DDS security / mTLS authentication on all IPC and network actuation sockets",
+    "Deterministic hardware/PLC safety interlock and kinematic/power setpoint clamping independent of AI/cloud control outputs",
+    "Strict bounds checking on protobuf/ZeroMQ frame sizes, tensor dimensions, and joint velocity/torque/MW setpoints before execution"
+  ],
+  "vulnerable_patterns": [
+    "Unauthenticated ZeroMQ (tcp://*:5555), ROS2 DDS, Modbus TCP, or HTTP-to-MQTT bridge forwarding raw actuation commands to robots/BESS",
+    "AI/LLM/forecasting output wired directly into PLC/BMS/robot actuators without an independent deterministic bounds filter",
+    "Unchecked integer arithmetic on frame dimensions or payload lengths before heap allocation or memcpy in C/C++ handlers"
+  ],
+  "required_evidence": [
+    "ev_... excerpt of C++/Python/Go IPC listener (ZeroMQ/ROS2/MQTT/Modbus) showing authentication and message parsing",
+    "ev_... excerpt of actuation dispatch logic showing bounds checks or safety interlock validation"
+  ],
+  "questions_when_unclear": [
+    "Is the robot/BESS control subnet physically air-gapped or segmented via unidirectional data diodes / OT firewalls (IEC 62443 Zone & Conduit)?",
+    "Does an independent safety PLC or hardware BMS hard-clamp power, thermal, and torque limits regardless of software commands?"
+  ],
+  "markdown": "# Robotics (C++/ZeroMQ/ROS2/MQTT), Energy BESS SCADA (OneATS) & Industrial OT (ISA-95 / ETCS) (`robotics-cpp-ros2-ot-scada-bess`)\n\n> **Group:** IV. IoT, Automotive, Robotics & OT\n> **Product Archetypes:** CyberPhysical_OT_Robotics, AI_Model_Serving_Engine\n> **Trigger Signals:** zeromq, zmq, ros2, dds, ethercat, modbus, opcua, iec61850, scada, bess, ems, bms, plc, rtu, isa95, etcs, ato, robot, agv, amr\n\n## [ BLOCK: unauthenticated-robot-and-ipc-command-bridges ]\n### Unauthenticated HTTP/ZeroMQ/MQTT-to-Robot Actuation Bridges & Bounds Checks\n- Hunt for unauthenticated network bridges (e.g., HTTP `/api/sample/call-command/` forwarding directly to EMQX `:8883`, or ZeroMQ `tcp://*:5555` `PredictRequest` servers without CURVE auth).\n- Verify protobuf/message field-level bounds validation (image dimensions, view counts, joint velocity/torque limits) beyond simple total byte-size caps.\n\n## [ BLOCK: ot-scada-bess-and-ai-in-control-loop ]\n### OT SCADA/BESS (IEC 62443), 3-Party Trust Boundaries & AI-in-the-Control-Loop\n- When AI forecasting models feed into OT/SCADA control loops (e.g., BESS 50MW/100MWh charge/discharge scheduling, BF-BOF furnace gas valves, or ATO rail signaling), verify whether a deterministic, hardware/PLC-enforced safety interlock independently clamps out-of-range commands regardless of AI output.\n- Map 3-party trust boundaries (`Asset Owner <-> Grid/Plant Operator <-> Control Software Vendor`) and flag any remote maintenance/telemetry channel lacking dual-path isolation or safety-owner sign-off.\n\n## [ BLOCK: ot-command-injection-bounds-and-safety-audit ]\n### C++/IPC Memory Safety, Command Rate-Limiting & Immutable Safety Audit Logs\n- In C++/ROS2/ZeroMQ services, audit deserialization buffers, image/tensor dimensions, and array indices for integer overflow and out-of-bounds memory access.\n- Verify message rate-limiting (API4) on ZeroMQ/MQTT/Modbus command buses and tamper-evident safety audit logging (ASVS V16) whenever an emergency stop, setpoint override, or BMS/PLC command is issued.\n\n### Standard Mappings\n- IEC-62443-3-3, IEC-62443-4-2, ISO-10218, ISO-26262, NIST-AI-RMF, OWASP-API4:2023, ASVS-V5, ASVS-V16\n\n### Safe Patterns (Refutation Anchors)\n- ZeroMQ CURVE / ROS2 SROS2 DDS security / mTLS authentication on all IPC and network actuation sockets\n- Deterministic hardware/PLC safety interlock and kinematic/power setpoint clamping independent of AI/cloud control outputs\n- Strict bounds checking on protobuf/ZeroMQ frame sizes, tensor dimensions, and joint velocity/torque/MW setpoints before execution\n\n### Vulnerable Patterns\n- Unauthenticated ZeroMQ (tcp://*:5555), ROS2 DDS, Modbus TCP, or HTTP-to-MQTT bridge forwarding raw actuation commands to robots/BESS\n- AI/LLM/forecasting output wired directly into PLC/BMS/robot actuators without an independent deterministic bounds filter\n- Unchecked integer arithmetic on frame dimensions or payload lengths before heap allocation or memcpy in C/C++ handlers\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of C++/Python/Go IPC listener (ZeroMQ/ROS2/MQTT/Modbus) showing authentication and message parsing\n- ev_... excerpt of actuation dispatch logic showing bounds checks or safety interlock validation\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Is the robot/BESS control subnet physically air-gapped or segmented via unidirectional data diodes / OT firewalls (IEC 62443 Zone & Conduit)?\n- Does an independent safety PLC or hardware BMS hard-clamp power, thermal, and torque limits regardless of software commands?\n"
+}

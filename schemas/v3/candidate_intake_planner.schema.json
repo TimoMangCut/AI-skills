@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalSec v3.0 Phase 2.1 Candidate Intake Planner Schema",
+  "type": "object",
+  "properties": {
+    "repo_name": {
+      "type": "string"
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "selected_companions": {
+      "type": "array",
+      "items": {
+        "type": [
+          "string",
+          "object"
+        ]
+      }
+    },
+    "selected_companion_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "excluded_companions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "deduplicated_batches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "batch_id": {
+            "type": "string"
+          },
+          "candidate_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "attack_classes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "target_repos": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rationale": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "batches": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "deduplicated_batches"
+      ]
+    },
+    {
+      "required": [
+        "candidates"
+      ]
+    },
+    {
+      "required": [
+        "batches"
+      ]
+    }
+  ]
+}

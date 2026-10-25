@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalSec v3.0 Phase 1.2 Extractor Tailor Schema",
+  "type": "object",
+  "required": [
+    "canary_verified",
+    "rationale"
+  ],
+  "properties": {
+    "extractor_decision": {
+      "type": "string",
+      "enum": [
+        "USE_STANDARD_EXTRACTOR",
+        "USE_TAILORED_EXTRACTOR",
+        "TAILOR_CUSTOM_EXTRACTOR",
+        "SKIP_EXTRACTOR_DIRECT_READ"
+      ]
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "USE_STANDARD_EXTRACTOR",
+        "USE_TAILORED_EXTRACTOR",
+        "TAILOR_CUSTOM_EXTRACTOR",
+        "SKIP_EXTRACTOR_DIRECT_READ"
+      ]
+    },
+    "canary_verified": {
+      "type": "boolean"
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 3
+    },
+    "canary_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "expected_canary_hits": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "actual_canary_hits": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "extracted_hints_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "script_path": {
+      "type": "string"
+    },
+    "evidence_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

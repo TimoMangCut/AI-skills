@@ -1,0 +1,79 @@
+{
+  "id": "enterprise-sap-mulesoft-b2b",
+  "companion_id": "enterprise-sap-mulesoft-b2b",
+  "file": "enterprise-sap-mulesoft-b2b.md",
+  "companion_json": "companions/enterprise-sap-mulesoft-b2b.json",
+  "group": "III. Enterprise, Data Lake & AI Systems",
+  "title": "Enterprise Core: SAP S/4HANA (ICF/Fiori), MuleSoft Banking Shims & B2B Portals",
+  "always_inject": false,
+  "triggers": [
+    "sap",
+    "fiori",
+    "s4hana",
+    "icf",
+    "webgui",
+    "bapi",
+    "rfc",
+    "mulesoft",
+    "mule",
+    "erp",
+    "mes",
+    "dealer",
+    "b2b",
+    "immobilizer"
+  ],
+  "trigger_signals": [
+    "sap",
+    "fiori",
+    "s4hana",
+    "icf",
+    "webgui",
+    "bapi",
+    "rfc",
+    "mulesoft",
+    "mule",
+    "erp",
+    "mes",
+    "dealer",
+    "b2b",
+    "immobilizer",
+    "enterprise_erp_b2b",
+    "partner_integration_adapter"
+  ],
+  "archetypes": [
+    "Enterprise_ERP_B2B",
+    "Partner_Integration_Adapter"
+  ],
+  "blocks": [
+    "mulesoft-and-partner-integration-shims",
+    "sap-icf-fiori-and-erp-mes-boundary",
+    "b2b-batch-dos-audit-logging-and-rfc-injection"
+  ],
+  "standard_mappings": [
+    "OWASP-API1:2023",
+    "OWASP-API4:2023",
+    "OWASP-API5:2023",
+    "ASVS-V13",
+    "ASVS-V16",
+    "IEC-62443-3-3"
+  ],
+  "safe_patterns": [
+    "mTLS client certificate subject-DN pinned and mapped deterministically to a single partner/bank tenant ID before B2B actuation",
+    "Per-VIN / per-contract ownership relationship verified in the database before executing immobilizer or billing state changes",
+    "Immutable append-only audit log capturing caller identity, mTLS thumbprint, request payload hash, and approval ticket"
+  ],
+  "vulnerable_patterns": [
+    "MuleSoft / B2B shim accepting an arbitrary array of VINs or account IDs without checking whether the authenticated partner finances/owns those assets",
+    "SAP RFC/BAPI or OData bridge using shared static technical user credentials without propagating or validating caller authorization",
+    "Missing batch size limits or missing audit trail on fleet-wide immobilizer, warranty, or ERP ledger mutations"
+  ],
+  "required_evidence": [
+    "ev_... excerpt of MuleSoft/B2B controller and service logic handling partner authentication and asset/VIN authorization",
+    "ev_... excerpt of SAP RFC/OData client configuration and audit logging call"
+  ],
+  "questions_when_unclear": [
+    "Does the upstream MuleSoft API Gateway enforce mTLS certificate-to-partner-ID binding before forwarding to this service?",
+    "Is there a human maker-checker approval workflow in SAP S/4HANA before high-value or fleet-wide commands execute?"
+  ],
+  "markdown": "# Enterprise Core: SAP S/4HANA (ICF/Fiori), MuleSoft Banking Shims & B2B Portals (`enterprise-sap-mulesoft-b2b`)\n\n> **Group:** III. Enterprise, Data Lake & AI Systems\n> **Product Archetypes:** Enterprise_ERP_B2B, Partner_Integration_Adapter\n> **Trigger Signals:** sap, fiori, s4hana, icf, webgui, bapi, rfc, mulesoft, mule, erp, mes, dealer, b2b, immobilizer\n\n## [ BLOCK: mulesoft-and-partner-integration-shims ]\n### MuleSoft / Partner Integration Shims & High-Impact Actuation Bypass\n- Audit `/external/mule/*` and B2B partner endpoints (e.g., `/immobilizer/set-bank-loaned-status`, dealer warranty/RSA APIs) that act on arrays of VINs or customer accounts.\n- Verify whether partner endpoints enforce mTLS / strict client-certificate binding and per-partner tenant scoping, or if any caller with a generic token can trigger fleet-wide actions.\n\n## [ BLOCK: sap-icf-fiori-and-erp-mes-boundary ]\n### SAP Web Dispatcher, ICF Service Exposure (`/sap/public/*`, WebGUI) & L4<->L3 Boundary\n- Check SAP ICF service trees for exposed ping/info/test nodes, default clients, expired TLS certs on Fiori gateways, and unauthenticated RFC/SOAP bridges between SAP ERP (ISA-95 L4) and factory MES (L3).\n\n## [ BLOCK: b2b-batch-dos-audit-logging-and-rfc-injection ]\n### B2B Batch Resource Exhaustion, ABAP/RFC Injection & Audit Trail Integrity\n- Check B2B/MuleSoft bulk endpoints (e.g., VIN batch arrays, invoice sync) for missing array size limits (API4) and partial-failure transaction rollback issues.\n- Verify immutable audit logging (ASVS V16) recording partner certificate subject, operator identity, and before/after state for every high-impact ERP/immobilizer action.\n\n### Standard Mappings\n- OWASP-API1:2023, OWASP-API4:2023, OWASP-API5:2023, ASVS-V13, ASVS-V16, IEC-62443-3-3\n\n### Safe Patterns (Refutation Anchors)\n- mTLS client certificate subject-DN pinned and mapped deterministically to a single partner/bank tenant ID before B2B actuation\n- Per-VIN / per-contract ownership relationship verified in the database before executing immobilizer or billing state changes\n- Immutable append-only audit log capturing caller identity, mTLS thumbprint, request payload hash, and approval ticket\n\n### Vulnerable Patterns\n- MuleSoft / B2B shim accepting an arbitrary array of VINs or account IDs without checking whether the authenticated partner finances/owns those assets\n- SAP RFC/BAPI or OData bridge using shared static technical user credentials without propagating or validating caller authorization\n- Missing batch size limits or missing audit trail on fleet-wide immobilizer, warranty, or ERP ledger mutations\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of MuleSoft/B2B controller and service logic handling partner authentication and asset/VIN authorization\n- ev_... excerpt of SAP RFC/OData client configuration and audit logging call\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Does the upstream MuleSoft API Gateway enforce mTLS certificate-to-partner-ID binding before forwarding to this service?\n- Is there a human maker-checker approval workflow in SAP S/4HANA before high-value or fleet-wide commands execute?\n"
+}

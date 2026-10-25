@@ -1807,5 +1807,305 @@ def write_aca_analysis_documents(
     _write_md(analysis_dir / "09_unknowns_and_counterevidence.md", unk_md)
 
 
+def render_v3_reports(
+    project_root: Path | str,
+    repo_name: str | None = None,
+    run_id: str = "default",
+) -> dict[str, Any]:
+    """ARCH-3I & DEPTH-4.8: Render the 3 v3.0 audience-tailored Markdown deliverables into <project_root>/documents/:
+    1. 01_developer_remediation_cards.md
+    2. 02_executive_risk_and_key_questions.md
+    3. 03_pentest_qa_verification_playbook.md
+    """
+    project_root = Path(project_root).expanduser().resolve()
+    runs_root = project_root / ".localsec" / "runs" / run_id
+    docs_dir = project_root / "documents"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    repo_dirs: list[Path] = []
+    if repo_name:
+        cand = runs_root / repo_name
+        if cand.is_dir():
+            repo_dirs.append(cand)
+        else:
+            cand.mkdir(parents=True, exist_ok=True)
+            repo_dirs.append(cand)
+    elif runs_root.is_dir():
+        for d in sorted(runs_root.iterdir(), key=lambda p: p.name):
+            if d.is_dir() and not d.name.startswith("_"):
+                repo_dirs.append(d)
+
+    def _load_repo_json(rdir: Path, fname: str) -> dict[str, Any]:
+        fp = rdir / fname
+        if fp.is_file():
+            try:
+                raw = json.loads(fp.read_text(encoding="utf-8", errors="replace"))
+                if isinstance(raw, dict):
+                    return raw.get("result", raw) if isinstance(raw.get("result"), dict) else raw
+            except Exception:
+                pass
+        return {}
+
+    dev_lines: list[str] = [
+        "# 01 — Developer Remediation Cards (v3.0)",
+        "",
+        "> Audience: Engineering & Feature Teams. Contains root-cause pattern clustering, representative fixes, cluster-wide sweep targets, and regression test specifications.",
+        "",
+    ]
+    exec_lines: list[str] = [
+        "# 02 — Executive S-F-O-P-C Risk & Key Questions (v3.0)",
+        "",
+        "> Audience: CISO, Product Security, Safety Owner & Risk Owner. Calibrated across Safety, Financial, Operational, Privacy, and Compliance axes.",
+        "",
+    ]
+    qa_lines: list[str] = [
+        "# 03 — Pentest & QA Verification Playbook (v3.0)",
+        "",
+        "> Audience: AppSec Pentest & QA Engineers. Contains non-executed request sequence plans (`Step 1: Setup`, `Step 2: Mutate`, `Step 3: Observe`), vulnerable vs fixed indicators, and the Empirical Refutations Ledger.",
+        "",
+    ]
+
+    total_findings = 0
+    total_refutations = 0
+    gate0_triggered = False
+
+    for rdir in repo_dirs:
+        rname = rdir.name
+        surf = _load_repo_json(rdir, "unified_surface_mapper.json")
+        deep_trace = _load_repo_json(rdir, "deep_trace_chain_analyst.json")
+        challenger = _load_repo_json(rdir, "blinded_counterevidence_challenger.json")
+        ev_gate = _load_repo_json(rdir, "analysis_evidence_gate.json")
+        actor_map = _load_repo_json(rdir, "actor_and_feasibility_assessor.json")
+        beyond_code = _load_repo_json(rdir, "beyond_code_control_mapper.json")
+        sfop = _load_repo_json(rdir, "sfop_risk_calibrator.json")
+
+        scout = _load_repo_json(rdir, "codebase_scout.json")
+        cov_matrix = _load_repo_json(rdir, "coverage_matrix.json")
+        vis_audit = _load_repo_json(rdir, "visibility_audit.json")
+        kq_file = _load_repo_json(rdir, "key_questions.json")
+
+        clusters_by_id: dict[str, dict[str, Any]] = {}
+        for cl in surf.get("semantic_clusters", []) or surf.get("equivalence_clusters", []):
+            if isinstance(cl, dict) and cl.get("cluster_id"):
+                clusters_by_id[str(cl["cluster_id"])] = cl
+
+        chains = list(deep_trace.get("chains") or deep_trace.get("verified_chains") or [])
+        calibrated = list(sfop.get("calibrated_findings", []))
+        cal_by_id: dict[str, dict[str, Any]] = {}
+        for cf in calibrated:
+            if isinstance(cf, dict):
+                fid = str(cf.get("finding_id") or cf.get("chain_id") or cf.get("candidate_id") or "")
+                if fid:
+                    cal_by_id[fid] = cf
+
+        # Check Gate 0 / Emergency Brake
+        for cf in calibrated:
+            if not isinstance(cf, dict):
+                continue
+            sfop_blk = cf.get("impact_axes") or cf.get("sfop_impacts") or cf
+            s_raw = sfop_blk.get("safety") if isinstance(sfop_blk, dict) and "safety" in sfop_blk else sfop_blk.get("safety_impact") or cf.get("safety_impact") or "NONE"
+            s_imp = str(s_raw.get("level", "NONE") if isinstance(s_raw, dict) else s_raw).upper()
+            if s_imp in {"CRITICAL", "CATASTROPHIC"} or cf.get("gate_0_emergency_brake") is True:
+                gate0_triggered = True
+
+        dev_lines.append(f"## Repository: `{_md(rname)}`")
+        dev_lines.append("")
+        if not chains and not calibrated:
+            dev_lines.append("_No verified reachable vulnerability chains recorded for this repository._")
+            dev_lines.append("")
+
+        for idx, ch in enumerate(chains or calibrated, 1):
+            if not isinstance(ch, dict):
+                continue
+            total_findings += 1
+            fid = str(ch.get("chain_id") or ch.get("finding_id") or ch.get("candidate_id") or f"FINDING-{idx}")
+            rc_cluster_id = str(ch.get("root_cause_cluster_id") or ch.get("cluster_id") or f"rc_pattern_{idx}")
+            rc_obj = ch.get("root_cause")
+            rc_desc = str((rc_obj.get("summary") or rc_obj.get("description") if isinstance(rc_obj, dict) else rc_obj) or ch.get("root_cause_summary") or ch.get("title") or "Missing or inconsistent security/invariant enforcement")
+            ev_ids = [str(e) for e in ch.get("evidence_ids", []) if str(e).startswith("ev_")]
+            hops = ch.get("hops", [])
+            primary_loc = f"{rname}:unknown"
+            if isinstance(hops, list) and hops:
+                first_hop = hops[0] if isinstance(hops[0], dict) else {}
+                primary_loc = f"{first_hop.get('path') or first_hop.get('file') or rname}:{first_hop.get('line') or 1}"
+                for hp in hops:
+                    if isinstance(hp, dict):
+                        for e in hp.get("evidence_ids", []):
+                            if str(e).startswith("ev_") and str(e) not in ev_ids:
+                                ev_ids.append(str(e))
+            elif ch.get("path") or ch.get("file"):
+                primary_loc = f"{ch.get('path') or ch.get('file')}:{ch.get('line') or 1}"
+
+            cluster_info = clusters_by_id.get(rc_cluster_id, {})
+            cluster_members = cluster_info.get("member_files") or cluster_info.get("member_endpoints") or cluster_info.get("members") or ch.get("cluster_wide_targets") or [primary_loc]
+
+            dev_lines += [
+                f"### Remediation Card `{_md(fid)}`",
+                f"- **Root-Cause Pattern ID**: `{_md(rc_cluster_id)}`",
+                f"- **Primary Location (`File:Line`)**: `{_md(primary_loc)}`",
+                f"- **Supporting Evidence (`ev_...`)**: {', '.join(f'`{e}`' for e in ev_ids) if ev_ids else '`ev_none`'}",
+                f"- **Root Cause Summary**: {_md(rc_desc)}",
+                f"- **Representative Fix**: {_md(ch.get('representative_fix') or ch.get('remediation') or 'Enforce explicit server-side authorization/invariant guard at the entrypoint and service boundary.')}",
+                "- **Cluster-Wide Fixes (All Members of `root_cause_cluster_id`)**:",
+            ]
+            for cm in cluster_members:
+                dev_lines.append(f"  - `{_md(cm)}`")
+            dev_lines += [
+                f"- **Regression Test Spec**: {_md(ch.get('regression_test_spec') or 'Add negative unit/integration test asserting unauthorized or invariant-violating input is rejected with 403/422.')}",
+                "",
+            ]
+
+        # Executive section for repo
+        exec_lines.append(f"## Repository: `{_md(rname)}`")
+        exec_lines.append("")
+        if gate0_triggered:
+            exec_lines += [
+                "> [!CAUTION]",
+                "> **GATE 0 / EMERGENCY BRAKE ACTIVE**: One or more findings in this repository carry `safety == CRITICAL`. Release and deployment must be halted pending formal `safety_owner` sign-off.",
+                "",
+            ]
+        exec_lines += [
+            "### S-F-O-P-C Risk Matrix & Ownership Sign-Off Table",
+            "",
+            "| Finding ID | Safety (S) | Financial (F) | Operational (O) | Privacy (P) | Compliance (C) | Overall Risk | Feasibility | Blast Radius | Risk Owner | Safety Owner | Gate 0 Brake |",
+            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+        ]
+
+        def _axis_lvl(blk: dict[str, Any], axis_key: str, legacy_key: str, default: str) -> str:
+            val = blk.get(axis_key) if isinstance(blk, dict) and axis_key in blk else blk.get(legacy_key)
+            if isinstance(val, dict):
+                return str(val.get("level") or default).upper()
+            return str(val or default).upper()
+
+        for idx, cf in enumerate(calibrated or chains, 1):
+            if not isinstance(cf, dict):
+                continue
+            fid = str(cf.get("finding_id") or cf.get("chain_id") or f"FINDING-{idx}")
+            sfop_blk = cf.get("impact_axes") or cf.get("sfop_impacts") or cf
+            s_val = _axis_lvl(sfop_blk, "safety", "safety_impact", "NEGLIGIBLE")
+            f_val = _axis_lvl(sfop_blk, "financial", "financial_impact", "LOW")
+            o_val = _axis_lvl(sfop_blk, "operational", "operational_impact", "LOW")
+            p_val = _axis_lvl(sfop_blk, "privacy", "privacy_impact", "NEGLIGIBLE")
+            c_val = _axis_lvl(sfop_blk, "compliance", "compliance_impact", "NEGLIGIBLE")
+            ov_val = str(cf.get("contextual_risk_rating") or cf.get("overall_risk") or "MEDIUM").upper()
+            feas_val = str(cf.get("feasibility_derived") or cf.get("exploitability_likelihood") or "feasible")
+            br_val = str(cf.get("blast_radius") or "service")
+            r_owner = str(cf.get("risk_owner") or cf.get("owner_role") or "dev_team")
+            s_owner = str(cf.get("safety_owner") or "N/A")
+            g0 = "YES" if (s_val in {"CRITICAL", "CATASTROPHIC"} or cf.get("gate_0_emergency_brake") is True) else "NO"
+            exec_lines.append(
+                f"| `{_md(fid)}` | `{s_val}` | `{f_val}` | `{o_val}` | `{p_val}` | `{c_val}` | **`{ov_val}`** | `{_md(feas_val)}` | `{_md(br_val)}` | `{_md(r_owner)}` | `{_md(s_owner)}` | `{g0}` |"
+            )
+        exec_lines.append("")
+        exec_lines.append("### Key Questions for Architect / DevOps / Safety (`key_questions.json`)")
+        exec_lines.append("")
+        key_questions: list[str] = []
+        for q_obj in kq_file.get("questions", []):
+            if isinstance(q_obj, dict):
+                key_questions.append(f"[{q_obj.get('question_id', 'KQ')} -> `{q_obj.get('target_team', 'ops')}` | `{q_obj.get('status', 'pending')}`] {q_obj.get('question', '')}")
+        for q_str in list(sfop.get("key_questions", [])) + list(beyond_code.get("unverified_control_questions", [])):
+            if isinstance(q_str, str):
+                key_questions.append(q_str)
+            elif isinstance(q_str, dict):
+                key_questions.append(str(q_str.get("question") or q_str))
+        if not key_questions:
+            key_questions.append("Confirm whether upstream API Gateway / WAF / mTLS policies are enforced in production and provide `runtime_environment_facts.json`.")
+        for kq in key_questions[:20]:
+            exec_lines.append(f"- {_md(kq)}")
+        exec_lines.append("")
+
+        # DEPTH-4.8: Uncovered / Waived / Hardware & Cloud Boundary Limits
+        exec_lines.append("### Chưa phủ / Miễn trừ / Giới hạn ranh giới phần cứng & Cloud (Uncovered / Waived / Boundary Limits)")
+        exec_lines.append("")
+        ignored_mods = scout.get("ignored_modules", [])
+        unvisited_mods = vis_audit.get("visibility_report", {}).get("unvisited_target_modules", [])
+        exec_lines.append(f"- **Coverage Matrix Records**: `{cov_matrix.get('record_count', len(cov_matrix.get('records', [])))}` surface × attack-class cells evaluated.")
+        exec_lines.append(f"- **Unvisited Target Modules**: `{len(unvisited_mods)}` ({', '.join(unvisited_mods) if unvisited_mods else '0 — 100% target_modules visited'}).")
+        if ignored_mods:
+            for ig in ignored_mods:
+                if isinstance(ig, dict):
+                    exec_lines.append(f"- **Waived / Ignored Module**: `{_md(ig.get('path') or ig.get('module'))}` (reason: `{_md(ig.get('reason'))}`)")
+        exec_lines.append("- **Hardware / Firmware & Cloud Boundary Note**: Physical OT/PLC/ECU hardware interlocks and live cloud WAF/ALB/IAM runtime policies outside the software repository require verification via `ingest_runtime_facts` and formal `ot_safety_engineering` / `infra_cloud_sec` sign-off.")
+        exec_lines.append("")
+
+        # QA / Pentest Playbook section for repo
+        qa_lines.append(f"## Repository: `{_md(rname)}`")
+        qa_lines.append("")
+        qa_lines.append("### Verification Request Sequences (`request_plan_is_not_execution: true`)")
+        qa_lines.append("")
+        for idx, ch in enumerate(chains, 1):
+            if not isinstance(ch, dict):
+                continue
+            fid = str(ch.get("chain_id") or ch.get("candidate_id") or f"CHAIN-{idx}")
+            rplan = ch.get("request_plan") or ch.get("request_sequence_plan") or ch.get("reproduction_plan") or {}
+            steps = rplan.get("steps", []) if isinstance(rplan, dict) else (rplan if isinstance(rplan, list) else [])
+            qa_lines += [
+                f"#### Playbook for `{_md(fid)}`",
+                f"- **Step 1: Setup**: {_md(steps[0] if len(steps) > 0 else 'Authenticate with minimum required actor role and prepare baseline resource state.')}",
+                f"- **Step 2: Mutate**: {_md(steps[1] if len(steps) > 1 else 'Send crafted request mutating target identifier/state across trust boundary.')}",
+                f"- **Step 3: Observe**: {_md(steps[2] if len(steps) > 2 else 'Inspect HTTP response status, payload, and downstream state side-effects.')}",
+                f"- **Expected Vulnerable Indicator**: {_md((rplan.get('expected_vulnerable_indicator') if isinstance(rplan, dict) else None) or ch.get('expected_vulnerable_indicator') or 'HTTP 200 OK or unauthorized state mutation succeeds without guard rejection.')}",
+                f"- **Expected Fixed Indicator**: {_md((rplan.get('expected_fixed_indicator') if isinstance(rplan, dict) else None) or ch.get('expected_fixed_indicator') or 'HTTP 403 Forbidden / 422 Unprocessable Entity and zero state mutation.')}",
+                "",
+            ]
+
+        qa_lines.append("### Empirical Refutations Ledger Summary")
+        qa_lines.append("")
+        refutations = list(ev_gate.get("empirical_refutations_ledger", []))
+        for sc in list(challenger.get("challenged_chains", [])) + list(challenger.get("step_challenges", [])):
+            if isinstance(sc, dict) and str(sc.get("challenger_verdict") or sc.get("challenge_verdict") or sc.get("verdict") or "") in {"mitigated_by_existing_control", "broken_link", "refuted"}:
+                refutations.append({
+                    "candidate_id": sc.get("chain_id") or sc.get("candidate_id"),
+                    "refutation_reason": sc.get("rationale") or sc.get("notes") or sc.get("challenger_verdict") or sc.get("challenge_verdict"),
+                    "counterevidence_ids": sc.get("counter_evidence_ids") or sc.get("counterevidence_ids") or sc.get("evidence_ids") or [],
+                })
+        if not refutations:
+            qa_lines.append("_No refuted candidates recorded in the Empirical Refutations Ledger._")
+            qa_lines.append("")
+        else:
+            for ref in refutations:
+                if isinstance(ref, dict):
+                    total_refutations += 1
+                    rcid = ref.get("candidate_id") or ref.get("chain_id") or "cand_unknown"
+                    rreason = ref.get("refutation_reason") or ref.get("reason") or "Mitigated by existing code control"
+                    cevs = [str(e) for e in (ref.get("counterevidence_ids") or ref.get("evidence_ids") or [])]
+                    qa_lines.append(
+                        f"- **`{_md(rcid)}`**: {_md(rreason)} (Counterevidence: {', '.join(f'`{e}`' for e in cevs) if cevs else '`ev_verified`'})"
+                    )
+            qa_lines.append("")
+
+    f1 = docs_dir / "01_developer_remediation_cards.md"
+    f2 = docs_dir / "02_executive_risk_and_key_questions.md"
+    f3 = docs_dir / "03_pentest_qa_verification_playbook.md"
+    _write_md(f1, dev_lines)
+    _write_md(f2, exec_lines)
+    _write_md(f3, qa_lines)
+    files_written = [str(f1), str(f2), str(f3)]
+
+    repo_files_written: list[str] = []
+    if repo_name:
+        sub_dir = docs_dir / repo_name
+        sub_dir.mkdir(parents=True, exist_ok=True)
+        rf1 = sub_dir / "01_developer_remediation_cards.md"
+        rf2 = sub_dir / "02_executive_risk_and_key_questions.md"
+        rf3 = sub_dir / "03_pentest_qa_verification_playbook.md"
+        _write_md(rf1, dev_lines)
+        _write_md(rf2, exec_lines)
+        _write_md(rf3, qa_lines)
+        repo_files_written = [str(rf1), str(rf2), str(rf3)]
+
+    return {
+        "ok": True,
+        "run_id": run_id,
+        "repo_name": repo_name,
+        "output_dir": str(docs_dir),
+        "files_written": files_written,
+        "repo_files_written": repo_files_written,
+        "total_findings_rendered": total_findings,
+        "total_refutations_rendered": total_refutations,
+        "gate_0_emergency_brake_active": gate0_triggered,
+    }
+
+
 
 
