@@ -15,7 +15,7 @@ Một lỗ hổng tồn tại trong mã nguồn ứng dụng không đồng ngh�
 
 1. `internet_public_behind_cloudflare_waf`: Phơi ra Internet nhưng đi qua Cloudflare Proxy/WAF, Rate Limiting và Bot Management.
 2. `internet_public_bare_alb_direct_ip`: Phơi trực tiếp ra Internet qua AWS ALB / GCP Load Balancer / IP tĩnh mà **không đi qua Cloudflare WAF** (hoặc bị lộ Origin IP cho phép bypass Cloudflare).
-3. `partner_b2b_mtls_vpn`: Chỉ kết nối với đối tác/trạm sạc/xe qua APN riêng, VPN Site-to-Site hoặc yêu cầu chứng chỉ клиент mTLS.
+3. `partner_b2b_mtls_vpn`: Chỉ kết nối với đối tác/trạm sạc/xe qua APN riêng, VPN Site-to-Site hoặc yêu cầu chứng chỉ client mTLS.
 4. `internal_vpc_rfc1918`: Nằm trong dải mạng nội bộ (`10.x.x.x` / `172.16.x.x` / `192.168.x.x`), chỉ truy cập được từ trong Kubernetes cluster, mạng văn phòng/nhà máy hoặc sau khi chiếm được foothold nội bộ.
 5. `air_gapped_ot_cell_vlan`: Nằm trong mạng OT/SCADA cô lập (BESS Cell VLAN, mạng nhà máy ISA-95 Level 1/2, CAN bus nội bộ xe).
 

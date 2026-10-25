@@ -1,6 +1,6 @@
 # AI-skills — LocalSec v3.0 Security Review Pipeline (Windows Edition — Antigravity & Claude Code)
 
-Bộ **41 Skills (`.agents/skills/` & `.claude/skills/`) + Always-On Rules (`AGENTS.md`, `SOUL.md`, `CLAUDE.md`) + Python Epistemic Engine (`localsec`)** tối ưu hóa cho môi trường **Windows (PowerShell, CMD, Git Bash)** dùng để kiểm toán bảo mật mã nguồn & hệ sinh thái Cyber-Physical (Vingroup / VinSOC) qua **3 Phase chuẩn hóa v3.0**:
+Bộ **16 Skills (`.agents/skills/` & `.claude/skills/`) + Always-On Rules (`AGENTS.md`, `SOUL.md`, `CLAUDE.md`) + Python Epistemic Engine (`localsec`)** tối ưu hóa cho môi trường **Windows (PowerShell, CMD, Git Bash)** dùng để kiểm toán bảo mật mã nguồn & hệ sinh thái Cyber-Physical (Vingroup / VinSOC) qua **3 Phase chuẩn hóa v3.0**:
 - **Phase 1**: Unified Reconnaissance (`/phase-1-orchestrator` — 6 bước v3.0: AI Scouting $\rightarrow$ Tailored Extractor $\rightarrow$ S-F-O-P-C Invariants $\rightarrow$ Single-Pass Semantic Clustering $\rightarrow$ Cross-Repo Review $\rightarrow$ Physical Visibility Tracker & Evidence Audit)
 - **Phase 2**: Deep Analysis & Falsification (`/phase-2-orchestrator` — 4 bước v3.0: Candidate Intake + 16 Attack-Class Companions $\rightarrow$ Deep Trace & Chain Analyst $\rightarrow$ Context-Blinded Challenger $\rightarrow$ Empirical Refutations Ledger Gate)
 - **Phase 3**: Contextual Risk & Exploitability Assessment (`/phase-3-orchestrator` — 3 bước v3.0: Actor & Attack Feasibility $\rightarrow$ Beyond-Code Controls Cloudflare/WAF/VPC/OT Interlock $\rightarrow$ 5-Axis S-F-O-P-C Risk Calibrator)
@@ -23,11 +23,11 @@ Khi áp dụng bộ Skills này vào một dự án thực tế (`<Project-Root>
 ├── AGENTS.md                          <-- [Copy/Merge từ AI-skills] Rule Refute-first & 5 trục S-F-O-P-C
 ├── SOUL.md                            <-- [Copy/Merge từ AI-skills] Lớp giá trị cốt lõi
 ├── CLAUDE.md                          <-- [Copy/Merge từ AI-skills] Entrypoint cho Claude Code (@SOUL.md, @AGENTS.md)
-├── .agents\                           <-- [Copy từ AI-skills] 41 Skills & Rules chuẩn Antigravity
+├── .agents\                           <-- [Copy từ AI-skills] 16 Skills & Rules chuẩn Antigravity
 │   ├── README.md                      <-- Sổ tay tra cứu nhanh các lệnh & mẫu Prompt trên Windows
 │   ├── rules\soul.md
 │   └── skills\phase-{1,2,3}-*\SKILL.md
-├── .claude\                           <-- [Copy từ AI-skills] 41 Skills chuẩn Claude Code
+├── .claude\                           <-- [Copy từ AI-skills] 16 Skills chuẩn Claude Code
 │   └── skills\phase-{1,2,3}-*\SKILL.md
 │
 └── AI-skills\                         <-- Thư mục git clone nằm gọn một chỗ
@@ -72,7 +72,7 @@ sh AI-skills/setup.sh
 ```
 
 Script `setup.ps1` / `setup.bat` thực hiện an toàn 5 việc:
-1. Đồng bộ **41 skills** vào `<Project-Root>\.agents\skills\` và `<Project-Root>\.claude\skills\` mà **không xóa mất** các skill riêng sẵn có của dự án.
+1. Đồng bộ **16 skills** vào `<Project-Root>\.agents\skills\` và `<Project-Root>\.claude\skills\` mà **không xóa mất** các skill riêng sẵn có của dự án.
 2. Tạo cầu nối `<Project-Root>\localsec\__init__.py` và thư mục tạm `<Project-Root>\.localsec\tmp\` để mọi lệnh `python -m localsec.manual_session ...` chạy mượt trên cả **PowerShell**, **CMD**, và **Git Bash** mà không lỗi cú pháp `PYTHONPATH=...` hay đường dẫn `/tmp/`.
 3. Nếu `<Project-Root>` đã có sẵn `AGENTS.md`, `SOUL.md` hoặc `CLAUDE.md`, script tự động **gộp (merge) có đánh dấu (`<!-- BEGIN AI-SKILLS:... -->`)** chứ không ghi đè làm mất nội dung cũ.
 4. Tự động ghi các đường dẫn công cụ (`/AI-skills/`, `/localsec/`, `/.agents/...`, `/.claude/...`, `/.localsec/`, `/documents/`) vào `.git/info/exclude` của `<Project-Root>` để giữ `git status` hoàn toàn sạch sẽ.

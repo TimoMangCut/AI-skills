@@ -28,5 +28,3 @@ Sau khi Phase 1 (Unified Reconnaissance) đã hoàn tất kiểm kê bề mặt,
 4. **Bước 2.4 — `/phase-2-analysis-evidence-gate` (`analysis_evidence_gate`)**:
    - Chạy `python -m localsec.manual_session verify_semantic_claims _analysis`.
    - Áp dụng luật cứng `request_plan_is_not_execution` và hạ cấp **Fail-Closed** mọi mắt xích thiếu `ev_...` hoặc bị phản bác trước khi bàn giao danh sách lỗ hổng **Reachable** sang Phase 3.
-
-> **Tương thích ngược (Granular BASV/ACA Mode)**: Nếu người vận hành yêu cầu chạy chi tiết từng bước rời của BASV v1.0 hoặc ACA v1.0 và xuất báo cáo qua `finalize_basv_repo` / `finalize_aca`, bạn vẫn có thể gọi trực tiếp các sub-skills tương ứng.

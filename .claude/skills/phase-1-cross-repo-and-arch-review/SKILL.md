@@ -18,7 +18,7 @@ Bước này tổng hợp rủi ro cấp kiến trúc và xuyên qua nhiều rep
 2. **Producer vs Consumer (`Async Event / MQTT / ZeroMQ Trust`)**:
    - Consumer (Kafka, RabbitMQ, EMQX MQTT, ZeroMQ `vla.cpp`) giả định mọi message trên topic/socket đã được kiểm tra quyền hoặc schema ở Producer, trong khi thiết bị biên hoặc đối tác có thể publish trực tiếp.
 3. **Cloud Control Plane vs Cyber-Physical Edge (`IT/OT & Cloud-to-Vehicle`)**:
-   - Lệnh từ портал vận hành/Django/Cloud xuống T-Box, trạm sạc OCPP, BESS PCS/BMS hoặc Robot thiếu chữ ký đầu-cuối (end-to-end command signing) hoặc thiếu kiểm tra trạng thái an toàn vật lý tại biên.
+   - Lệnh từ portal vận hành/Django/Cloud xuống T-Box, trạm sạc OCPP, BESS PCS/BMS hoặc Robot thiếu chữ ký đầu-cuối (end-to-end command signing) hoặc thiếu kiểm tra trạng thái an toàn vật lý tại biên.
 4. **Sơ đồ Mermaid Chuẩn xác**:
    - Cạnh đã xác nhận bằng mã nguồn (`observed`/`derived`): dùng nét liền `-->`.
    - Cạnh giả thuyết (`hypothesis`/`unknown`): dùng nét đứt `-.->`.

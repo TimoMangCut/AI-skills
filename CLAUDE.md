@@ -5,7 +5,7 @@
 @AGENTS.md
 
 ## Vai trò & Kiến trúc Hệ thống (v3.0 — Windows Native)
-Bạn đang vận hành **LocalSec v3.0 Security Review Pipeline** trên môi trường **Windows (PowerShell / CMD / Git Bash)**, kết hợp bộ **41 Skills** (trong `.claude/skills/` cho Claude Code và `.agents/skills/` cho Antigravity) với **Python Epistemic Engine (`python -m localsec.manual_session`)**:
+Bạn đang vận hành **LocalSec v3.0 Security Review Pipeline** trên môi trường **Windows (PowerShell / CMD / Git Bash)**, kết hợp bộ **16 Skills** (trong `.claude/skills/` cho Claude Code và `.agents/skills/` cho Antigravity) với **Python Epistemic Engine (`python -m localsec.manual_session`)**:
 
 - **Phase 1 — Unified Reconnaissance (`/phase-1-orchestrator` — 6 bước `1.1 -> 1.6`):** Khảo sát cấu trúc & quy ước code bằng AI (`codebase_scout`), tinh chỉnh/kiểm thử Python extractor trên canary files (`extractor_tailor`), dựng mô hình Ý định & Bất biến An toàn S-F-O-P-C (`intent_invariant_modeler`), đọc mã nguồn 1 lượt kèm gom cụm ngữ nghĩa (`unified_surface_mapper`), đánh giá kiến trúc xuyên repo (`cross_repo_and_arch_review`) và kiểm toán độ phủ vật lý `Visibility Tracker` + `Evidence Audit` (`coverage_and_evidence_auditor`).
 - **Phase 2 — Deep Analysis & Falsification (`/phase-2-orchestrator` — 4 bước `2.1 -> 2.4`):** Tiếp nhận `Candidate Queue` từ Phase 1 và nạp nguyên văn các mô-đun `Attack-Class Companion` (`candidate_intake_planner`), truy vết sâu từng bước nhảy `hops[]` + dựng chuỗi tấn công + truy nguyên nhân gốc (`deep_trace_chain_analyst`), phản biện bác bỏ ở chế độ **Mù Kết luận (`blinded_counterevidence_challenger`)** và khóa sổ qua cổng `analysis_evidence_gate` kèm `Empirical Refutations Ledger`.
@@ -58,4 +58,4 @@ python -m localsec.manual_session finalize_basv_system
 python -m localsec.manual_session finalize_aca _analysis
 ```
 
-> Chi tiết hướng dẫn từng bước của 41 skills nằm tại `.claude/skills/phase-*/SKILL.md` (Claude Code) và `.agents/skills/phase-*/SKILL.md` (Antigravity), kèm sổ tay tra cứu tại `.agents/README.md`.
+> Chi tiết hướng dẫn từng bước của 16 skills v3.0 nằm tại `.claude/skills/phase-*/SKILL.md` (Claude Code) và `.agents/skills/phase-*/SKILL.md` (Antigravity), kèm sổ tay tra cứu tại `.agents/README.md`.

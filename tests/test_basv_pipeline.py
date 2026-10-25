@@ -358,7 +358,7 @@ class TestBASVPipeline(unittest.TestCase):
         toolkit_root = manual_session._toolkit_root()
         agents_dir = toolkit_root / ".agents"
         md_files = [agents_dir / "README.md"] + sorted((agents_dir / "skills").glob("*/SKILL.md"))
-        self.assertEqual(len(md_files), 42)
+        self.assertEqual(len(md_files), 17)
 
         ms_source = Path(manual_session.__file__).read_text(encoding="utf-8")
         registered_subcmds = set(re.findall(r'sub\.add_parser\("([a-z0-9_]+)"', ms_source))
