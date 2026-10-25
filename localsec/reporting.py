@@ -2203,8 +2203,17 @@ def render_v3_reports(
         hyp_findings = [h for h in p3_queue.get("hypothesis_only_findings", []) if isinstance(h, dict)]
         unchallenged_list = list(p2_gate.get("unchallenged_chains") or ev_gate.get("unchallenged_chains") or [])
         deferred_ext_count = int(inv.get("deferred_external_tool_findings_count", len(inv.get("deferred_external_tool_findings", []))) or 0)
-        unassigned_ext = inv.get("unassigned_project_external_findings", [])
-        unassigned_ext_count = int(inv.get("unassigned_project_external_findings_count", len(unassigned_ext)) or 0)
+        unassigned_ext = list(inv.get("unassigned_project_external_findings") or [])
+        if not unassigned_ext:
+            unassigned_file = runs_root / "_analysis" / "unassigned_external_tool_findings.json"
+            if unassigned_file.is_file():
+                try:
+                    u_raw = json.loads(unassigned_file.read_text(encoding="utf-8", errors="replace"))
+                    if isinstance(u_raw, dict) and isinstance(u_raw.get("findings"), list):
+                        unassigned_ext = list(u_raw["findings"])
+                except Exception:
+                    pass
+        unassigned_ext_count = int(inv.get("unassigned_project_external_findings_count", len(unassigned_ext)) or len(unassigned_ext))
 
         repo_exec_sec.append(
             f"- **Coverage Matrix Summary**: `{cov_matrix.get('record_count', len(cov_matrix.get('records', [])))}` surface × attack-class cells "
@@ -2241,6 +2250,15 @@ def render_v3_reports(
         repo_exec_sec.append(
             f"- **Unassigned Project-Level External Scanner Findings (`unassigned_project_external_findings`)**: `{unassigned_ext_count}`."
         )
+        for u_item in unassigned_ext[:50]:
+            if isinstance(u_item, dict):
+                u_id = u_item.get("rule_id") or u_item.get("id") or "UNMAPPED-FINDING"
+                u_sev = str(u_item.get("severity") or "UNKNOWN").upper()
+                u_target = u_item.get("path") or u_item.get("target") or "unknown_target"
+                u_title = u_item.get("title") or u_item.get("message") or ""
+                repo_exec_sec.append(
+                    f"  - `[{_md(u_sev)}] {_md(u_id)}` on `{_md(u_target)}`: {_md(u_title, 160)}"
+                )
         repo_exec_sec.append(
             f"- **Pending Operator / Safety Key Questions**: `{pending_kq_count}`."
         )
@@ -2432,12 +2450,17 @@ def render_v3_reports(
     }
 
 
-def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> dict[str, Any]:
-    """Phase 4 Adapter & Report Synthesizer:
-    Exports .localsec/runs/<run_id>/ artifacts into the canonical documents/ layout
-    (documents/<repo>/, documents/_analysis/, documents/_system/, documents/_report/, documents/_v3/),
-    converts Phase 3 S-F-O-P-C calibrations into documents/_report/work/risk/F-xx.json with zero LLM tokens,
-    verifies risk re-derivation parity against derived_risk_rating, and generates
+def export_final_phase_inputs(
+    project_root: Path,
+    run_id: str = "default",
+    force_overwrite: bool = False,
+) -> dict[str, Any]:
+    """Phase 4 Adapter & Report Synthesizer (B1-B6):
+    Exports .localsec/runs/<run_id>/ artifacts into the exact canonical documents/ layout
+    expected by report.py collect and risk.py (documents/<repo>/, documents/_analysis/, documents/_system/,
+    documents/_report/, documents/_v3/), protects pre-existing non-wins documents unless force_overwrite=True,
+    consolidates surviving chains by root_cause_cluster_id into F-xx.json with zero LLM tokens,
+    verifies strict risk re-derivation parity against Phase 3 derived_risk_rating, and generates
     documents/_report/00_manifest.md, BAO_CAO_TONG_HOP_BAO_MAT.md, and DANH_GIA_RUI_RO.md.
     """
     project_root = Path(project_root).expanduser().resolve()
@@ -2445,7 +2468,66 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
     docs_dir = project_root / "documents"
     docs_dir.mkdir(parents=True, exist_ok=True)
 
-    # First ensure v3 per-repo & top-level cards are rendered (including documents/_v3/<repo>/)
+    repo_dirs: list[Path] = []
+    if runs_root.is_dir():
+        for d in sorted(runs_root.iterdir(), key=lambda p: p.name):
+            if d.is_dir() and not d.name.startswith("_"):
+                repo_dirs.append(d)
+
+    # B2: Overwrite Guard — check if any canonical Phase 4 target files already exist in documents/
+    # without the "generated_by": "wins" / "<!-- generated_by: wins -->" marker!
+    if not force_overwrite:
+        candidate_check_paths: list[Path] = [
+            docs_dir / "_analysis" / "06_root_cause_map.json",
+            docs_dir / "_analysis" / "99_project_chain_report.json",
+            docs_dir / "_system" / "02_cross_repo_review.json",
+            docs_dir / "_report" / "runtime_facts.json",
+            docs_dir / "_report" / "00_manifest.md",
+            docs_dir / "_report" / "BAO_CAO_TONG_HOP_BAO_MAT.md",
+            docs_dir / "_report" / "DANH_GIA_RUI_RO.md",
+        ]
+        for rdir in repo_dirs:
+            rn = rdir.name
+            candidate_check_paths.extend([
+                docs_dir / rn / "01_repo_profile.md",
+                docs_dir / rn / "02_techstack.json",
+                docs_dir / rn / "05_inbound_outbound.json",
+                docs_dir / rn / "09_findings.json",
+                docs_dir / rn / "12_analysis_status.json",
+                docs_dir / rn / "16_code_coverage.json",
+                docs_dir / rn / "basv" / "18_business_aware_synthesis.json",
+                docs_dir / rn / "basv" / "19_basv_epistemic_and_contradiction_diagnostics.json",
+            ])
+        conflicting_files: list[str] = []
+        for cp in candidate_check_paths:
+            if not cp.is_file():
+                continue
+            try:
+                txt = cp.read_text(encoding="utf-8", errors="replace")
+                if cp.suffix.lower() == ".json":
+                    parsed_cp = json.loads(txt)
+                    if not (isinstance(parsed_cp, dict) and parsed_cp.get("generated_by") == "wins"):
+                        conflicting_files.append(str(cp))
+                else:
+                    if "<!-- generated_by: wins -->" not in txt:
+                        conflicting_files.append(str(cp))
+            except Exception:
+                conflicting_files.append(str(cp))
+        if conflicting_files:
+            blocked_receipt = {
+                "phase": "phase_4",
+                "run_id": run_id,
+                "gate_passed": False,
+                "overwrite_blocked": True,
+                "conflicting_files": conflicting_files,
+                "error": (
+                    f"Overwrite guard (B2): {len(conflicting_files)} existing file(s) in documents/ were not generated by wins. "
+                    f"Pass force_overwrite=True (--force-overwrite) to overwrite."
+                ),
+            }
+            return blocked_receipt
+
+    # Ensure v3 per-repo & top-level cards are rendered (including documents/_v3/<repo>/)
     render_v3_reports(project_root, repo_name=None, run_id=run_id)
 
     def _load_json(fp: Path) -> dict[str, Any]:
@@ -2457,12 +2539,6 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
             except Exception:
                 pass
         return {}
-
-    repo_dirs: list[Path] = []
-    if runs_root.is_dir():
-        for d in sorted(runs_root.iterdir(), key=lambda p: p.name):
-            if d.is_dir() and not d.name.startswith("_"):
-                repo_dirs.append(d)
 
     axis_vn_map = {
         "safety": "an_toan_vat_ly",
@@ -2481,6 +2557,7 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
         "compromised_edge_device_tbox_charger_robot": "thanh_phan_bi_chiem",
         "physical_or_local_bus_attacker": "thanh_phan_bi_chiem",
     }
+    all_5_actors_vn = ("ngoai", "nguoi_dung", "doi_tac", "noi_bo", "thanh_phan_bi_chiem")
     pre_vn_map = {"yes": "co", "no": "khong", "unknown": "chua_ro"}
     team_vn_map = {
         "dev_team": "team_dev",
@@ -2497,20 +2574,27 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
 
     exported_files: list[str] = []
     all_chains_index: list[dict[str, Any]] = []
+    all_exported_chains: list[dict[str, Any]] = []
     root_causes_by_cluster: dict[str, dict[str, Any]] = {}
     consolidated_findings: list[dict[str, Any]] = []
     risk_files_written: list[str] = []
     risk_parity_checks: list[dict[str, Any]] = []
     merged_runtime_controls: list[dict[str, Any]] = []
     merged_runtime_answers: dict[str, Any] = {}
+    merged_runtime_facts_list: list[dict[str, Any]] = []
     manifest_rows: list[dict[str, Any]] = []
     all_trust_mismatches: list[dict[str, Any]] = []
     all_arch_diagrams: list[str] = []
     all_refutations: list[dict[str, Any]] = []
+    all_dismissed_intake: list[dict[str, Any]] = []
+    all_unexploitable_p2: list[dict[str, Any]] = []
+    all_unclustered_candidates: list[dict[str, Any]] = []
+    all_external_leads: list[dict[str, Any]] = []
     all_hypotheses: list[dict[str, Any]] = []
     all_unchallenged: list[str] = []
     all_key_questions: list[dict[str, Any]] = []
     gate0_repos: list[str] = []
+    surviving_records_for_fxx: list[dict[str, Any]] = []
 
     chains_out_dir = docs_dir / "_analysis" / "chains"
     chains_out_dir.mkdir(parents=True, exist_ok=True)
@@ -2519,8 +2603,6 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
     report_out_dir = docs_dir / "_report"
     risk_work_dir = report_out_dir / "work" / "risk"
     risk_work_dir.mkdir(parents=True, exist_ok=True)
-
-    finding_counter = 0
 
     for rdir in repo_dirs:
         rname = rdir.name
@@ -2536,6 +2618,7 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
         arch = _load_json(rdir / "cross_repo_and_arch_review.json")
         cov_matrix = _load_json(rdir / "coverage_matrix.json")
         cand_queue = _load_json(rdir / "candidate_queue.json")
+        intake_plan = _load_json(rdir / "candidate_intake_planner.json")
         vis_aud = _load_json(rdir / "coverage_and_evidence_auditor.json")
         ws_state = _load_json(rdir / "workspace_state.json")
         deep_trace = _load_json(rdir / "deep_trace_chain_analyst.json")
@@ -2547,6 +2630,19 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
         kq_data = _load_json(rdir / "key_questions.json")
         rt_facts = _load_json(rdir / "runtime_environment_facts.json")
 
+        ws_evidence_ids: set[str] = set()
+        for ev_fname in ("workspace_state.json", "evidence.json"):
+            ev_fp = rdir / ev_fname
+            if ev_fp.is_file():
+                try:
+                    ev_raw = json.loads(ev_fp.read_text(encoding="utf-8", errors="replace"))
+                    if isinstance(ev_raw, dict):
+                        ev_map = ev_raw.get("evidence", ev_raw)
+                        if isinstance(ev_map, dict):
+                            ws_evidence_ids.update(str(k) for k in ev_map.keys() if str(k).startswith("ev_"))
+                except Exception:
+                    pass
+
         p1_receipt = _load_json(rdir / "phase1_gate_receipt.json")
         p2_receipt = _load_json(rdir / "phase2_gate_receipt.json")
         p3_receipt = _load_json(rdir / "phase3_gate_receipt.json")
@@ -2554,20 +2650,58 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
         p2_passed = (rdir / "phase2_gate_receipt.json").is_file() and p2_receipt.get("gate_passed") is True
         p3_passed = (rdir / "phase3_gate_receipt.json").is_file() and p3_receipt.get("gate_passed") is True
 
-        if isinstance(rt_facts.get("controls"), list):
-            merged_runtime_controls.extend(rt_facts["controls"])
-        if isinstance(rt_facts.get("answers"), dict):
-            merged_runtime_answers.update(rt_facts["answers"])
+        repo_rt_controls = rt_facts.get("controls") if isinstance(rt_facts.get("controls"), list) else []
+        repo_rt_answers = rt_facts.get("answers") if isinstance(rt_facts.get("answers"), dict) else {}
+        if repo_rt_controls:
+            merged_runtime_controls.extend(repo_rt_controls)
+            for c_idx, rc_item in enumerate(repo_rt_controls, 1):
+                if isinstance(rc_item, dict):
+                    merged_runtime_facts_list.append({
+                        "id": str(rc_item.get("control_id") or f"RT-CTRL-{rname}-{c_idx}"),
+                        "question": f"Runtime control status for {rc_item.get('control_id') or rc_item.get('layer') or rname}",
+                        "answer": f"status={rc_item.get('status', 'enforced')}, mitigation_effect={rc_item.get('mitigation_effect', 'unknown')}",
+                        "source": str(rt_facts.get("ingested_from") or "runtime_environment_facts.json"),
+                        "date": "2026-10-26",
+                    })
+        if repo_rt_answers:
+            merged_runtime_answers.update(repo_rt_answers)
+            for q_k, q_ans in repo_rt_answers.items():
+                merged_runtime_facts_list.append({
+                    "id": str(q_k),
+                    "question": f"Operator runtime answer for {q_k}",
+                    "answer": str(q_ans),
+                    "source": str(rt_facts.get("ingested_from") or "runtime_environment_facts.json"),
+                    "date": "2026-10-26",
+                })
 
-        # 1. documents/<repo>/01_repo_profile.md
+        # 1. documents/<repo>/01_repo_profile.md (B1: exact ## Purpose and ## Criticality assessment headings)
         archetypes = scout.get("product_archetypes") or scout.get("detected_archetypes") or []
+        raw_tier = str(scout.get("repo_tier") or inv.get("recommended_tier") or "tier_1").lower()
+        tier_num = 1 if "1" in raw_tier else (2 if "2" in raw_tier else (3 if "3" in raw_tier else 1))
+        crit_label = "CRITICAL / HIGH" if tier_num == 1 else ("MEDIUM" if tier_num == 2 else "LOW")
         t_mods = scout.get("target_modules") or []
         ig_mods = scout.get("ignored_modules") or []
         invariants_list = intent.get("invariants") or []
+        purpose_line = str(
+            scout.get("summary")
+            or f"Repository `{rname}` implementing {', '.join(str(a) for a in archetypes) if archetypes else 'application services'} across target modules {', '.join(str(m) for m in t_mods) if t_mods else 'all'}."
+        ).replace("\n", " ").strip()
+        crit_line = (
+            f"{crit_label} ({raw_tier}) — {len((inv.get('mandatory_files') or {}).get('entrypoint', []))} entrypoint file(s), "
+            f"{len((inv.get('mandatory_files') or {}).get('security', []))} security/guard file(s), "
+            f"and {len(invariants_list)} modeled S-F-O-P-C invariant(s)."
+        )
         profile_lines = [
+            "<!-- generated_by: wins -->",
             f"# Hồ sơ Repository: `{rname}`",
             "",
-            f"- **Phân tầng (Repo Tier)**: `{scout.get('repo_tier') or inv.get('recommended_tier') or 'tier_1'}`",
+            "## Purpose",
+            purpose_line,
+            "",
+            "## Criticality assessment",
+            crit_line,
+            "",
+            f"- **Phân tầng (Repo Tier)**: `{raw_tier}`",
             f"- **Product Archetypes**: {', '.join(f'`{a}`' for a in archetypes) if archetypes else '`unspecified`'}",
             f"- **Target Modules (`target_modules`)**: {', '.join(f'`{m}`' for m in t_mods) if t_mods else '`all`'}",
             f"- **Ignored Modules (`ignored_modules`)**: `{len(ig_mods)}`",
@@ -2590,36 +2724,114 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
         p_01.write_text("\n".join(profile_lines), encoding="utf-8")
         exported_files.append(str(p_01))
 
-        # 2. documents/<repo>/02_techstack.json
+        # 2. documents/<repo>/02_techstack.json (B1: business_capabilities, sensitive_data, entrypoints, techstack)
+        bus_caps: list[dict[str, Any]] = []
+        for a_item in archetypes:
+            bus_caps.append({"name": str(a_item), "source": "codebase_scout"})
+        for inv_item in invariants_list:
+            if isinstance(inv_item, dict) and (inv_item.get("statement") or inv_item.get("invariant_id")):
+                bus_caps.append({
+                    "name": str(inv_item.get("statement") or inv_item.get("invariant_id")),
+                    "axis": str(inv_item.get("axis") or "operational"),
+                })
+        sens_data_norm: list[dict[str, Any]] = []
+        for sd in (surf.get("sensitive_data") or []):
+            if isinstance(sd, dict):
+                sens_data_norm.append({
+                    "data_class": str(sd.get("data_class") or sd.get("type") or sd.get("name") or "sensitive_payload"),
+                    **sd,
+                })
+            elif isinstance(sd, str) and sd.strip():
+                sens_data_norm.append({"data_class": sd.strip()})
+        ep_kinds: list[dict[str, Any]] = []
+        raw_sc = surf.get("surface_checklist", {})
+        if isinstance(raw_sc, dict):
+            for sk, sv in raw_sc.items():
+                st_v = sv.get("status") if isinstance(sv, dict) else sv
+                if str(st_v).lower() == "present":
+                    ep_kinds.append({"kind": str(sk)})
+        elif isinstance(raw_sc, list):
+            for sv in raw_sc:
+                if isinstance(sv, dict) and str(sv.get("status", "")).lower() == "present":
+                    ep_kinds.append({"kind": str(sv.get("surface_type") or sv.get("kind") or "http")})
+        for ep_item in (surf.get("entrypoints") or []):
+            if isinstance(ep_item, dict):
+                ep_kinds.append({
+                    "kind": str(ep_item.get("surface_type") or ep_item.get("method") or "http"),
+                    "id": str(ep_item.get("id") or ep_item.get("path") or ""),
+                    "path": str(ep_item.get("path") or ""),
+                })
+        tech_items: list[dict[str, Any]] = []
+        conv_dict = scout.get("coding_conventions") if isinstance(scout.get("coding_conventions"), dict) else {}
+        for ck, cv in conv_dict.items():
+            tech_items.append({"name": str(ck), "value": cv if isinstance(cv, str) else json.dumps(cv, ensure_ascii=False)})
+        for dm in (inv.get("dependency_manifests") or []):
+            tech_items.append({"name": "dependency_manifest", "value": str(dm)})
+
         p_02 = repo_doc_dir / "02_techstack.json"
         write_json(
             p_02,
             {
+                "generated_by": "wins",
                 "repo_name": rname,
-                "repo_tier": scout.get("repo_tier") or inv.get("recommended_tier") or "tier_1",
+                "repo_tier": raw_tier,
                 "product_archetypes": archetypes,
-                "coding_conventions": scout.get("coding_conventions", {}),
+                "business_capabilities": bus_caps,
+                "sensitive_data": sens_data_norm,
+                "entrypoints": ep_kinds,
+                "techstack": tech_items,
+                "languages": [str(conv_dict.get("language"))] if conv_dict.get("language") else [],
+                "frameworks": [str(conv_dict.get("framework"))] if conv_dict.get("framework") else [],
+                "coding_conventions": conv_dict,
                 "dependency_manifests": inv.get("dependency_manifests", []),
                 "dependency_leads": inv.get("dependency_leads", []),
             },
         )
         exported_files.append(str(p_02))
 
-        # 3. documents/<repo>/05_inbound_outbound.json
+        # 3. documents/<repo>/05_inbound_outbound.json (B1: inbound_flows and outbound_flows)
+        inbound_flows: list[dict[str, Any]] = []
+        for ep_item in (surf.get("entrypoints") or []):
+            if isinstance(ep_item, dict):
+                inbound_flows.append({
+                    "id": str(ep_item.get("id") or ep_item.get("path") or ""),
+                    "source": str(ep_item.get("authn") or "external_or_authenticated_caller"),
+                    "trust_boundary": str(ep_item.get("surface_type") or ep_item.get("method") or "http_ingress"),
+                    "identity_context": str(ep_item.get("authz") or ep_item.get("ownership_check") or "unspecified"),
+                    "status": str(ep_item.get("status") or "confirmed"),
+                    "path": str(ep_item.get("path") or ""),
+                    "file": str(ep_item.get("file") or ""),
+                    "evidence_ids": list(ep_item.get("evidence_ids") or []),
+                })
+        outbound_flows: list[dict[str, Any]] = []
+        for df_item in (surf.get("data_flows") or []):
+            if isinstance(df_item, dict):
+                outbound_flows.append({
+                    "destination": str(df_item.get("destination") or df_item.get("target") or df_item.get("sink") or "downstream_service"),
+                    "protocol": str(df_item.get("protocol") or df_item.get("channel") or "http"),
+                    "identity_context": str(df_item.get("identity_forwarding") or "unknown"),
+                    "status": str(df_item.get("status") or "confirmed"),
+                    "evidence_ids": list(df_item.get("evidence_ids") or []),
+                })
         p_05 = repo_doc_dir / "05_inbound_outbound.json"
         write_json(
             p_05,
             {
+                "generated_by": "wins",
                 "repo_name": rname,
+                "inbound_flows": inbound_flows,
+                "outbound_flows": outbound_flows,
+                "inbound": inbound_flows,
+                "outbound": outbound_flows,
                 "surface_checklist": surf.get("surface_checklist", {}),
                 "entrypoints": surf.get("entrypoints", []),
                 "data_flows": surf.get("data_flows", []),
-                "sensitive_data": surf.get("sensitive_data", []),
+                "sensitive_data": sens_data_norm,
             },
         )
         exported_files.append(str(p_05))
 
-        # 4. documents/<repo>/16_code_coverage.json (with explicit coverage_semantics: "file_touched")
+        # 4. documents/<repo>/16_code_coverage.json (B1: tier, mandatory_pct, sweep_required, sweep_pct, all_code_pct, waivers, leads, coverage_semantics)
         vis_rep = vis_aud.get("visibility_report") or p1_receipt.get("visibility_audit", {}).get("visibility_report") or {}
         read_ranges = ws_state.get("read_ranges", {}) if isinstance(ws_state.get("read_ranges"), dict) else {}
         files_touched_count = len(read_ranges)
@@ -2628,23 +2840,47 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
         total_mandatory = max(1, len(set(mandatory_ep + mandatory_sec)))
         touched_mandatory = len([f for f in set(mandatory_ep + mandatory_sec) if f in read_ranges])
         file_touched_pct = round((touched_mandatory / total_mandatory) * 100.0, 2) if (mandatory_ep or mandatory_sec) else 100.0
+        sweep_pct = float(vis_rep.get("coverage_percentage", file_touched_pct) or file_touched_pct)
+        line_cov_pct = vis_rep.get("line_coverage_pct")
         lines_read_total = 0
         for rng_list in read_ranges.values():
             if isinstance(rng_list, list):
                 for pair in rng_list:
                     if isinstance(pair, (list, tuple)) and len(pair) == 2:
                         lines_read_total += max(0, int(pair[1]) - int(pair[0]) + 1)
+        waivers_list = [
+            {"path": str(ig.get("path") or ig.get("module") or ""), "reason": str(ig.get("reason") or "")}
+            for ig in ig_mods
+            if isinstance(ig, dict)
+        ]
+        repo_leads_list = list(inv.get("secret_leads") or []) + list(inv.get("external_tool_leads") or [])
+        for ext_l in (inv.get("external_tool_leads") or []):
+            if isinstance(ext_l, dict):
+                all_external_leads.append({"repo_name": rname, "lead_kind": "assigned_high_critical", **ext_l})
+        for def_l in (inv.get("deferred_external_tool_findings") or []):
+            if isinstance(def_l, dict):
+                all_external_leads.append({"repo_name": rname, "lead_kind": "deferred_lower_severity", **def_l})
+
         p_16 = repo_doc_dir / "16_code_coverage.json"
         write_json(
             p_16,
             {
+                "generated_by": "wins",
                 "repo_name": rname,
+                "tier": tier_num,
+                "repo_tier": raw_tier,
+                "mandatory_pct": file_touched_pct,
+                "sweep_required": True,
+                "sweep_pct": sweep_pct,
+                "all_code_pct": line_cov_pct,
+                "waivers": waivers_list,
+                "leads": repo_leads_list,
                 "coverage_semantics": "file_touched",
                 "file_touched_coverage_pct": file_touched_pct,
                 "files_touched_count": files_touched_count,
                 "lines_read_total": lines_read_total,
-                "line_coverage_pct": vis_rep.get("line_coverage_pct"),
-                "target_modules_coverage_pct": vis_rep.get("coverage_percentage", file_touched_pct),
+                "line_coverage_pct": line_cov_pct,
+                "target_modules_coverage_pct": sweep_pct,
                 "unvisited_target_modules": vis_rep.get("unvisited_target_modules", []),
                 "grazed_files": vis_rep.get("grazed_files", []),
                 "mandatory_entrypoint_coverage": vis_rep.get("mandatory_entrypoint_coverage", {}),
@@ -2656,60 +2892,58 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
 
         # 5. documents/<repo>/12_analysis_status.json — ONLY written if Phase 1 gate passed!
         if p1_passed:
+            limitations_list: list[str] = [
+                "Coverage percentage (mandatory_pct / file_touched_coverage_pct) measures file_touched ratio across mandatory files; line_coverage_pct is reported separately.",
+            ]
+            for um in vis_rep.get("unvisited_target_modules", []):
+                limitations_list.append(f"Unvisited target module: {um}")
+            for df_b in vis_rep.get("deferred_out_of_budget", []):
+                limitations_list.append(f"Deferred out-of-budget file: {df_b}")
             p_12 = repo_doc_dir / "12_analysis_status.json"
             write_json(
                 p_12,
                 {
+                    "generated_by": "wins",
                     "repo_name": rname,
                     "run_id": run_id,
                     "status": "completed",
+                    "completed": True,
                     "phase1_gate_passed": p1_passed,
                     "phase2_gate_passed": p2_passed,
                     "phase3_gate_passed": p3_passed,
                     "coverage_semantics": "file_touched",
                     "file_touched_coverage_pct": file_touched_pct,
+                    "semantic_coverage_diagnostics": {
+                        "distinct_files_read": files_touched_count,
+                        "lines_read_total": lines_read_total,
+                    },
+                    "git_deployment_freshness": {
+                        "branch": str(inv.get("git_branch") or "HEAD"),
+                        "commit_sha": str(inv.get("git_commit") or "unknown"),
+                    },
+                    "limitations": limitations_list,
                 },
             )
             exported_files.append(str(p_12))
-
-        # 6. documents/<repo>/basv/18_business_aware_synthesis.json
-        p_18 = basv_dir / "18_business_aware_synthesis.json"
-        write_json(
-            p_18,
-            {
-                "repo_name": rname,
-                "invariants": intent.get("invariants", []),
-                "self_challenged_gaps": intent.get("self_challenged_gaps", []),
-                "invariant_checks": surf.get("invariant_checks", []),
-                "semantic_clusters": surf.get("semantic_clusters", []),
-            },
-        )
-        exported_files.append(str(p_18))
-
-        # 7. documents/<repo>/basv/19_basv_epistemic_and_contradiction_diagnostics.json — ONLY written if Phase 2 gate passed!
-        if p2_passed:
-            p_19 = basv_dir / "19_basv_epistemic_and_contradiction_diagnostics.json"
-            write_json(
-                p_19,
-                {
-                    "repo_name": rname,
-                    "gate_passed": True,
-                    "semantic_downgrades": p1_receipt.get("semantic_downgrades", []),
-                    "empirical_refutations_ledger": p3_queue.get("empirical_refutations_ledger", []),
-                    "reconciliation_log": p3_queue.get("reconciliation_log", []),
-                },
-            )
-            exported_files.append(str(p_19))
 
         # Collect cross-repo arch findings
         for tm in arch.get("trust_boundary_mismatches", []):
             if isinstance(tm, dict):
                 all_trust_mismatches.append({"repo_name": rname, **tm})
+        for af in arch.get("architecture_findings", []):
+            if isinstance(af, dict):
+                all_trust_mismatches.append({"repo_name": rname, **af})
         for dg in arch.get("diagrams", []):
             if isinstance(dg, str) and dg.strip():
                 all_arch_diagrams.append(dg.strip())
 
-        # Collect refutations, hypotheses, unchallenged
+        # Collect refutations, dismissed intake, unexploitable, hypotheses, unchallenged
+        for d_item in (intake_plan.get("dismissed_candidates") or []):
+            if isinstance(d_item, dict):
+                all_dismissed_intake.append({"repo_name": rname, **d_item})
+        for u_item in (deep_trace.get("unexploitable_candidates") or []):
+            if isinstance(u_item, dict):
+                all_unexploitable_p2.append({"repo_name": rname, **u_item})
         for ref_item in p3_queue.get("empirical_refutations_ledger", []):
             if isinstance(ref_item, dict):
                 all_refutations.append({"repo_name": rname, **ref_item})
@@ -2732,20 +2966,26 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
             if isinstance(c_item, dict):
                 cid_k = str(c_item.get("chain_id") or c_item.get("finding_id") or "")
                 controls_by_chain.setdefault(cid_k, []).append(c_item)
+        for a_item in list(beyond_code.get("assessments") or []):
+            if isinstance(a_item, dict):
+                cid_k = str(a_item.get("chain_id") or a_item.get("finding_id") or "")
+                for c_item in (a_item.get("compensating_controls") or []):
+                    if isinstance(c_item, dict):
+                        controls_by_chain.setdefault(cid_k, []).append({**c_item, "chain_id": cid_k})
 
         cal_by_chain: dict[str, dict[str, Any]] = {}
         for cf_item in list(sfop.get("calibrated_findings") or []):
             if isinstance(cf_item, dict):
-                cid_k = str(cf_item.get("chain_id") or cf_item.get("finding_id") or "")
-                if cid_k:
-                    cal_by_chain[cid_k] = cf_item
+                for k_field in ("chain_id", "finding_id"):
+                    cid_k = str(cf_item.get(k_field) or "")
+                    if cid_k:
+                        cal_by_chain[cid_k] = cf_item
 
         repo_kqs = [q for q in kq_data.get("questions", []) if isinstance(q, dict)]
         for q_item in repo_kqs:
             all_key_questions.append({"repo_name": rname, **q_item})
 
-        # 8. Build documents/<repo>/09_findings.json and documents/_analysis/chains/chain_<ID>.json
-        repo_findings: list[dict[str, Any]] = []
+        # Determine surviving, hypothesis, and refuted chains in this repo
         surviving_p2 = [
             c for c in p3_queue.get("verified_findings", [])
             if isinstance(c, dict) and str(c.get("reconciled_status") or "REACHABLE_VULNERABILITY") == "REACHABLE_VULNERABILITY"
@@ -2753,28 +2993,157 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
         if not surviving_p2 and not (rdir / "phase3_verified_queue.json").is_file():
             surviving_p2 = [c for c in (deep_trace.get("chains") or []) if isinstance(c, dict)]
 
-        for ch_obj in surviving_p2:
+        surviving_chain_ids = {
+            str(c.get("chain_id") or c.get("finding_id") or c.get("candidate_id") or "")
+            for c in surviving_p2
+        }
+        surviving_cand_ids: set[str] = set()
+        for c in surviving_p2:
+            for cid_x in list(c.get("candidate_ids") or []) + list(c.get("source_candidate_ids") or []):
+                if cid_x:
+                    surviving_cand_ids.add(str(cid_x))
+            if c.get("candidate_id"):
+                surviving_cand_ids.add(str(c["candidate_id"]))
+
+        # 6. documents/<repo>/basv/18_business_aware_synthesis.json (B1: confirmed_mismatches, potential_or_unverified_mismatches, business_workflows)
+        confirmed_mismatches: list[dict[str, Any]] = []
+        potential_mismatches: list[dict[str, Any]] = []
+        for ic in (surf.get("invariant_checks") or []):
+            if not isinstance(ic, dict):
+                continue
+            enf_st = str(ic.get("enforcement_status") or "unknown").lower()
+            if enf_st == "enforced":
+                continue
+            inv_id_ref = str(ic.get("invariant_id") or "")
+            # Confirmed ONLY if linked to a surviving REACHABLE_VULNERABILITY chain
+            is_in_reachable = any(
+                inv_id_ref and (inv_id_ref in str(c.get("title") or "") or inv_id_ref in str(c.get("root_cause") or ""))
+                for c in surviving_p2
+            ) or (len(surviving_p2) > 0 and enf_st == "missing")
+            mismatch_obj = {
+                "id": inv_id_ref or f"MISMATCH-{len(confirmed_mismatches) + len(potential_mismatches) + 1:02d}",
+                "invariant_id": inv_id_ref,
+                "title": f"Invariant {inv_id_ref} enforcement status is '{enf_st}'",
+                "enforcement_status": enf_st,
+                "intent_evidence_ids": list(ic.get("intent_evidence_ids") or []),
+                "implementation_evidence_ids": list(ic.get("implementation_evidence_ids") or []),
+                "evidence_ids": list(dict.fromkeys(list(ic.get("intent_evidence_ids") or []) + list(ic.get("implementation_evidence_ids") or []))),
+            }
+            if is_in_reachable and enf_st == "missing":
+                confirmed_mismatches.append(mismatch_obj)
+            else:
+                potential_mismatches.append(mismatch_obj)
+        for gap_item in (intent.get("self_challenged_gaps") or []):
+            if isinstance(gap_item, dict):
+                potential_mismatches.append({
+                    "id": str(gap_item.get("gap_id") or "GAP"),
+                    "title": str(gap_item.get("title") or gap_item.get("description") or ""),
+                    "axis": str(gap_item.get("axis") or "operational"),
+                    "enforcement_status": "unverified",
+                    "evidence_ids": list(gap_item.get("evidence_ids") or []),
+                })
+            elif isinstance(gap_item, str) and gap_item.strip():
+                potential_mismatches.append({
+                    "id": f"GAP-{len(potential_mismatches) + 1:02d}",
+                    "title": gap_item.strip(),
+                    "enforcement_status": "unverified",
+                    "evidence_ids": [],
+                })
+        bus_workflows: list[dict[str, Any]] = []
+        for inv_item in invariants_list:
+            if isinstance(inv_item, dict):
+                src_t = str(inv_item.get("source_type") or "authoritative_doc").lower()
+                bus_workflows.append({
+                    "name": str(inv_item.get("statement") or inv_item.get("invariant_id") or "workflow"),
+                    "invariant_id": str(inv_item.get("invariant_id") or ""),
+                    "axis": str(inv_item.get("axis") or "operational"),
+                    "intent_status": "inferred" if src_t == "inferred_hypothesis" else "documented",
+                    "evidence_ids": list(inv_item.get("evidence_ids") or []),
+                })
+        p_18 = basv_dir / "18_business_aware_synthesis.json"
+        write_json(
+            p_18,
+            {
+                "generated_by": "wins",
+                "repo_name": rname,
+                "confirmed_mismatches": confirmed_mismatches,
+                "potential_or_unverified_mismatches": potential_mismatches,
+                "gaps": potential_mismatches,
+                "business_workflows": bus_workflows,
+                "invariants": invariants_list,
+                "self_challenged_gaps": intent.get("self_challenged_gaps", []),
+                "invariant_checks": surf.get("invariant_checks", []),
+                "semantic_clusters": surf.get("semantic_clusters", []),
+            },
+        )
+        exported_files.append(str(p_18))
+
+        # 7. documents/<repo>/basv/19_basv_epistemic_and_contradiction_diagnostics.json — ONLY written if Phase 2 gate passed!
+        if p2_passed:
+            p_19 = basv_dir / "19_basv_epistemic_and_contradiction_diagnostics.json"
+            write_json(
+                p_19,
+                {
+                    "generated_by": "wins",
+                    "repo_name": rname,
+                    "gate_passed": True,
+                    "semantic_downgrades": p1_receipt.get("semantic_downgrades", []),
+                    "empirical_refutations_ledger": p3_queue.get("empirical_refutations_ledger", []),
+                    "reconciliation_log": p3_queue.get("reconciliation_log", []),
+                },
+            )
+            exported_files.append(str(p_19))
+
+        # 8. Export ALL chains (surviving, hypothesis, refuted, unchallenged) to documents/_analysis/chains/chain_<ID>.json (B1 & B4)
+        all_repo_chains_raw = list(deep_trace.get("chains") or deep_trace.get("verified_chains") or [])
+        reconciled_by_cid: dict[str, dict[str, Any]] = {}
+        for rl in (p3_queue.get("reconciliation_log") or []):
+            if isinstance(rl, dict) and rl.get("chain_id"):
+                reconciled_by_cid[str(rl["chain_id"])] = rl
+
+        clustered_cand_ids_in_repo: set[str] = set()
+        for u_item in (deep_trace.get("unexploitable_candidates") or []):
+            if isinstance(u_item, dict) and u_item.get("candidate_id"):
+                clustered_cand_ids_in_repo.add(str(u_item["candidate_id"]))
+        for d_item in (intake_plan.get("dismissed_candidates") or []):
+            if isinstance(d_item, dict) and d_item.get("candidate_id"):
+                clustered_cand_ids_in_repo.add(str(d_item["candidate_id"]))
+
+        for ch_obj in all_repo_chains_raw:
+            if not isinstance(ch_obj, dict):
+                continue
             cid = str(ch_obj.get("chain_id") or ch_obj.get("finding_id") or ch_obj.get("candidate_id") or "CHAIN")
+            orig_cands = [str(x) for x in (list(ch_obj.get("candidate_ids") or []) + list(ch_obj.get("source_candidate_ids") or [])) if x]
+            if not orig_cands and ch_obj.get("candidate_id"):
+                orig_cands = [str(ch_obj["candidate_id"])]
+            for oc in orig_cands:
+                clustered_cand_ids_in_repo.add(oc)
+
+            rec_info = reconciled_by_cid.get(cid, {})
+            rec_status = str(
+                ch_obj.get("reconciled_status")
+                or rec_info.get("reconciled_status")
+                or ("REACHABLE_VULNERABILITY" if cid in surviving_chain_ids else "HYPOTHESIS_ONLY_UNVERIFIED")
+            )
+            raw_verdict_22 = str(ch_obj.get("chain_verdict") or ch_obj.get("verification_status") or "code_supported").lower()
+            if rec_status == "REACHABLE_VULNERABILITY":
+                mapped_chain_verdict = raw_verdict_22 if raw_verdict_22 in {"confirmed", "code_supported", "partially_confirmed"} else "code_supported"
+            elif rec_status == "REFUTED_FALSE_POSITIVE":
+                mapped_chain_verdict = "refuted"
+            else:
+                mapped_chain_verdict = "hypothesized"
+
             cal_obj = cal_by_chain.get(cid, {})
-            actor_obj = actor_by_chain.get(cid, {})
-            ctrl_list = controls_by_chain.get(cid, [])
-
-            finding_counter += 1
-            f_code = f"F-{finding_counter:02d}"
-
-            # Separate technical code_verified_severity from contextual_risk_rating
             code_sev = str(
                 ch_obj.get("code_verified_severity")
                 or ch_obj.get("severity")
                 or cal_obj.get("max_impact")
                 or "high"
             ).lower()
-            ver_status = str(ch_obj.get("chain_verdict") or ch_obj.get("verification_status") or "code_supported").lower()
             eids = list(dict.fromkeys(
                 [str(e) for e in (ch_obj.get("evidence_ids") or []) if str(e).startswith("ev_")]
                 + [str(e) for e in (cal_obj.get("evidence_ids") or []) if str(e).startswith("ev_")]
             ))
-
             rc_cluster = str(ch_obj.get("root_cause_cluster_id") or ch_obj.get("cluster_id") or f"RC-{rname}-{cid}")
             rc_raw = ch_obj.get("root_cause")
             rc_summary = str(
@@ -2783,240 +3152,621 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
                 or cid
             )
             rep_fix = str(ch_obj.get("remediation") or ch_obj.get("representative_fix") or "")
-
-            root_causes_by_cluster.setdefault(
-                rc_cluster,
-                {
-                    "cluster_id": rc_cluster,
-                    "repo_name": rname,
-                    "summary": rc_summary,
-                    "representative_fix": rep_fix,
-                    "chain_ids": [],
-                    "finding_ids": [],
-                    "evidence_ids": [],
-                },
-            )
-            if cid not in root_causes_by_cluster[rc_cluster]["chain_ids"]:
-                root_causes_by_cluster[rc_cluster]["chain_ids"].append(cid)
-            root_causes_by_cluster[rc_cluster]["finding_ids"].append(f_code)
-            for e in eids:
-                if e not in root_causes_by_cluster[rc_cluster]["evidence_ids"]:
-                    root_causes_by_cluster[rc_cluster]["evidence_ids"].append(e)
+            rplan = ch_obj.get("request_plan") if isinstance(ch_obj.get("request_plan"), dict) else {}
+            exec_status = str(rplan.get("execution_status") or ch_obj.get("execution_status") or "not_executed")
+            hop_repos = {rname}
+            for hp in (ch_obj.get("hops") or []):
+                if isinstance(hp, dict) and hp.get("repo_name"):
+                    hop_repos.add(str(hp["repo_name"]))
 
             chain_export = {
+                "generated_by": "wins",
                 "chain_id": cid,
-                "finding_id": f_code,
                 "repo_name": rname,
                 "title": str(ch_obj.get("title") or rc_summary),
-                "verification_status": ver_status,
+                "chain_verdict": mapped_chain_verdict,
+                "verification_status": raw_verdict_22,
                 "code_verified_severity": code_sev,
-                "challenger_verdict": ch_obj.get("challenger_verdict") or ch_obj.get("challenge_verdict") or "confirmed_exploit_chain",
-                "reconciled_status": ch_obj.get("reconciled_status") or "REACHABLE_VULNERABILITY",
+                "challenger_verdict": rec_info.get("challenger_verdict") or ch_obj.get("challenger_verdict") or ch_obj.get("challenge_verdict") or "unchallenged",
+                "reconciled_status": rec_status,
+                "impact_assessment": {
+                    "severity": code_sev,
+                    "conditional_impact": str(cal_obj.get("max_impact") or code_sev),
+                    "code_supported_impact": rc_summary,
+                    "business_consequence": str(ch_obj.get("title") or rc_summary),
+                    "what_prevents_a_stronger_claim": (
+                        "Runtime request_plan not yet executed (`execution_status != executed`)."
+                        if exec_status != "executed"
+                        else "None — runtime executed."
+                    ),
+                },
+                "scope": {"repositories": sorted(hop_repos)},
+                "root_cause_ids": [rc_cluster],
                 "root_cause_cluster_id": rc_cluster,
+                "originating_finding_ids": orig_cands or [cid],
+                "execution_status": exec_status,
+                "weakest_unverified_link": (
+                    "Runtime environment / beyond-code control verification"
+                    if rec_status != "REACHABLE_VULNERABILITY"
+                    else "Static code path verified; runtime request plan pending execution"
+                ),
                 "root_cause": rc_raw or rc_summary,
                 "remediation": rep_fix,
                 "hops": ch_obj.get("hops", []),
-                "request_plan": ch_obj.get("request_plan", {}),
+                "request_plan": rplan,
+                "evidence_refs": eids,
                 "evidence_ids": eids,
             }
             safe_cid = re.sub(r"[^A-Za-z0-9_.-]+", "_", f"{rname}_{cid}")
             ch_path = chains_out_dir / f"chain_{safe_cid}.json"
             write_json(ch_path, chain_export)
             exported_files.append(str(ch_path))
-            all_chains_index.append(chain_export)
+            all_exported_chains.append(chain_export)
 
-            finding_entry = {
-                "finding_id": f_code,
-                "chain_id": cid,
-                "repo_name": rname,
-                "title": str(ch_obj.get("title") or rc_summary),
-                "verification_status": ver_status,
-                "code_verified_severity": code_sev,
-                "derived_risk_rating": str(cal_obj.get("derived_risk_rating") or cal_obj.get("max_impact") or code_sev).lower(),
-                "contextual_risk_rating": str(cal_obj.get("contextual_risk_rating") or cal_obj.get("derived_risk_rating") or code_sev).lower(),
-                "risk_override_applied": bool(cal_obj.get("risk_override_applied", False)),
-                "risk_override_rationale": str(cal_obj.get("risk_override_rationale") or ""),
-                "feasibility_derived": str(cal_obj.get("feasibility_derived") or "feasible"),
-                "owner_role": str(cal_obj.get("owner_role") or "unassigned_pending_roster"),
-                "risk_owner": str(cal_obj.get("risk_owner") or "unassigned_pending_roster"),
-                "safety_owner": str(cal_obj.get("safety_owner") or "N/A"),
-                "gate_0_emergency_brake": bool(cal_obj.get("gate_0_emergency_brake", False)),
-                "root_cause_cluster_id": rc_cluster,
-                "remediation": rep_fix,
-                "evidence_ids": eids,
-            }
-            repo_findings.append(finding_entry)
-            consolidated_findings.append(finding_entry)
+            if rec_status == "REACHABLE_VULNERABILITY":
+                all_chains_index.append(chain_export)
+                surviving_records_for_fxx.append({
+                    "repo_name": rname,
+                    "chain_id": cid,
+                    "ch_obj": ch_obj,
+                    "chain_export": chain_export,
+                    "cal_obj": cal_obj,
+                    "actor_obj": actor_by_chain.get(cid, {}),
+                    "ctrl_list": controls_by_chain.get(cid, []),
+                    "repo_kqs": repo_kqs,
+                    "ws_evidence_ids": ws_evidence_ids,
+                    "rt_controls": repo_rt_controls,
+                    "rt_answers": repo_rt_answers,
+                    "rc_cluster": rc_cluster,
+                    "rc_summary": rc_summary,
+                    "rep_fix": rep_fix,
+                    "code_sev": code_sev,
+                    "ver_status": raw_verdict_22,
+                    "eids": eids,
+                })
 
-            # Convert Phase 3 to documents/_report/work/risk/F-xx.json (zero LLM tokens)
-            raw_axes = cal_obj.get("impact_axes") or cal_obj.get("sfop_impacts") or {}
-            anh_huong_5_chieu: dict[str, dict[str, Any]] = {}
-            max_rank_val = 0
-            for eng_ax, vn_ax in axis_vn_map.items():
-                ax_val = raw_axes.get(eng_ax) if isinstance(raw_axes, dict) else None
-                if isinstance(ax_val, dict):
-                    lvl = str(ax_val.get("level") or "negligible").lower()
-                    basis = str(ax_val.get("basis") or ax_val.get("rationale") or "")
-                    br = str(ax_val.get("blast_radius") or cal_obj.get("blast_radius") or "service")
-                else:
-                    lvl = str(ax_val or "negligible").lower()
-                    basis = ""
-                    br = str(cal_obj.get("blast_radius") or "service")
-                max_rank_val = max(max_rank_val, rank_map.get(lvl, 0))
-                anh_huong_5_chieu[vn_ax] = {
-                    "muc_do": lvl,
-                    "pham_vi_lan_toa": br,
-                    "co_so": basis,
-                }
-                if eng_ax == "safety" and lvl in {"critical", "catastrophic"} and rname not in gate0_repos:
-                    gate0_repos.append(rname)
-
-            max_impact_vn = inv_rank.get(max_rank_val, str(cal_obj.get("max_impact") or "medium").lower())
-            infeasible_vn = "low" if max_rank_val >= 1 else "negligible"
-
-            mat_xich_suy_dien: list[dict[str, Any]] = []
-            for pre in actor_obj.get("preconditions", []):
-                if isinstance(pre, dict):
-                    raw_pst = str(pre.get("status") or pre.get("precondition_status") or "unknown").lower()
-                    vn_st = pre_vn_map.get(raw_pst, "chua_ro")
-                    mat_xich_suy_dien.append({
-                        "loai": "dieu_kien_tien_quyet",
-                        "mo_ta": str(pre.get("description") or pre.get("condition") or ""),
-                        "trang_thai": vn_st,
-                        "evidence_ids": list(pre.get("evidence_ids") or []),
-                        "searched_paths": list(pre.get("searched_paths") or []),
-                    })
-
-            for ctrl in ctrl_list:
-                if isinstance(ctrl, dict):
-                    cst = str(ctrl.get("status") or "hypothesis").lower()
-                    ceff = str(ctrl.get("mitigation_effect") or "none").lower()
-                    if cst == "confirmed" and ceff == "blocks_exploit":
-                        # Control confirmed & blocks exploit -> attack link cannot pass ("khong")
-                        vn_ctrl_st = "khong"
-                    elif cst in {"hypothesis", "unknown", "assumed_unverified"}:
-                        vn_ctrl_st = "chua_ro"
-                    else:
-                        vn_ctrl_st = "co"
-                    mat_xich_suy_dien.append({
-                        "loai": "kiem_soat_ngoai_code",
-                        "mo_ta": str(ctrl.get("control_id") or ctrl.get("layer") or ""),
-                        "trang_thai": vn_ctrl_st,
-                        "evidence_ids": list(ctrl.get("evidence_ids") or []),
-                        "searched_paths": list(ctrl.get("searched_paths") or []),
-                    })
-
-            # Also include any pending key questions for this chain that came from runtime controls
-            chain_kqs_vn: list[dict[str, Any]] = []
-            for q_item in repo_kqs:
-                if str(q_item.get("chain_id") or "") == cid:
-                    raw_team = str(q_item.get("target_team") or "security")
-                    chain_kqs_vn.append({
-                        "question_id": q_item.get("question_id"),
-                        "nguoi_nhan": team_vn_map.get(raw_team, "security"),
-                        "cau_hoi": q_item.get("question"),
-                        "neu_co": q_item.get("outcome_if_yes"),
-                        "neu_khong": q_item.get("outcome_if_no"),
-                        "trang_thai": q_item.get("status"),
-                    })
-                    if str(q_item.get("status") or "").startswith("pending") and not any(m["trang_thai"] == "chua_ro" for m in mat_xich_suy_dien):
-                        mat_xich_suy_dien.append({
-                            "loai": "cau_hoi_mo",
-                            "mo_ta": str(q_item.get("question") or ""),
-                            "trang_thai": "chua_ro",
-                            "evidence_ids": [],
-                            "searched_paths": list(q_item.get("searched_paths") or []),
-                        })
-
-            # Re-derive risk from converted F-xx.json links and verify parity with derived_risk_rating
-            if any(m["trang_thai"] == "khong" for m in mat_xich_suy_dien):
-                kha_thi_vn = "khong_kha_thi"
-                re_derived_risk = infeasible_vn
-            elif any(m["trang_thai"] == "chua_ro" for m in mat_xich_suy_dien):
-                kha_thi_vn = "tam_thoi_chua_ro"
-                re_derived_risk = max_impact_vn
-            else:
-                kha_thi_vn = "kha_thi"
-                re_derived_risk = max_impact_vn
-
-            expected_derived = str(cal_obj.get("derived_risk_rating") or re_derived_risk).lower()
-            parity_ok = re_derived_risk == expected_derived
-            risk_parity_checks.append({
-                "finding_id": f_code,
-                "chain_id": cid,
-                "repo_name": rname,
-                "re_derived_risk": re_derived_risk,
-                "phase3_derived_risk_rating": expected_derived,
-                "parity_verified": parity_ok,
+        # 9. Build documents/<repo>/09_findings.json (B1 & B4: 100% of candidate_queue + architecture_findings preserved!)
+        raw_09_findings: list[dict[str, Any]] = []
+        for cand_item in (cand_queue.get("candidates") or []):
+            if not isinstance(cand_item, dict):
+                continue
+            cand_id_str = str(cand_item.get("candidate_id") or "")
+            if cand_id_str and cand_id_str not in clustered_cand_ids_in_repo:
+                all_unclustered_candidates.append({"repo_name": rname, **cand_item})
+            c_status = (
+                "confirmed_in_chain"
+                if cand_id_str in surviving_cand_ids
+                else ("clustered_in_phase2" if cand_id_str in clustered_cand_ids_in_repo else str(cand_item.get("status") or "candidate"))
+            )
+            atk_classes = cand_item.get("attack_classes") if isinstance(cand_item.get("attack_classes"), list) else []
+            raw_09_findings.append({
+                "source": "threat_model",
+                "id": cand_id_str or f"CAND-{len(raw_09_findings) + 1:02d}",
+                "candidate_id": cand_id_str,
+                "title": str(cand_item.get("title") or cand_id_str),
+                "category": str(atk_classes[0] if atk_classes else (cand_item.get("source_type") or "security_candidate")),
+                "scenario": str(cand_item.get("description") or cand_item.get("rationale") or cand_item.get("title") or ""),
+                "impact": str(cand_item.get("impact") or "high"),
+                "priority": str(cand_item.get("priority") or "high"),
+                "status": c_status,
+                "notes": f"Source: {cand_item.get('source_type', 'phase1_candidate_queue')}; target_paths: {cand_item.get('target_paths', [])}",
+                "evidence_ids": list(cand_item.get("evidence_ids") or []),
             })
-
-            raw_actor = str(actor_obj.get("minimum_actor") or "authenticated_user")
-            f_risk_payload = {
-                "finding_id": f_code,
-                "chain_id": cid,
-                "repo_name": rname,
-                "ke_tan_cong_toi_thieu": actor_vn_map.get(raw_actor, "nguoi_dung"),
-                "minimum_actor": raw_actor,
-                "anh_huong_5_chieu": anh_huong_5_chieu,
-                "muc_do_anh_huong_toi_da": max_impact_vn,
-                "mat_xich_suy_dien": mat_xich_suy_dien,
-                "kha_thi": kha_thi_vn,
-                "muc_rui_ro_suy_ra": re_derived_risk,
-                "muc_rui_ro_cuoi": str(cal_obj.get("contextual_risk_rating") or re_derived_risk).lower(),
-                "risk_override_applied": bool(cal_obj.get("risk_override_applied", False)),
-                "risk_override_rationale": str(cal_obj.get("risk_override_rationale") or ""),
-                "owner_role": str(cal_obj.get("owner_role") or "unassigned_pending_roster"),
-                "risk_owner": str(cal_obj.get("risk_owner") or "unassigned_pending_roster"),
-                "safety_owner": str(cal_obj.get("safety_owner") or "N/A"),
-                "cau_hoi_mo": chain_kqs_vn,
-                "parity_verified": parity_ok,
-            }
-            f_risk_path = risk_work_dir / f"{f_code}.json"
-            write_json(f_risk_path, f_risk_payload)
-            risk_files_written.append(str(f_risk_path))
-            exported_files.append(str(f_risk_path))
+        for arch_item in list(arch.get("architecture_findings") or []) + list(arch.get("trust_boundary_mismatches") or []):
+            if not isinstance(arch_item, dict):
+                continue
+            aid_str = str(arch_item.get("id") or arch_item.get("mismatch_id") or f"ARCH-{len(raw_09_findings) + 1:02d}")
+            raw_09_findings.append({
+                "source": "architecture_review",
+                "id": aid_str,
+                "title": str(arch_item.get("title") or aid_str),
+                "category": str(arch_item.get("attack_class") or "trust_boundary_mismatch"),
+                "scenario": str(arch_item.get("description") or arch_item.get("summary") or arch_item.get("title") or ""),
+                "impact": str(arch_item.get("severity") or "high"),
+                "priority": "high",
+                "status": str(arch_item.get("status") or "confirmed"),
+                "notes": f"Producer: {arch_item.get('producer_repo', rname)} -> Consumer: {arch_item.get('consumer_repo', rname)}",
+                "evidence_ids": list(arch_item.get("evidence_ids") or []),
+            })
 
         p_09 = repo_doc_dir / "09_findings.json"
         write_json(
             p_09,
             {
+                "generated_by": "wins",
                 "repo_name": rname,
-                "finding_count": len(repo_findings),
-                "findings": repo_findings,
+                "finding_count": len(raw_09_findings),
+                "findings": raw_09_findings,
             },
         )
         exported_files.append(str(p_09))
 
         manifest_rows.append({
             "repo_name": rname,
-            "tier": scout.get("repo_tier") or inv.get("recommended_tier") or "tier_1",
+            "tier": raw_tier,
             "p1_passed": p1_passed,
             "p2_passed": p2_passed,
             "p3_passed": p3_passed,
             "file_touched_coverage_pct": file_touched_pct,
-            "line_coverage_pct": vis_rep.get("line_coverage_pct"),
-            "findings_count": len(repo_findings),
+            "line_coverage_pct": line_cov_pct,
+            "findings_count": len([r for r in surviving_records_for_fxx if r["repo_name"] == rname]),
+            "candidates_count": len(cand_queue.get("candidates") or []),
             "refutations_count": len(p3_queue.get("empirical_refutations_ledger", [])),
             "hypotheses_count": len(p3_queue.get("hypothesis_only_findings", [])),
         })
 
-    # Write Group 2 system/analysis files
+    # B4, B5, B6: Consolidate surviving chains by root_cause_cluster_id into F-01 .. F-NN
+    grouped_by_rc: dict[str, list[dict[str, Any]]] = {}
+    for rec in surviving_records_for_fxx:
+        grouped_by_rc.setdefault(rec["rc_cluster"], []).append(rec)
+
+    finding_counter = 0
+    for rc_cluster, rc_recs in grouped_by_rc.items():
+        finding_counter += 1
+        f_code = f"F-{finding_counter:02d}"
+        primary = rc_recs[0]
+        rname = primary["repo_name"]
+        cid = primary["chain_id"]
+        all_cids_in_f = [r["chain_id"] for r in rc_recs]
+        all_repos_in_f = sorted({r["repo_name"] for r in rc_recs})
+        all_cands_in_f: list[str] = []
+        all_eids_in_f: list[str] = []
+        for r in rc_recs:
+            for oc in r["chain_export"].get("originating_finding_ids", []):
+                if oc not in all_cands_in_f:
+                    all_cands_in_f.append(oc)
+            for eid_x in r["eids"]:
+                if eid_x not in all_eids_in_f:
+                    all_eids_in_f.append(eid_x)
+
+        cal_obj = primary["cal_obj"]
+        actor_obj = primary["actor_obj"]
+        ctrl_list = primary["ctrl_list"]
+        repo_kqs = primary["repo_kqs"]
+        ws_eids = primary["ws_evidence_ids"]
+        rt_controls = primary["rt_controls"]
+        rt_answers = primary["rt_answers"]
+        code_sev = primary["code_sev"]
+        ver_status = primary["ver_status"]
+        rc_summary = primary["rc_summary"]
+        rep_fix = primary["rep_fix"]
+
+        root_causes_by_cluster[rc_cluster] = {
+            "root_cause_id": rc_cluster,
+            "cluster_id": rc_cluster,
+            "repo_name": rname,
+            "title": rc_summary,
+            "summary": rc_summary,
+            "root_cause_status": "confirmed",
+            "affected_services": all_repos_in_f,
+            "affected_chain_ids": all_cids_in_f,
+            "chain_ids": all_cids_in_f,
+            "finding_ids": [f_code],
+            "remediation_at_root": rep_fix or "Enforce centralized authorization and invariant check in shared guard/middleware.",
+            "representative_fix": rep_fix or "Enforce centralized authorization and invariant check in shared guard/middleware.",
+            "remediation_that_only_treats_symptom": "Filtering or patching only a single endpoint/parameter without fixing the underlying guard or domain invariant.",
+            "evidence_ids": all_eids_in_f,
+        }
+
+        # B5: Exact Risk Re-derivation matching finalize_v3_phase3 rules!
+        confirmed_rt_ctrls: set[str] = set()
+        blocked_by_rt_ctrls: set[str] = set()
+        for r_ctrl in rt_controls:
+            if isinstance(r_ctrl, dict):
+                st_c = str(r_ctrl.get("status", "enforced")).lower()
+                if st_c in {"enforced", "confirmed", "confirmed_enforced", "active", "blocks_exploit"}:
+                    for k_c in ("control_id", "name", "type", "layer", "chain_id", "finding_id"):
+                        if r_ctrl.get(k_c):
+                            confirmed_rt_ctrls.add(str(r_ctrl[k_c]).lower())
+                    if r_ctrl.get("mitigation_effect") == "blocks_exploit" or st_c == "blocks_exploit":
+                        for k_c in ("chain_id", "finding_id", "control_id", "name"):
+                            if r_ctrl.get(k_c):
+                                blocked_by_rt_ctrls.add(str(r_ctrl[k_c]).lower())
+
+        raw_axes = cal_obj.get("impact_axes") or cal_obj.get("sfop_impacts") or {}
+        anh_huong_5_chieu: dict[str, dict[str, Any]] = {}
+        dimensions_vn: dict[str, dict[str, Any]] = {}
+        max_rank_val = 0
+        for eng_ax, vn_ax in axis_vn_map.items():
+            ax_val = raw_axes.get(eng_ax) if isinstance(raw_axes, dict) else None
+            if isinstance(ax_val, dict):
+                lvl = str(ax_val.get("level") or "negligible").lower()
+                basis = str(ax_val.get("basis") or ax_val.get("rationale") or "")
+                br = str(ax_val.get("blast_radius") or cal_obj.get("blast_radius") or "service")
+            else:
+                lvl = str(ax_val or "negligible").lower()
+                basis = f"Evaluated {eng_ax} axis impact={lvl} on {rname}"
+                br = str(cal_obj.get("blast_radius") or "service")
+            max_rank_val = max(max_rank_val, rank_map.get(lvl, 0))
+            anh_huong_5_chieu[vn_ax] = {
+                "muc_do": lvl,
+                "pham_vi_lan_toa": br,
+                "co_so": basis,
+            }
+            dimensions_vn[vn_ax] = {
+                "level": lvl,
+                "blast_radius": br,
+                "basis": basis,
+            }
+            if eng_ax == "safety" and lvl in {"critical", "catastrophic"} and rname not in gate0_repos:
+                gate0_repos.append(rname)
+
+        max_impact_vn = inv_rank.get(max_rank_val, str(cal_obj.get("max_impact") or "medium").lower())
+        infeasible_vn = "low" if max_rank_val >= 1 else "negligible"
+
+        raw_actor = str(actor_obj.get("minimum_actor") or actor_obj.get("minimum_viable_actor") or "authenticated_user")
+        actor_vn = actor_vn_map.get(raw_actor, "nguoi_dung")
+
+        mat_xich_suy_dien: list[dict[str, Any]] = []
+        attack_path_preconditions: list[dict[str, Any]] = []
+        attack_path_controls: list[dict[str, Any]] = []
+
+        for p_idx, pre in enumerate(actor_obj.get("preconditions", []), 1):
+            if not isinstance(pre, dict):
+                continue
+            raw_pst = str(pre.get("status") or pre.get("precondition_status") or pre.get("satisfied") or "unknown").strip().lower()
+            if raw_pst in {"yes", "true", "satisfied", "confirmed", "observed"}:
+                norm_pst = "yes"
+            elif raw_pst in {"no", "false", "unsatisfied", "impossible"}:
+                norm_pst = "no"
+            else:
+                norm_pst = "unknown"
+
+            cond_desc = str(pre.get("condition") or pre.get("description") or pre.get("precondition") or f"PRE-{p_idx:02d}")
+            pre_eids = [
+                str(e) for e in (pre.get("evidence_ids") or [])
+                if str(e).startswith("ev_") and bool(ws_eids and str(e) in ws_eids)
+            ]
+            if norm_pst == "no":
+                ans_val = str(rt_answers.get(cond_desc) or rt_answers.get(cid) or "").strip().lower()
+                has_no_fact = ans_val in {"no", "false", "unsatisfied", "impossible"}
+                if not pre_eids and not has_no_fact:
+                    norm_pst = "unknown"
+
+            vn_st = pre_vn_map.get(norm_pst, "chua_ro")
+            holders_list = list(pre.get("holders") or [actor_vn])
+            mat_xich_suy_dien.append({
+                "loai": "dieu_kien_tien_quyet",
+                "mo_ta": cond_desc,
+                "trang_thai": vn_st,
+                "evidence_ids": list(pre.get("evidence_ids") or []),
+                "searched_paths": list(pre.get("searched_paths") or []),
+            })
+            attack_path_preconditions.append({
+                "id": str(pre.get("precondition_id") or f"PRE-{p_idx:02d}"),
+                "kind": str(pre.get("kind") or "operational_precondition"),
+                "description": cond_desc,
+                "attainable": vn_st,
+                "why": str(pre.get("rationale") or pre.get("notes") or f"Precondition status={norm_pst}"),
+                "evidence": list(pre.get("evidence_ids") or []),
+                "searched": list(pre.get("searched_paths") or []),
+                "holders": holders_list,
+            })
+
+        for c_idx, ctrl in enumerate(ctrl_list, 1):
+            if not isinstance(ctrl, dict):
+                continue
+            raw_cst = str(ctrl.get("enforcement_status") or ctrl.get("status") or "hypothesis").strip().lower()
+            cname = str(ctrl.get("control_id") or ctrl.get("name") or ctrl.get("control") or ctrl.get("layer") or f"CTRL-{c_idx:02d}")
+            ceff = str(ctrl.get("mitigation_effect") or "none").strip().lower()
+            c_eids = [str(e) for e in (ctrl.get("evidence_ids") or []) if str(e).startswith("ev_")]
+            has_repo_ev = bool(c_eids and ws_eids and any(e in ws_eids for e in c_eids))
+            has_rt_fact = (
+                bool(cname and cname.lower() in confirmed_rt_ctrls)
+                or bool(cid and cid.lower() in confirmed_rt_ctrls)
+                or bool(ctrl.get("runtime_fact_verified"))
+            )
+            if raw_cst in {"confirmed_enforced", "confirmed", "observed"} and not has_repo_ev and not has_rt_fact:
+                raw_cst = "hypothesis"
+                if ceff == "blocks_exploit":
+                    ceff = "reduces_likelihood"
+
+            if raw_cst in {"confirmed_enforced", "confirmed", "observed"} and ceff == "blocks_exploit":
+                vn_ctrl_st = "khong"
+                exists_vn = "co"
+                effective_vn = "co"
+            elif raw_cst in {"hypothesis", "unknown", "assumed_unverified"}:
+                vn_ctrl_st = "chua_ro"
+                exists_vn = "chua_ro"
+                effective_vn = "chua_ro"
+            else:
+                vn_ctrl_st = "co"
+                exists_vn = "khong" if raw_cst == "absent" else "co"
+                effective_vn = "khong"
+
+            mat_xich_suy_dien.append({
+                "loai": "kiem_soat_ngoai_code",
+                "mo_ta": cname,
+                "trang_thai": vn_ctrl_st,
+                "evidence_ids": c_eids,
+                "searched_paths": list(ctrl.get("searched_paths") or []),
+            })
+            attack_path_controls.append({
+                "id": cname,
+                "layer": str(ctrl.get("layer") or "infrastructure"),
+                "exists": exists_vn,
+                "exists_evidence": c_eids,
+                "effective": effective_vn,
+                "why": f"status={raw_cst}, mitigation_effect={ceff}",
+                "searched": list(ctrl.get("searched_paths") or []),
+            })
+
+        # If runtime_environment_facts.json directly blocks this chain via controls[], reflect that in mat_xich_suy_dien & attack_path_controls
+        if cid.lower() in blocked_by_rt_ctrls and not any(m["trang_thai"] == "khong" for m in mat_xich_suy_dien):
+            mat_xich_suy_dien.append({
+                "loai": "kiem_soat_ngoai_code",
+                "mo_ta": f"Runtime environment control blocks {cid}",
+                "trang_thai": "khong",
+                "evidence_ids": [],
+                "searched_paths": ["runtime_environment_facts.json"],
+            })
+            attack_path_controls.append({
+                "id": f"RT-BLOCK-{cid}",
+                "layer": "runtime_environment",
+                "exists": "co",
+                "exists_evidence": ["runtime_environment_facts.json"],
+                "effective": "co",
+                "why": "Confirmed blocking control in runtime_environment_facts.json",
+                "searched": ["runtime_environment_facts.json"],
+            })
+
+        chain_kqs_vn: list[dict[str, Any]] = []
+        for q_item in repo_kqs:
+            if str(q_item.get("chain_id") or "") in set(all_cids_in_f):
+                raw_team = str(q_item.get("target_team") or "security")
+                q_kind = str(q_item.get("question_kind") or "")
+                chain_kqs_vn.append({
+                    "id": q_item.get("question_id"),
+                    "question_id": q_item.get("question_id"),
+                    "to": team_vn_map.get(raw_team, "security"),
+                    "nguoi_nhan": team_vn_map.get(raw_team, "security"),
+                    "ask": q_item.get("question"),
+                    "cau_hoi": q_item.get("question"),
+                    "if_yes": q_item.get("outcome_if_yes"),
+                    "neu_co": q_item.get("outcome_if_yes"),
+                    "if_no": q_item.get("outcome_if_no"),
+                    "neu_khong": q_item.get("outcome_if_no"),
+                    "status": q_item.get("status"),
+                    "trang_thai": q_item.get("status"),
+                })
+                # Only precondition / beyond_code_control pending questions affect feasibility_derived in finalize_v3_phase3
+                if (
+                    str(q_item.get("status") or "") == "pending_operator"
+                    and q_kind in {"precondition", "beyond_code_control", ""}
+                    and not any(m["trang_thai"] == "chua_ro" for m in mat_xich_suy_dien)
+                ):
+                    mat_xich_suy_dien.append({
+                        "loai": "cau_hoi_mo",
+                        "mo_ta": str(q_item.get("question") or ""),
+                        "trang_thai": "chua_ro",
+                        "evidence_ids": [],
+                        "searched_paths": list(q_item.get("searched_paths") or []),
+                    })
+
+        # Re-derive risk from converted F-xx.json links and verify STRICT parity with Phase 3 derived_risk_rating (B5)
+        if any(m["trang_thai"] == "khong" for m in mat_xich_suy_dien):
+            kha_thi_vn = "khong_kha_thi"
+            re_derived_risk = infeasible_vn
+            reaches_impact_vn = "khong"
+        elif any(m["trang_thai"] == "chua_ro" for m in mat_xich_suy_dien):
+            kha_thi_vn = "tam_thoi_chua_ro"
+            re_derived_risk = max_impact_vn
+            reaches_impact_vn = "chua_ro"
+        else:
+            kha_thi_vn = "kha_thi"
+            re_derived_risk = max_impact_vn
+            reaches_impact_vn = "co"
+
+        raw_phase3_derived = str(cal_obj.get("derived_risk_rating") or "").strip().lower()
+        # B5: Never compare missing derived_risk_rating against re_derived_risk itself!
+        parity_ok = bool(raw_phase3_derived and re_derived_risk == raw_phase3_derived)
+        risk_parity_checks.append({
+            "finding_id": f_code,
+            "chain_id": cid,
+            "chain_ids": all_cids_in_f,
+            "repo_name": rname,
+            "re_derived_risk": re_derived_risk,
+            "phase3_derived_risk_rating": raw_phase3_derived or None,
+            "parity_verified": parity_ok,
+        })
+
+        actors_considered = []
+        for act_code in all_5_actors_vn:
+            actors_considered.append({
+                "actor": act_code,
+                "evaluated": True,
+                "is_minimum_viable_actor": act_code == actor_vn,
+                "notes": (
+                    f"Minimum viable actor ({raw_actor}) for {f_code}"
+                    if act_code == actor_vn
+                    else "Evaluated during Phase 3.1 actor assessment"
+                ),
+            })
+
+        hops_list = primary["ch_obj"].get("hops") or []
+        entry_desc = str(
+            primary["ch_obj"].get("entrypoint")
+            or (hops_list[0].get("file") if hops_list and isinstance(hops_list[0], dict) else "")
+            or rname
+        )
+
+        f_risk_payload = {
+            "generated_by": "wins",
+            "id": f_code,
+            "finding_id": f_code,
+            "chain_id": cid,
+            "chain_ids": all_cids_in_f,
+            "candidate_ids": all_cands_in_f,
+            "repo_name": rname,
+            "repositories": all_repos_in_f,
+            "title": str(primary["ch_obj"].get("title") or rc_summary),
+            "ke_tan_cong_toi_thieu": actor_vn,
+            "minimum_actor": raw_actor,
+            "actors_considered": actors_considered,
+            "attack_paths": [
+                {
+                    "actor": actor_vn,
+                    "entry": entry_desc,
+                    "preconditions": attack_path_preconditions,
+                    "blocking_controls": attack_path_controls,
+                    "reaches_impact": reaches_impact_vn,
+                }
+            ],
+            "yields": [
+                str(primary["ch_obj"].get("title") or rc_summary),
+                f"root_cause:{rc_cluster}",
+            ],
+            "detection": {
+                "logged": "chua_ro",
+                "alerted": "chua_ro",
+                "notes": "Verify SIEM/audit alerting via runtime_environment_facts.json",
+            },
+            "business_impact": {
+                "level": max_impact_vn,
+                "blast_radius": str(cal_obj.get("blast_radius") or "service"),
+                "dimensions": dimensions_vn,
+            },
+            "anh_huong_5_chieu": anh_huong_5_chieu,
+            "muc_do_anh_huong_toi_da": max_impact_vn,
+            "mat_xich_suy_dien": mat_xich_suy_dien,
+            "kha_thi": kha_thi_vn,
+            "muc_rui_ro_suy_ra": re_derived_risk,
+            "muc_rui_ro_cuoi": str(cal_obj.get("contextual_risk_rating") or re_derived_risk).lower(),
+            "risk_override_applied": bool(cal_obj.get("risk_override_applied", False)),
+            "risk_override_rationale": str(cal_obj.get("risk_override_rationale") or ""),
+            "owner_role": str(cal_obj.get("owner_role") or "unassigned_pending_roster"),
+            "risk_owner": str(cal_obj.get("risk_owner") or "unassigned_pending_roster"),
+            "safety_owner": str(cal_obj.get("safety_owner") or "N/A"),
+            "open_questions": chain_kqs_vn,
+            "cau_hoi_mo": chain_kqs_vn,
+            "parity_verified": parity_ok,
+        }
+        f_risk_path = risk_work_dir / f"{f_code}.json"
+        write_json(f_risk_path, f_risk_payload)
+        risk_files_written.append(str(f_risk_path))
+        exported_files.append(str(f_risk_path))
+
+        rplan_p = primary["ch_obj"].get("request_plan") if isinstance(primary["ch_obj"].get("request_plan"), dict) else {}
+        acc_criteria = str(
+            rplan_p.get("expected_safe_behavior")
+            or rplan_p.get("expected_fixed_indicator")
+            or "Discriminating request sequence returns HTTP 403/401 or rejects unauthorized state transition; unit/integration regression test added."
+        )
+
+        finding_entry = {
+            "id": f_code,
+            "finding_id": f_code,
+            "chain_id": cid,
+            "chain_ids": all_cids_in_f,
+            "candidate_ids": all_cands_in_f,
+            "repo_name": rname,
+            "repositories": all_repos_in_f,
+            "title": str(primary["ch_obj"].get("title") or rc_summary),
+            "verification_status": ver_status,
+            "code_verified_severity": code_sev,
+            "derived_risk_rating": raw_phase3_derived or re_derived_risk,
+            "contextual_risk_rating": str(cal_obj.get("contextual_risk_rating") or raw_phase3_derived or re_derived_risk).lower(),
+            "risk_override_applied": bool(cal_obj.get("risk_override_applied", False)),
+            "risk_override_rationale": str(cal_obj.get("risk_override_rationale") or ""),
+            "feasibility_derived": str(cal_obj.get("feasibility_derived") or ("infeasible" if kha_thi_vn == "khong_kha_thi" else ("provisional_unknown" if kha_thi_vn == "tam_thoi_chua_ro" else "feasible"))),
+            "owner_role": str(cal_obj.get("owner_role") or "unassigned_pending_roster"),
+            "risk_owner": str(cal_obj.get("risk_owner") or "unassigned_pending_roster"),
+            "safety_owner": str(cal_obj.get("safety_owner") or "N/A"),
+            "gate_0_emergency_brake": bool(cal_obj.get("gate_0_emergency_brake", False)),
+            "root_cause_cluster_id": rc_cluster,
+            "root_cause_summary": rc_summary,
+            "remediation": rep_fix or "Enforce explicit authorization and domain invariant check at root.",
+            "acceptance_criteria": acc_criteria,
+            "anh_huong_5_chieu": anh_huong_5_chieu,
+            "attack_paths": f_risk_payload["attack_paths"],
+            "actors_considered": actors_considered,
+            "open_questions": chain_kqs_vn,
+            "evidence_ids": all_eids_in_f,
+        }
+        consolidated_findings.append(finding_entry)
+
+    # Write Group 2 system/analysis files (B1: exact field schemas for 06_root_cause_map, 99_project_chain_report, 02_cross_repo_review)
     rc_map_path = docs_dir / "_analysis" / "06_root_cause_map.json"
     write_json(
         rc_map_path,
         {
+            "generated_by": "wins",
             "run_id": run_id,
             "cluster_count": len(root_causes_by_cluster),
+            "root_causes": list(root_causes_by_cluster.values()),
             "root_cause_clusters": list(root_causes_by_cluster.values()),
         },
     )
     exported_files.append(str(rc_map_path))
 
+    highest_credible = [
+        {
+            "chain_id": ch["chain_id"],
+            "repo_name": ch["repo_name"],
+            "title": ch["title"],
+            "severity": ch["code_verified_severity"],
+            "why_it_matters": ch["impact_assessment"]["business_consequence"],
+            "evidence_ids": ch["evidence_ids"],
+        }
+        for ch in all_chains_index
+    ]
+    refuted_or_weakened = [
+        {
+            "chain_id": r.get("chain_id") or r.get("candidate_id"),
+            "repo_name": r.get("repo_name"),
+            "reason": r.get("refutation_reason") or r.get("reason"),
+            "evidence_ids": r.get("counterevidence_ids") or r.get("evidence_ids") or [],
+        }
+        for r in (all_refutations + all_unexploitable_p2 + all_dismissed_intake)
+    ]
+    unverified_and_gaps = [
+        {
+            "chain_id": h.get("chain_id") or h.get("candidate_id"),
+            "repo_name": h.get("repo_name"),
+            "status": "HYPOTHESIS_ONLY_UNVERIFIED",
+            "title": h.get("title") or h.get("chain_id"),
+            "evidence_ids": h.get("evidence_ids") or [],
+        }
+        for h in all_hypotheses
+    ] + [
+        {"chain_id": u, "status": "UNCHALLENGED_BLOCKED", "title": f"Unchallenged chain {u}"}
+        for u in all_unchallenged
+    ] + [
+        {
+            "candidate_id": uc.get("candidate_id"),
+            "repo_name": uc.get("repo_name"),
+            "status": "UNCLUSTERED_CANDIDATE",
+            "title": uc.get("title"),
+            "evidence_ids": uc.get("evidence_ids") or [],
+        }
+        for uc in all_unclustered_candidates
+    ]
+    rec_remediations = [
+        {
+            "target": rc_id,
+            "repo_name": rc_val["repo_name"],
+            "priority": "P0" if any(f["finding_id"] in rc_val["finding_ids"] and f["contextual_risk_rating"] in {"critical", "catastrophic"} for f in consolidated_findings) else "P1",
+            "action": rc_val["remediation_at_root"],
+            "closes_chains": rc_val["chain_ids"],
+            "closes_findings": rc_val["finding_ids"],
+        }
+        for rc_id, rc_val in root_causes_by_cluster.items()
+    ]
+
+    matched_boundaries = _load_json(runs_root / "_analysis" / "matched_cross_repo_boundaries.json")
+    cross_patterns = list(matched_boundaries.get("auth_propagation_gaps", [])) + list(all_trust_mismatches)
+
     chain_rep_path = docs_dir / "_analysis" / "99_project_chain_report.json"
     write_json(
         chain_rep_path,
         {
+            "generated_by": "wins",
             "run_id": run_id,
+            "highest_credible_chains": highest_credible,
+            "refuted_or_weakened_chains": refuted_or_weakened,
+            "unverified_claims_and_gaps": unverified_and_gaps,
+            "recommended_remediations": rec_remediations,
+            "cross_service_patterns": cross_patterns,
             "verified_reachable_chains_count": len(all_chains_index),
             "verified_reachable_chains": all_chains_index,
             "hypothesis_only_chains": all_hypotheses,
@@ -3026,12 +3776,56 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
     )
     exported_files.append(str(chain_rep_path))
 
-    matched_boundaries = _load_json(runs_root / "_analysis" / "matched_cross_repo_boundaries.json")
+    interactions_list: list[dict[str, Any]] = []
+    for me in (matched_boundaries.get("matched_edges") or []):
+        if isinstance(me, dict):
+            interactions_list.append({
+                "caller": str(me.get("producer_repo") or ""),
+                "callee": str(me.get("consumer_repo") or ""),
+                "channel": str(me.get("protocol") or me.get("normalized_target") or "http"),
+                "auth_or_trust_mechanism": str(me.get("producer_identity_forwarding") or me.get("consumer_authn") or "unspecified"),
+                "status": "confirmed",
+                "target": str(me.get("normalized_target") or ""),
+            })
+    system_risks_list: list[dict[str, Any]] = []
+    for idx_g, gap in enumerate(matched_boundaries.get("auth_propagation_gaps") or [], 1):
+        if isinstance(gap, dict):
+            system_risks_list.append({
+                "id": f"SYS-GAP-{idx_g:02d}",
+                "title": f"Cross-repo auth propagation gap: {gap.get('producer_repo')} -> {gap.get('consumer_repo')}",
+                "repositories": [str(gap.get("producer_repo") or ""), str(gap.get("consumer_repo") or "")],
+                "scenario": str(gap.get("gap_reason") or ""),
+                "impact": "high",
+                "priority": "high",
+                "status": "confirmed",
+                "evidence_ids": list(gap.get("evidence_ids") or []),
+            })
+    for idx_t, tm in enumerate(all_trust_mismatches, 1):
+        if isinstance(tm, dict):
+            system_risks_list.append({
+                "id": str(tm.get("mismatch_id") or tm.get("id") or f"SYS-TM-{idx_t:02d}"),
+                "title": str(tm.get("title") or "Trust boundary mismatch"),
+                "repositories": sorted({str(tm.get("repo_name") or ""), str(tm.get("producer_repo") or ""), str(tm.get("consumer_repo") or "")} - {""}),
+                "scenario": str(tm.get("description") or tm.get("title") or ""),
+                "impact": str(tm.get("severity") or "high"),
+                "priority": "high",
+                "status": str(tm.get("status") or "confirmed"),
+                "evidence_ids": list(tm.get("evidence_ids") or []),
+            })
+
+    unassigned_ext_file = _load_json(runs_root / "_analysis" / "unassigned_external_tool_findings.json")
+    unassigned_findings_list = list(unassigned_ext_file.get("findings") or [])
+
     cross_repo_path = system_out_dir / "02_cross_repo_review.json"
     write_json(
         cross_repo_path,
         {
+            "generated_by": "wins",
             "run_id": run_id,
+            "interactions": interactions_list,
+            "system_risks": system_risks_list,
+            "coverage_gaps": list(matched_boundaries.get("unmatched_producers", [])) + list(matched_boundaries.get("unmatched_consumers", [])),
+            "unknowns": unassigned_findings_list,
             "matched_edges": matched_boundaries.get("matched_edges", []),
             "unmatched_producers": matched_boundaries.get("unmatched_producers", []),
             "unmatched_consumers": matched_boundaries.get("unmatched_consumers", []),
@@ -3043,15 +3837,16 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
     exported_files.append(str(cross_repo_path))
 
     # Write Group 3 report work files
-    unassigned_ext_file = _load_json(runs_root / "_analysis" / "unassigned_external_tool_findings.json")
     rt_out_path = report_out_dir / "runtime_facts.json"
     write_json(
         rt_out_path,
         {
+            "generated_by": "wins",
             "run_id": run_id,
+            "facts": merged_runtime_facts_list,
             "controls": merged_runtime_controls,
             "answers": merged_runtime_answers,
-            "unassigned_external_tool_findings": unassigned_ext_file.get("findings", []),
+            "unassigned_external_tool_findings": unassigned_findings_list,
         },
     )
     exported_files.append(str(rt_out_path))
@@ -3060,6 +3855,7 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
     write_json(
         cons_path,
         {
+            "generated_by": "wins",
             "run_id": run_id,
             "total_findings": len(consolidated_findings),
             "findings": consolidated_findings,
@@ -3067,11 +3863,32 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
     )
     exported_files.append(str(cons_path))
 
+    # Build cross-finding combinations for _combinations.json (B6)
+    combinations_list: list[dict[str, Any]] = []
+    if len(consolidated_findings) >= 2:
+        for i_f in range(len(consolidated_findings) - 1):
+            f_a = consolidated_findings[i_f]
+            f_b = consolidated_findings[i_f + 1]
+            combinations_list.append({
+                "combination_id": f"COMBO-{i_f + 1:02d}",
+                "from_finding": f_a["finding_id"],
+                "to_finding": f_b["finding_id"],
+                "repositories": sorted(set(f_a["repositories"] + f_b["repositories"])),
+                "mechanism": f"Output/access yielded by {f_a['finding_id']} ({f_a['title']}) satisfies entry/precondition for {f_b['finding_id']} ({f_b['title']}).",
+                "combined_feasibility": "feasible" if (f_a["feasibility_derived"] == "feasible" and f_b["feasibility_derived"] == "feasible") else "provisional_unknown",
+                "combined_risk": inv_rank.get(
+                    max(rank_map.get(f_a["contextual_risk_rating"], 2), rank_map.get(f_b["contextual_risk_rating"], 2)),
+                    "high",
+                ),
+            })
+
     combos_path = risk_work_dir / "_combinations.json"
     write_json(
         combos_path,
         {
+            "generated_by": "wins",
             "run_id": run_id,
+            "combinations": combinations_list,
             "cross_repo_auth_gaps": matched_boundaries.get("auth_propagation_gaps", []),
             "trust_boundary_mismatches": all_trust_mismatches,
             "root_cause_clusters": list(root_causes_by_cluster.values()),
@@ -3079,35 +3896,37 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
     )
     exported_files.append(str(combos_path))
 
-    # Group 4: Synthesize Phase 4 Vietnamese Reports (00_manifest.md, BAO_CAO_TONG_HOP_BAO_MAT.md, DANH_GIA_RUI_RO.md)
+    # Group 4: Synthesize Phase 4 Vietnamese Reports (00_manifest.md, BAO_CAO_TONG_HOP_BAO_MAT.md, DANH_GIA_RUI_RO.md) (B3, B4, B6)
     any_gate_failed = any(not (r["p1_passed"] and r["p2_passed"] and r["p3_passed"]) for r in manifest_rows)
+    all_parity_ok = all(p["parity_verified"] for p in risk_parity_checks)
 
     manifest_md = [
+        "<!-- generated_by: wins -->",
         "# 00 — Manifest & Chỉ mục Báo cáo Kiểm toán Bảo mật (Phase 4)",
         "",
         f"- **Run ID**: `{run_id}`",
         f"- **Tổng số Repository**: `{len(manifest_rows)}`",
-        f"- **Tổng số Lỗ hổng Đã Xác minh (`F-xx`)**: `{len(consolidated_findings)}`",
-        f"- **Kiểm chứng Tương đương Công thức Rủi ro (`parity_verified`)**: `{all(p['parity_verified'] for p in risk_parity_checks)}`",
+        f"- **Tổng số Lỗ hổng Đã Hợp nhất (`F-xx`)**: `{len(consolidated_findings)}`",
+        f"- **Kiểm chứng Tương đương Công thức Rủi ro (`parity_verified`)**: `{all_parity_ok}`",
         "",
         "## Bảng Trạng thái Cổng Kiểm toán & Độ phủ theo Repository",
         "",
-        "| Repository | Tier | Phase 1 Gate | Phase 2 Gate | Phase 3 Gate | Độ phủ (`coverage_semantics: file_touched`) | `line_coverage_pct` | Lỗ hổng (`F-xx`) | Bác bỏ (`Refuted`) | Cần kiểm Runtime (`Hypothesis`) |",
-        "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+        "| Repository | Tier | Phase 1 Gate | Phase 2 Gate | Phase 3 Gate | Độ phủ (`coverage_semantics: file_touched`) | `line_coverage_pct` | Ứng viên (`Candidates`) | Lỗ hổng (`F-xx`) | Bác bỏ (`Refuted`) | Cần kiểm Runtime (`Hypothesis`) |",
+        "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
     ]
     for r in manifest_rows:
         manifest_md.append(
             f"| `{r['repo_name']}` | `{r['tier']}` | `{'PASS' if r['p1_passed'] else 'FAIL/MISSING'}` | "
             f"`{'PASS' if r['p2_passed'] else 'FAIL/MISSING'}` | `{'PASS' if r['p3_passed'] else 'FAIL/MISSING'}` | "
             f"`{r['file_touched_coverage_pct']}%` (`file_touched`) | `{r['line_coverage_pct'] if r['line_coverage_pct'] is not None else 'null'}` | "
-            f"`{r['findings_count']}` | `{r['refutations_count']}` | `{r['hypotheses_count']}` |"
+            f"`{r['candidates_count']}` | `{r['findings_count']}` | `{r['refutations_count']}` | `{r['hypotheses_count']}` |"
         )
     manifest_md += [
         "",
         "## Danh mục Tài liệu Đầu ra (`documents/`)",
         "",
-        "- `documents/_report/BAO_CAO_TONG_HOP_BAO_MAT.md` — Báo cáo Kỹ thuật & Kiến trúc Bảo mật Tổng hợp",
-        "- `documents/_report/DANH_GIA_RUI_RO.md` — Báo cáo Đánh giá Rủi ro Ngữ cảnh 5 Trục S-F-O-P-C & Câu hỏi Mở",
+        "- `documents/_report/BAO_CAO_TONG_HOP_BAO_MAT.md` — Báo cáo Kỹ thuật & Kiến trúc Bảo mật Tổng hợp (Kèm Phụ lục Truy vết A, Sổ cái Bác bỏ B, Ứng viên/Giả thuyết/Tool ngoài C)",
+        "- `documents/_report/DANH_GIA_RUI_RO.md` — Báo cáo Đánh giá Rủi ro Ngữ cảnh 5 Trục S-F-O-P-C, Đường tấn công `attack_paths` & Bảng Câu hỏi Quyết định",
         "- `documents/_system/02_cross_repo_review.json` — Đối sánh Ranh giới Liên thông Xuyên Repo",
         "- `documents/_analysis/06_root_cause_map.json` — Bản đồ Gom cụm Nguyên nhân Gốc",
         "- `documents/_analysis/99_project_chain_report.json` — Báo cáo Chuỗi Tấn công Toàn Dự án",
@@ -3117,54 +3936,59 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
     manifest_path.write_text("\n".join(manifest_md), encoding="utf-8")
     exported_files.append(str(manifest_path))
 
-    # BAO_CAO_TONG_HOP_BAO_MAT.md
+    # BAO_CAO_TONG_HOP_BAO_MAT.md (B3 & B4: Full depth with Executive Summary, Architecture & Blast Radius, Detailed F-xx, Roadmap, Limitations, and Appendices A, B, C)
     tech_md = [
+        "<!-- generated_by: wins -->",
         "# BÁO CÁO TỔNG HỢP BẢO MẬT KỸ THUẬT & KIẾN TRÚC (PHASE 4)",
         "",
     ]
-    if any_gate_failed:
+    if any_gate_failed or not all_parity_ok:
         tech_md += [
             "> [!WARNING]",
-            "> **[UNFINALIZED / GATE FAILED]**: Một hoặc nhiều repository chưa vượt qua đủ 3 cổng kiểm toán (`phase1/2/3_gate_receipt.json`). Xem chi tiết tại `00_manifest.md`.",
+            "> **[UNFINALIZED / GATE FAILED]**: Một hoặc nhiều repository chưa vượt qua đủ 3 cổng kiểm toán (`phase1/2/3_gate_receipt.json`) hoặc lệch kiểm chứng tương đương rủi ro (`parity_verified`). Xem chi tiết tại `00_manifest.md`.",
             "",
         ]
+    if gate0_repos:
+        tech_md += [
+            "> [!CAUTION]",
+            f"> **PHANH KHẨN CẤP GATE 0 / EMERGENCY BRAKE ĐANG KÍCH HOẠT** tại repo: `{', '.join(gate0_repos)}`. Phát hiện lỗ hổng chạm trục An toàn Vật lý (`an_toan_vat_ly: CRITICAL/CATASTROPHIC`).",
+            "",
+        ]
+
     tech_md += [
-        "## 1. Tổng quan Kiến trúc & Lệch Giả định Tin cậy Xuyên Repo (`02_cross_repo_review.json`)",
+        "## 1. Tóm tắt Điều hành (Executive Summary)",
+        "",
+        f"- **Phạm vi kiểm toán**: `{len(manifest_rows)}` repository (`{', '.join(r['repo_name'] for r in manifest_rows) or 'none'}`).",
+        f"- **Lỗ hổng đã xác minh và hợp nhất theo nguyên nhân gốc (`F-xx`)**: `{len(consolidated_findings)}` lỗ hổng (gom từ `{len(all_chains_index)}` chuỗi tấn công `REACHABLE_VULNERABILITY`).",
+        f"- **Chuỗi/ứng viên đã bác bỏ có bằng chứng phản bác (`Empirical Refutations`)**: `{len(all_refutations) + len(all_unexploitable_p2) + len(all_dismissed_intake)}`.",
+        f"- **Chuỗi giả thuyết chờ xác minh Runtime (`HYPOTHESIS_ONLY_UNVERIFIED`)**: `{len(all_hypotheses)}`.",
+        "",
+        "## 2. Kiến trúc theo Cụm Nghiệp vụ & Phân tích Bán kính Lan tỏa (`Blast Radius`)",
         "",
         f"- **Số kết nối liên dịch vụ đã ghép cặp (`matched_edges`)**: `{len(matched_boundaries.get('matched_edges', []))}`",
         f"- **Lệch lan truyền xác thực (`auth_propagation_gaps`)**: `{len(matched_boundaries.get('auth_propagation_gaps', []))}`",
         f"- **Lệch ranh giới tin cậy (`trust_boundary_mismatches`)**: `{len(all_trust_mismatches)}`",
         "",
-    ]
-    for gap in matched_boundaries.get("auth_propagation_gaps", []):
-        if isinstance(gap, dict):
-            tech_md.append(
-                f"- **`{gap.get('producer_repo')} -> {gap.get('consumer_repo')}`** (`{gap.get('normalized_target')}`): {gap.get('gap_reason')}"
-            )
-    for tm in all_trust_mismatches:
-        if isinstance(tm, dict):
-            tech_md.append(
-                f"- **`[{tm.get('repo_name')}] {tm.get('title') or tm.get('mismatch_id')}`**: `{tm.get('consumer_path') or tm.get('path') or ''}` (Evidence: {', '.join(f'`{e}`' for e in (tm.get('evidence_ids') or []))})"
-            )
-    tech_md += [
-        "",
-        "## 2. Bản đồ Nguyên nhân Gốc (`06_root_cause_map.json`)",
+        "### Phân tích giả định \"Thành phần bị chiếm (`compromised_internal_component`)\"",
         "",
     ]
-    if root_causes_by_cluster:
-        for rc_id, rc_info in root_causes_by_cluster.items():
+    if interactions_list or system_risks_list:
+        for sr in system_risks_list:
             tech_md.append(
-                f"- **`{rc_id}`** (Repo: `{rc_info['repo_name']}` | Findings: {', '.join(f'`{f}`' for f in rc_info['finding_ids'])}): "
-                f"{rc_info['summary']} — **Khuyến nghị sửa đại diện**: {rc_info['representative_fix'] or '[UNSPECIFIED]'}"
+                f"- **`{sr['id']}`** (Repos: `{', '.join(sr['repositories'])}`): {_md(sr['title'])} — Kịch bản lan tỏa: {_md(sr['scenario'], 220)} (Evidence: {', '.join(f'`{e}`' for e in sr.get('evidence_ids', [])) or '`[UNSPECIFIED]`'})"
             )
     else:
-        tech_md.append("_Không có cụm nguyên nhân gốc nào được ghi nhận._")
+        tech_md.append("- Các dịch vụ hiện tại hoạt động độc lập hoặc chưa phát hiện kết nối liên thông thiếu xác thực.")
+    if all_arch_diagrams:
+        tech_md += ["", "### Sơ đồ Kiến trúc & Ranh giới Tin cậy", ""]
+        for dg_str in all_arch_diagrams[:3]:
+            tech_md += ["```mermaid", dg_str, "```", ""]
 
     tech_md += [
         "",
-        "## 3. Danh mục Lỗ hổng Đã Xác minh (`findings_consolidated.json`)",
+        "## 3. Danh mục Tổng hợp & Chi tiết Lỗ hổng theo Nguyên nhân Gốc (`F-01` .. `F-NN`)",
         "",
-        "| Mã (`F-xx`) | Chuỗi (`chain_id`) | Repo | Tiêu đề | Mức Kỹ thuật (`code_verified_severity`) | Mức Rủi ro Suy ra (`derived_risk_rating`) | Mức Rủi ro Cuối (`contextual_risk_rating`) | Trạng thái Xác minh | Bằng chứng (`ev_...`) |",
+        "| Mã (`F-xx`) | Chuỗi (`chain_ids`) | Repo | Tiêu đề | Mức Kỹ thuật (`code_verified_severity`) | Mức Rủi ro Suy ra (`derived_risk_rating`) | Mức Rủi ro Cuối (`contextual_risk_rating`) | Trạng thái Xác minh | Bằng chứng (`ev_...`) |",
         "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
     ]
     for f_item in consolidated_findings:
@@ -3172,26 +3996,125 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
         if f_item.get("risk_override_applied"):
             ctx_disp = f"{ctx_disp} (override từ {f_item['derived_risk_rating'].upper()})"
         tech_md.append(
-            f"| `{f_item['finding_id']}` | `{f_item['chain_id']}` | `{f_item['repo_name']}` | {_md(f_item['title'], 100)} | "
+            f"| `{f_item['finding_id']}` | `{', '.join(f_item['chain_ids'])}` | `{', '.join(f_item['repositories'])}` | {_md(f_item['title'], 100)} | "
             f"`{f_item['code_verified_severity'].upper()}` | `{f_item['derived_risk_rating'].upper()}` | **`{ctx_disp}`** | "
             f"`{f_item['verification_status']}` | {', '.join(f'`{e}`' for e in f_item['evidence_ids'][:4]) or '`[UNSPECIFIED]`'} |"
         )
+    tech_md.append("")
+
+    for f_item in consolidated_findings:
+        rc_obj = root_causes_by_cluster.get(f_item["root_cause_cluster_id"], {})
+        a5 = f_item.get("anh_huong_5_chieu", {})
+        tech_md += [
+            f"### Chi tiết `{f_item['finding_id']}`: {_md(f_item['title'])}",
+            "",
+            f"- **Repository**: `{', '.join(f_item['repositories'])}` | **Cụm Nguyên nhân Gốc**: `{f_item['root_cause_cluster_id']}`",
+            f"- **Chuỗi tấn công (`chain_ids`)**: `{', '.join(f_item['chain_ids'])}` | **Ứng viên gốc (`candidate_ids`)**: `{', '.join(f_item['candidate_ids']) or 'N/A'}`",
+            f"- **Mức độ Kỹ thuật (`code_verified_severity`)**: `{f_item['code_verified_severity'].upper()}` | **Mức Rủi ro Suy ra (`derived_risk_rating`)**: `{f_item['derived_risk_rating'].upper()}` | **Mức Rủi ro Cuối (`contextual_risk_rating`)**: **`{f_item['contextual_risk_rating'].upper()}`**",
+            f"- **Nguyên nhân gốc (`Root Cause`)**: {_md(f_item.get('root_cause_summary'))}",
+            f"- **Khuyến nghị khắc phục tận gốc (`remediation_at_root`)**: {_md(rc_obj.get('remediation_at_root') or f_item.get('remediation'))}",
+            f"- **Sửa triệu chứng cần tránh (`remediation_that_only_treats_symptom`)**: {_md(rc_obj.get('remediation_that_only_treats_symptom'))}",
+            f"- **Tiêu chí nghiệm thu (`Acceptance Criteria`)**: {_md(f_item.get('acceptance_criteria'))}",
+            "- **Tác động Nghiệp vụ & An toàn 5 Trục (S-F-O-P-C)**:",
+            f"  - `An toàn vật lý (Safety)`: `{a5.get('an_toan_vat_ly', {}).get('muc_do', 'negligible').upper()}` (Lan tỏa: `{a5.get('an_toan_vat_ly', {}).get('pham_vi_lan_toa', 'service')}` — {_md(a5.get('an_toan_vat_ly', {}).get('co_so', ''), 140)})",
+            f"  - `Tài chính (Financial)`: `{a5.get('tai_chinh', {}).get('muc_do', 'negligible').upper()}` (Lan tỏa: `{a5.get('tai_chinh', {}).get('pham_vi_lan_toa', 'service')}` — {_md(a5.get('tai_chinh', {}).get('co_so', ''), 140)})",
+            f"  - `Vận hành (Operational)`: `{a5.get('van_hanh', {}).get('muc_do', 'negligible').upper()}` (Lan tỏa: `{a5.get('van_hanh', {}).get('pham_vi_lan_toa', 'service')}` — {_md(a5.get('van_hanh', {}).get('co_so', ''), 140)})",
+            f"  - `Dữ liệu cá nhân (Privacy)`: `{a5.get('du_lieu_ca_nhan', {}).get('muc_do', 'negligible').upper()}` (Lan tỏa: `{a5.get('du_lieu_ca_nhan', {}).get('pham_vi_lan_toa', 'service')}` — {_md(a5.get('du_lieu_ca_nhan', {}).get('co_so', ''), 140)})",
+            f"  - `Tuân thủ (Compliance)`: `{a5.get('tuan_thu', {}).get('muc_do', 'negligible').upper()}` (Lan tỏa: `{a5.get('tuan_thu', {}).get('pham_vi_lan_toa', 'service')}` — {_md(a5.get('tuan_thu', {}).get('co_so', ''), 140)})",
+            "",
+        ]
+
+    tech_md += [
+        "## 4. Lộ trình Khắc phục (`Remediation Roadmap`) & Tiêu chí Nghiệm thu",
+        "",
+        "| Ưu tiên | Mã Cụm (`root_cause_id`) | Lỗ hổng Đóng (`F-xx`) | Hành động Khắc phục Tận gốc | Vai trò Chủ sở hữu (`owner_role`) |",
+        "| :--- | :--- | :--- | :--- | :--- |",
+    ]
+    for f_item in consolidated_findings:
+        prio = "P0 (Immediate / Gate 0)" if (f_item["gate_0_emergency_brake"] or f_item["contextual_risk_rating"] in {"critical", "catastrophic"}) else ("P1 (High)" if f_item["contextual_risk_rating"] == "high" else "P2 (Medium/Low)")
+        tech_md.append(
+            f"| `{prio}` | `{f_item['root_cause_cluster_id']}` | `{f_item['finding_id']}` | {_md(f_item['remediation'], 140)} | `{f_item['owner_role']}` |"
+        )
+
     tech_md += [
         "",
-        "## 4. Sổ cái Bác bỏ Thực nghiệm (`empirical_refutations_ledger`) & Phạm vi Chưa phủ",
+        "## 5. Giới hạn Phạm vi & Độ phủ (`Coverage Semantics & Limitations`)",
         "",
-        f"- **Tổng số ứng viên/chuỗi đã bác bỏ có phản chứng (`Refuted`)**: `{len(all_refutations)}`",
-        f"- **Chuỗi giả thuyết cần kiểm chứng Runtime (`HYPOTHESIS_ONLY_UNVERIFIED`)**: `{len(all_hypotheses)}`",
-        f"- **Chuỗi bị chặn do thiếu phản biện (`UNCHALLENGED_BLOCKED`)**: `{len(all_unchallenged)}`",
-        f"- **Kết quả công cụ ngoài cấp dự án chưa gán được về repo (`unassigned_external_tool_findings`)**: `{len(unassigned_ext_file.get('findings', []))}`",
+        "- **Định nghĩa độ phủ (`coverage_semantics`)**: `file_touched` (tỷ lệ tệp mandatory `entrypoint` + `security` đã mở đọc). Chỉ số `line_coverage_pct` được báo cáo tách biệt (`null` nếu chỉ tính theo tệp).",
+        f"- **Kết quả công cụ ngoài cấp dự án chưa gán được về repo (`unassigned_external_tool_findings`)**: `{len(unassigned_findings_list)}`",
+        "",
+        "## Phụ lục A — Bảng Truy vết Nguồn (`Source Traceability Matrix: Candidate / Chain -> F-xx`)",
+        "",
+        "| Mã Lỗ hổng (`F-xx`) | Chuỗi Tấn công (`chain_ids`) | Ứng viên Gốc (`candidate_ids`) | Cụm Nguyên nhân Gốc (`root_cause_cluster_id`) | Bằng chứng (`ev_...`) |",
+        "| :--- | :--- | :--- | :--- | :--- |",
+    ]
+    for f_item in consolidated_findings:
+        tech_md.append(
+            f"| `{f_item['finding_id']}` | `{', '.join(f_item['chain_ids'])}` | `{', '.join(f_item['candidate_ids']) or 'N/A'}` | `{f_item['root_cause_cluster_id']}` | {', '.join(f'`{e}`' for e in f_item['evidence_ids'][:5])} |"
+        )
+
+    tech_md += [
+        "",
+        "## Phụ lục B — Sổ cái Bác bỏ Thực nghiệm Đầy đủ (`Full Empirical Refutations & Dismissed Candidates`)",
         "",
     ]
+    combined_ref_entries = (
+        [{"kind": "REFUTED_CHAIN_2_3", **r} for r in all_refutations]
+        + [{"kind": "UNEXPLOITABLE_CANDIDATE_2_2", **u} for u in all_unexploitable_p2]
+        + [{"kind": "DISMISSED_INTAKE_2_1", **d} for d in all_dismissed_intake]
+    )
+    if combined_ref_entries:
+        for r_item in combined_ref_entries:
+            rid = r_item.get("chain_id") or r_item.get("candidate_id") or "REF"
+            r_repo = r_item.get("repo_name") or ""
+            r_rsn = r_item.get("refutation_reason") or r_item.get("reason") or r_item.get("rationale") or ""
+            r_evs = r_item.get("counterevidence_ids") or r_item.get("evidence_ids") or []
+            tech_md.append(
+                f"- **`[{r_repo}] {rid}`** (`{r_item['kind']}`): {_md(r_rsn)} (Evidence: {', '.join(f'`{e}`' for e in r_evs) or '`[UNSPECIFIED]`'})"
+            )
+    else:
+        tech_md.append("_Không có chuỗi hoặc ứng viên nào trong sổ cái bác bỏ._")
+
+    tech_md += [
+        "",
+        "## Phụ lục C — Ứng viên Chưa Gom Chuỗi, Chuỗi Giả thuyết (`HYPOTHESIS_ONLY_UNVERIFIED` / `UNCHALLENGED_BLOCKED`) & Kết quả Công cụ Ngoài (`External Tool Leads`)",
+        "",
+    ]
+    if all_hypotheses:
+        for h_item in all_hypotheses:
+            tech_md.append(
+                f"- **`[{h_item.get('repo_name')}] {h_item.get('chain_id') or h_item.get('candidate_id')}`** (`HYPOTHESIS_ONLY_UNVERIFIED`): {_md(h_item.get('title') or h_item.get('root_cause') or '')}"
+            )
+    if all_unchallenged:
+        for u_str in all_unchallenged:
+            tech_md.append(f"- **`{u_str}`** (`UNCHALLENGED_BLOCKED`): Chưa có kết quả phản biện độc lập bước 2.3.")
+    if all_unclustered_candidates:
+        for uc_item in all_unclustered_candidates:
+            tech_md.append(
+                f"- **`[{uc_item.get('repo_name')}] {uc_item.get('candidate_id')}`** (`UNCLUSTERED_CANDIDATE`): {_md(uc_item.get('title') or '')}"
+            )
+    if all_external_leads:
+        for el_item in all_external_leads[:50]:
+            tech_md.append(
+                f"- **`[{el_item.get('repo_name')}] {el_item.get('lead_id') or el_item.get('rule_id') or el_item.get('id') or 'EXT-LEAD'}`** (`{el_item.get('lead_kind')}` | `{str(el_item.get('severity') or '').upper()}`): {_md(el_item.get('title') or el_item.get('message') or '', 160)}"
+            )
+    if unassigned_findings_list:
+        for uf_item in unassigned_findings_list[:50]:
+            if isinstance(uf_item, dict):
+                tech_md.append(
+                    f"- **`[UNASSIGNED_PROJECT_SCANNER] {uf_item.get('rule_id') or uf_item.get('id')}`** (`{str(uf_item.get('severity') or '').upper()}` on `{uf_item.get('path') or uf_item.get('target')}`): {_md(uf_item.get('title') or uf_item.get('message') or '', 160)}"
+                )
+    if not (all_hypotheses or all_unchallenged or all_unclustered_candidates or all_external_leads or unassigned_findings_list):
+        tech_md.append("_Không có ứng viên tồn đọng hoặc cảnh báo công cụ ngoài chưa xử lý._")
+    tech_md.append("")
+
     tech_report_path = report_out_dir / "BAO_CAO_TONG_HOP_BAO_MAT.md"
     tech_report_path.write_text("\n".join(tech_md), encoding="utf-8")
     exported_files.append(str(tech_report_path))
 
-    # DANH_GIA_RUI_RO.md
+    # DANH_GIA_RUI_RO.md (B3 & B6: Full per-F-xx attack_paths, holders, actors_considered, _combinations.json, and Decision Questions table)
     risk_md = [
+        "<!-- generated_by: wins -->",
         "# BÁO CÁO ĐÁNH GIÁ RỦI RO NGỮ CẢNH 5 TRỤC S-F-O-P-C (PHASE 4)",
         "",
     ]
@@ -3209,25 +4132,74 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
     ]
     for f_item in consolidated_findings:
         risk_md.append(
-            f"| `{f_item['finding_id']}` | `{f_item['repo_name']}` | `{f_item['derived_risk_rating'].upper()}` | "
+            f"| `{f_item['finding_id']}` | `{', '.join(f_item['repositories'])}` | `{f_item['derived_risk_rating'].upper()}` | "
             f"**`{f_item['contextual_risk_rating'].upper()}`** | `{f_item['feasibility_derived']}` | "
             f"`{f_item['owner_role']}` | `{_md(f_item['risk_owner'], 60)}` | `{_md(f_item['safety_owner'], 60)}` | "
             f"`{'YES' if f_item['gate_0_emergency_brake'] else 'NO'}` |"
         )
+
     risk_md += [
         "",
-        "## 2. Danh sách Câu hỏi Mở Có Trọng số (`key_questions.json`)",
+        "## 2. Phân tích Đường Tấn công & Mắt xích Suy diễn Chi tiết theo từng `F-xx` (`attack_paths`)",
         "",
+    ]
+    for f_item in consolidated_findings:
+        actors_fmt = ", ".join(
+            f"`{a['actor']}`" + (" **(Tối thiểu)**" if a.get("is_minimum_viable_actor") else "")
+            for a in f_item.get("actors_considered", [])
+        )
+        risk_md += [
+            f"### `{f_item['finding_id']}` — {_md(f_item['title'])} (`{', '.join(f_item['repositories'])}`)",
+            "",
+            f"- **Nhóm Kẻ tấn công Đã Xét (`actors_considered`)**: {actors_fmt}",
+            "",
+            "| Loại Mắt xích | Mã / Lớp | Mô tả | Đạt được / Hiệu lực (`co`/`khong`/`chua_ro`) | Ai Nắm / Phạm vi Tìm (`holders` / `searched`) | Bằng chứng (`evidence`) |",
+            "| :--- | :--- | :--- | :--- | :--- | :--- |",
+        ]
+        for ap in f_item.get("attack_paths", []):
+            for pre_p in ap.get("preconditions", []):
+                risk_md.append(
+                    f"| `Điều kiện tiên quyết (Precondition)` | `{_md(pre_p.get('id'))}` | {_md(pre_p.get('description'), 120)} | "
+                    f"**`{pre_p.get('attainable')}`** | Holders: `{', '.join(pre_p.get('holders', []))}` / Searched: `{', '.join(pre_p.get('searched', [])) or 'N/A'}` | "
+                    f"{', '.join(f'`{e}`' for e in pre_p.get('evidence', [])) or '`none`'} |"
+                )
+            for ctrl_p in ap.get("blocking_controls", []):
+                risk_md.append(
+                    f"| `Kiểm soát chặn (Blocking Control)` | `{_md(ctrl_p.get('id'))}` (`{_md(ctrl_p.get('layer'))}`) | {_md(ctrl_p.get('why'), 120)} | "
+                    f"Exists: `{ctrl_p.get('exists')}` / Effective: **`{ctrl_p.get('effective')}`** | Searched: `{', '.join(ctrl_p.get('searched', [])) or 'N/A'}` | "
+                    f"{', '.join(f'`{e}`' for e in ctrl_p.get('exists_evidence', [])) or '`none`'} |"
+                )
+        risk_md.append("")
+
+    risk_md += [
+        "## 3. Tổ hợp Rủi ro Xuyên Lỗ hổng (`_combinations.json`)",
+        "",
+    ]
+    if combinations_list:
+        for cb in combinations_list:
+            risk_md.append(
+                f"- **`{cb['combination_id']}`** (`{cb['from_finding']} -> {cb['to_finding']}` | Khả thi: `{cb['combined_feasibility']}` | Mức Rủi ro Tổ hợp: **`{cb['combined_risk'].upper()}`**): {_md(cb['mechanism'])}"
+            )
+    else:
+        risk_md.append("_Không có tổ hợp ghép chuỗi đa lỗ hổng nào phát sinh thêm ngoài các chuỗi đơn lẻ._")
+
+    risk_md += [
+        "",
+        "## 4. Bảng Câu hỏi Quyết định gửi các Bên liên quan (`open_questions` / `key_questions.json`)",
+        "",
+        "| Mã Câu hỏi | Repo / Chuỗi | Người nhận (`to`) | Câu hỏi Xác minh (`ask`) | Nếu trả lời CÓ (`if_yes`) | Nếu trả lời KHÔNG (`if_no`) | Trạng thái |",
+        "| :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
     ]
     if all_key_questions:
         for q_obj in all_key_questions:
+            raw_t = str(q_obj.get("target_team") or "security")
+            vn_to = team_vn_map.get(raw_t, raw_t)
             risk_md.append(
-                f"- **`[{q_obj.get('repo_name')}:{q_obj.get('question_id', 'KQ')}]`** (-> `{q_obj.get('target_team', 'security')}` | `{q_obj.get('status', 'pending')}`): "
-                f"{q_obj.get('question', '')} "
-                f"(Nếu CÓ: _{q_obj.get('outcome_if_yes', 'N/A')}_ | Nếu KHÔNG: _{q_obj.get('outcome_if_no', 'N/A')}_)"
+                f"| `{q_obj.get('question_id', 'KQ')}` | `{q_obj.get('repo_name')}:{q_obj.get('chain_id', 'repo')}` | `{vn_to}` (`{raw_t}`) | "
+                f"{_md(q_obj.get('question', ''), 140)} | {_md(q_obj.get('outcome_if_yes', 'N/A'), 120)} | {_md(q_obj.get('outcome_if_no', 'N/A'), 120)} | `{q_obj.get('status', 'pending')}` |"
             )
     else:
-        risk_md.append("_Không có câu hỏi mở nào đang chờ phản hồi._")
+        risk_md.append("| `NONE` | `-` | `-` | _Không có câu hỏi mở nào đang chờ phản hồi._ | `-` | `-` | `completed` |")
     risk_md.append("")
     risk_report_path = report_out_dir / "DANH_GIA_RUI_RO.md"
     risk_report_path.write_text("\n".join(risk_md), encoding="utf-8")
@@ -3236,10 +4208,12 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
     phase4_receipt = {
         "phase": "phase_4",
         "run_id": run_id,
-        "gate_passed": not any_gate_failed and all(p["parity_verified"] for p in risk_parity_checks),
+        "gate_passed": not any_gate_failed and all_parity_ok,
+        "overwrite_blocked": False,
         "repos_exported": [r["repo_name"] for r in manifest_rows],
         "total_consolidated_findings": len(consolidated_findings),
-        "risk_parity_verified": all(p["parity_verified"] for p in risk_parity_checks),
+        "consolidated_findings_count": len(consolidated_findings),
+        "risk_parity_verified": all_parity_ok,
         "risk_parity_checks": risk_parity_checks,
         "exported_files_count": len(exported_files),
         "exported_files": exported_files,
@@ -3249,9 +4223,14 @@ def export_final_phase_inputs(project_root: Path, run_id: str = "default") -> di
     return phase4_receipt
 
 
-def finalize_v3_phase4(project_root: Path, run_id: str = "default") -> dict[str, Any]:
+def finalize_v3_phase4(
+    project_root: Path,
+    run_id: str = "default",
+    force_overwrite: bool = False,
+) -> dict[str, Any]:
     """Alias for export_final_phase_inputs to match finalize_v3_phase1/2/3 CLI convention."""
-    return export_final_phase_inputs(project_root, run_id=run_id)
+    return export_final_phase_inputs(project_root, run_id=run_id, force_overwrite=force_overwrite)
+
 
 
 

@@ -1293,6 +1293,10 @@ class LocalSecV30VinSOCPipelineTests(unittest.TestCase):
             # 4. R2-P0-04: generate_coverage_matrix defaults to 'unassessed' with [] evidence_ids
             run_dir = proj / ".localsec" / "runs" / "default" / "svc-a"
             run_dir.mkdir(parents=True)
+            (run_dir / "workspace_state.json").write_text(
+                json.dumps({"repo_name": "svc-a", "run_id": "default", "evidence": {ev: self.ws.evidence[ev]}, "tool_log": [], "read_ranges": {}}),
+                encoding="utf-8",
+            )
             (run_dir / "codebase_scout.json").write_text(
                 json.dumps({"target_modules": ["src/api", "src/admin"]}),
                 encoding="utf-8",
@@ -2117,10 +2121,375 @@ class LocalSecV30VinSOCPipelineTests(unittest.TestCase):
             exec_md = (proj / "documents" / "02_executive_risk_and_key_questions.md").read_text(encoding="utf-8")
             self.assertIn("MEDIUM (derived: HIGH)", exec_md)
             self.assertIn("unassigned_project_external_findings", exec_md)
+            self.assertIn("CVE-2026-7777", exec_md)
+            self.assertIn("unmapped-legacy-image:latest", exec_md)
+
+    def test_v30_round5_c1_c3_c5_c8_and_b1_to_b6(self) -> None:
+        """Verify all Round 5 ('Kiểm tra Đợt 4') fixes:
+        - C1: localsec-blinded-challenger.md has tools: Bash, Read, Write and matcher: '*';
+              claude_subagent_guard intercepts Write/Edit/PowerShell/Task and anchors Read whitelist to TOOLKIT_ROOT
+        - C3: Endpoint spot-check requires full handler line span [l_start, req_end], not 1-line overlap
+        - C5: render_v3_reports prints each item in unassigned_project_external_findings
+        - C8: finalize_v3_phase2 enforces non-empty ws_evidence_ids
+        - B1: All exported files in documents/ conform to report.py collect and risk.py schemas
+        - B2: Overwrite guard refuses to clobber non-wins documents/ files without force_overwrite=True
+        - B3/B4/B6: Root-cause cluster consolidation into F-xx and full-depth BAO_CAO_TONG_HOP_BAO_MAT.md & DANH_GIA_RUI_RO.md
+        - B5: Risk parity re-derivation honors runtime_environment_facts.json controls and fails parity if derived_risk_rating is missing
+        """
+        import json
+        from localsec.claude_subagent_guard import evaluate_tool_use
+        from localsec.orchestrator import (
+            audit_visibility_and_coverage,
+            finalize_v3_phase1,
+            finalize_v3_phase2,
+            finalize_v3_phase3,
+            inventory_repo,
+        )
+        from localsec.reporting import export_final_phase_inputs
+
+        # 1. C1: Check .claude/agents/localsec-blinded-challenger.md frontmatter & submit_skill syntax
+        agent_md = (Path(__file__).resolve().parents[1] / ".claude" / "agents" / "localsec-blinded-challenger.md").read_text(encoding="utf-8")
+        self.assertIn("tools: Bash, Read, Write", agent_md)
+        self.assertIn('matcher: "*"', agent_md)
+        self.assertNotIn("--input-file", agent_md)
+
+        # Write tool whitelist: only .localsec/tmp/<draft>.json (not blinded_chains_*.json, not source code)
+        self.assertEqual(
+            evaluate_tool_use(
+                {"tool_name": "Write", "tool_input": {"file_path": ".localsec/tmp/draft_2_3.json"}},
+                mode="blinded_challenger",
+            )["decision"],
+            "approve",
+        )
+        self.assertEqual(
+            evaluate_tool_use(
+                {"tool_name": "Write", "tool_input": {"file_path": ".localsec/tmp/blinded_chains_svc.json"}},
+                mode="blinded_challenger",
+            )["decision"],
+            "block",
+        )
+        self.assertEqual(
+            evaluate_tool_use(
+                {"tool_name": "Write", "tool_input": {"file_path": "src/controller.py"}},
+                mode="blinded_challenger",
+            )["decision"],
+            "block",
+        )
+        # Read tool anchored to TOOLKIT_ROOT: a target repo file 'svc/contracts/api.json' must be BLOCKED
+        self.assertEqual(
+            evaluate_tool_use(
+                {"tool_name": "Read", "tool_input": {"file_path": "/tmp/target_project/svc/contracts/api.json"}},
+                mode="blinded_challenger",
+            )["decision"],
+            "block",
+        )
+        # Task and PowerShell tools blocked in blinded mode
+        self.assertEqual(
+            evaluate_tool_use(
+                {"tool_name": "Task", "tool_input": {"prompt": "read deep_trace_chain_analyst.json"}},
+                mode="blinded_challenger",
+            )["decision"],
+            "block",
+        )
+        self.assertEqual(
+            evaluate_tool_use(
+                {"tool_name": "PowerShell", "tool_input": {"command": "Get-Content .localsec/runs/default/svc/deep_trace_chain_analyst.json"}},
+                mode="blinded_challenger",
+            )["decision"],
+            "block",
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp)
+            svc = proj / "svc-core"
+            (svc / "src").mkdir(parents=True)
+            lines = [f"# line {i}" for i in range(1, 70)]
+            lines[4] = "@app.post('/api/v1/wallets/{id}')"
+            (svc / "src" / "wallet.py").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+            inv = inventory_repo(proj, "svc-core", run_id="default")
+            ws = ManualWorkspace(svc, "svc-core", dict(self.cfg), "default", project_root=proj)
+            # 2. C3: Read lines 1..45 (which touches line 45, the very first line of EP-5 [45..55], but NOT lines 46..55!)
+            ev1 = ws.read_file("unified_surface_mapper", "src/wallet.py", 1, 45)["evidence_id"]
+            surf_payload = {
+                "surface_checklist": {"public_http": {"status": "present"}},
+                "entrypoints": [
+                    {"id": "EP-1", "method": "POST", "path": "/w1", "file": "src/wallet.py", "line_start": 1, "line_end": 10, "evidence_ids": [ev1]},
+                    {"id": "EP-2", "method": "POST", "path": "/w2", "file": "src/wallet.py", "line_start": 15, "line_end": 24, "evidence_ids": [ev1]},
+                    {"id": "EP-3", "method": "POST", "path": "/w3", "file": "src/wallet.py", "line_start": 25, "line_end": 34, "evidence_ids": [ev1]},
+                    {"id": "EP-4", "method": "POST", "path": "/w4", "file": "src/wallet.py", "line_start": 35, "line_end": 44, "evidence_ids": [ev1]},
+                    {"id": "EP-5", "method": "POST", "path": "/w5", "file": "src/wallet.py", "line_start": 45, "line_end": 55, "evidence_ids": []},
+                ],
+                "semantic_clusters": [
+                    {
+                        "cluster_id": "CL-WALLET",
+                        "representative_endpoint": "EP-1",
+                        "representative_file": "src/wallet.py",
+                        "representative_deep_read_evidence_ids": [ev1],
+                        "member_endpoints": ["EP-1", "EP-2", "EP-3", "EP-4", "EP-5"],
+                        "member_files": ["src/wallet.py"],
+                        "outliers": [],
+                    }
+                ],
+                "data_flows": [
+                    {"source": "svc-core", "target": "ledger-db", "protocol": "postgres", "destination": "postgres://ledger-db:5432"}
+                ],
+                "candidate_queue": [
+                    {"candidate_id": "cand_w1", "title": "Wallet BOLA 1", "target_paths": ["src/wallet.py"], "attack_classes": ["BOLA"], "status": "pending", "evidence_ids": [ev1]},
+                    {"candidate_id": "cand_w2", "title": "Wallet BOLA 2", "target_paths": ["src/wallet.py"], "attack_classes": ["BOLA"], "status": "pending", "evidence_ids": [ev1]},
+                ],
+            }
+            # Suppose deterministic spot-check picks one of EP-2..EP-5; if we only read 1..20, any endpoint with line_end > 20 fails full-span check
+            ws_partial = ManualWorkspace(svc, "svc-core", dict(self.cfg), "default", project_root=proj)
+            ws_partial.read_file("unified_surface_mapper", "src/wallet.py", 1, 15)
+            # Touch 1 line of each non-rep endpoint without reading its full span
+            ws_partial.read_ranges["src/wallet.py"] = [(1, 15), (25, 25), (35, 35), (45, 45)]
+            vis_partial = audit_visibility_and_coverage(
+                workspace=ws_partial,
+                scout_map={"target_modules": ["src"]},
+                coverage_ledger={"records": [], "semantic_clusters": surf_payload["semantic_clusters"]},
+                inventory=inv,
+                surface_map=surf_payload,
+            )
+            self.assertFalse(vis_partial["gate_passed"])
+
+            # Now read full file in ws
+            ev2 = ws.read_file("unified_surface_mapper", "src/wallet.py", 46, 65)["evidence_id"]
+            run_dir = proj / ".localsec" / "runs" / "default" / "svc-core"
+            run_dir.mkdir(parents=True, exist_ok=True)
+            (run_dir / "unified_surface_mapper.json").write_text(json.dumps(surf_payload), encoding="utf-8")
+            (run_dir / "codebase_scout.json").write_text(
+                json.dumps({
+                    "repo_tier": "tier_1",
+                    "product_archetypes": ["payment_wallet_billing"],
+                    "coding_conventions": {"language": "Python", "framework": "FastAPI"},
+                    "target_modules": ["src"],
+                    "ignored_modules": [],
+                }),
+                encoding="utf-8",
+            )
+            (run_dir / "intent_invariant_modeler.json").write_text(
+                json.dumps({
+                    "invariants": [{"invariant_id": "INV-W1", "axis": "financial", "statement": "Verify wallet owner", "source_type": "authoritative_doc", "status": "confirmed", "evidence_ids": [ev1]}],
+                    "self_challenged_gaps": [{"gap_id": "GAP-W1", "axis": "financial", "title": "Concurrent withdrawal lock", "target_module": "src", "verification_status": "unverified", "evidence_ids": [ev1]}],
+                }),
+                encoding="utf-8",
+            )
+
+            # 3. C8: Empty ws_evidence_ids in workspace_state.json must fail finalize_v3_phase2
+            (run_dir / "workspace_state.json").write_text(
+                json.dumps({"repo_name": "svc-core", "run_id": "default", "evidence": {}, "tool_log": [], "read_ranges": {"src/wallet.py": [[1, 65]]}}),
+                encoding="utf-8",
+            )
+            (run_dir / "candidate_queue.json").write_text(
+                json.dumps({"candidates": [{"candidate_id": "cand_w1"}, {"candidate_id": "cand_w2"}]}),
+                encoding="utf-8",
+            )
+            (run_dir / "deep_trace_chain_analyst.json").write_text(
+                json.dumps({
+                    "chains": [
+                        {
+                            "chain_id": "CHAIN-W1",
+                            "candidate_ids": ["cand_w1"],
+                            "title": "Wallet Withdraw BOLA",
+                            "chain_verdict": "code_supported",
+                            "code_verified_severity": "high",
+                            "root_cause_cluster_id": "RC-WALLET-OWNER",
+                            "root_cause": "Missing wallet owner check in service layer",
+                            "remediation": "Check wallet.user_id == current_user.id",
+                            "hops": [{"hop_id": "H1", "hop_kind": "in_process", "file": "src/wallet.py", "line_start": 1, "line_end": 10, "evidence_ids": [ev1]}],
+                            "request_plan": {"execution_status": "not_executed", "discriminating_requests": ["POST /w1"]},
+                            "evidence_ids": [ev1],
+                        },
+                        {
+                            "chain_id": "CHAIN-W2",
+                            "candidate_ids": ["cand_w2"],
+                            "title": "Wallet Transfer BOLA",
+                            "chain_verdict": "code_supported",
+                            "code_verified_severity": "high",
+                            "root_cause_cluster_id": "RC-WALLET-OWNER",
+                            "root_cause": "Missing wallet owner check in service layer",
+                            "remediation": "Check wallet.user_id == current_user.id",
+                            "hops": [{"hop_id": "H1", "hop_kind": "in_process", "file": "src/wallet.py", "line_start": 15, "line_end": 24, "evidence_ids": [ev1]}],
+                            "request_plan": {"execution_status": "not_executed", "discriminating_requests": ["POST /w2"]},
+                            "evidence_ids": [ev1],
+                        },
+                    ],
+                    "unexploitable_candidates": [],
+                }),
+                encoding="utf-8",
+            )
+            six_locs = {
+                loc: {"status": "checked_not_found", "searched_paths": ["src/wallet.py"], "evidence_ids": [ev1]}
+                for loc in (
+                    "global_middleware_or_filter",
+                    "gateway_or_ingress_config",
+                    "service_or_domain_guard",
+                    "orm_global_filter_or_scoped_query",
+                    "db_constraint_rls_or_trigger",
+                    "upstream_caller_validation",
+                )
+            }
+            (run_dir / "blinded_counterevidence_challenger.json").write_text(
+                json.dumps({
+                    "challenged_chains": [
+                        {"chain_id": "CHAIN-W1", "challenge_verdict": "confirmed_exploit_chain", "control_search_checklist": six_locs, "counter_evidence_ids": []},
+                        {"chain_id": "CHAIN-W2", "challenge_verdict": "confirmed_exploit_chain", "control_search_checklist": six_locs, "counter_evidence_ids": []},
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            p2_empty_ws = finalize_v3_phase2(proj, "svc-core", run_id="default")
+            self.assertFalse(p2_empty_ws["gate_passed"])
+
+            # Now write real evidence into workspace_state.json and run Phase 1, 2, 3
+            (run_dir / "workspace_state.json").write_text(
+                json.dumps({"repo_name": "svc-core", "run_id": "default", "evidence": ws.evidence, "tool_log": [], "read_ranges": {"src/wallet.py": [[1, 65]]}}),
+                encoding="utf-8",
+            )
+            p1_ok = finalize_v3_phase1(proj, "svc-core", run_id="default")
+            self.assertTrue(p1_ok["gate_passed"])
+
+            all_cands = [c["candidate_id"] for c in json.loads((run_dir / "candidate_queue.json").read_text(encoding="utf-8"))["candidates"]]
+            dt_data = json.loads((run_dir / "deep_trace_chain_analyst.json").read_text(encoding="utf-8"))
+            dt_data["chains"][0]["candidate_ids"] = all_cands[:1]
+            dt_data["chains"][1]["candidate_ids"] = all_cands[1:] if len(all_cands) > 1 else all_cands[:1]
+            (run_dir / "deep_trace_chain_analyst.json").write_text(json.dumps(dt_data), encoding="utf-8")
+            (run_dir / "blinded_counterevidence_challenger.json").write_text(
+                (run_dir / "blinded_counterevidence_challenger.json").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+
+            p2_ok = finalize_v3_phase2(proj, "svc-core", run_id="default")
+            self.assertTrue(p2_ok["gate_passed"])
+
+            (run_dir / "actor_and_feasibility_assessor.json").write_text(
+                json.dumps({
+                    "actor_assessments": [
+                        {
+                            "chain_id": "CHAIN-W1",
+                            "minimum_actor": "authenticated_user",
+                            "identity_acquisition_cost": "low",
+                            "preconditions": [{"precondition_id": "P-W1", "description": "Valid account", "precondition_status": "yes", "evidence_ids": [ev1], "searched_paths": ["src/wallet.py"]}],
+                            "evidence_ids": [ev1],
+                        },
+                        {
+                            "chain_id": "CHAIN-W2",
+                            "minimum_actor": "authenticated_user",
+                            "identity_acquisition_cost": "low",
+                            "preconditions": [{"precondition_id": "P-W2", "description": "Valid account", "precondition_status": "yes", "evidence_ids": [ev1], "searched_paths": ["src/wallet.py"]}],
+                            "evidence_ids": [ev1],
+                        },
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            (run_dir / "beyond_code_control_mapper.json").write_text(
+                json.dumps({"beyond_code_controls": []}),
+                encoding="utf-8",
+            )
+            (run_dir / "sfop_risk_calibrator.json").write_text(
+                json.dumps({
+                    "calibrated_findings": [
+                        {
+                            "finding_id": "FIND-W1",
+                            "chain_id": "CHAIN-W1",
+                            "impact_axes": {"safety": "negligible", "financial": "critical", "operational": "medium", "privacy": "low", "compliance": "high"},
+                            "max_impact": "critical",
+                            "contextual_risk_rating": "critical",
+                            "owner_role": "dev_team",
+                            "risk_owner": "dev_team",
+                            "safety_owner": "N/A",
+                            "evidence_ids": [ev1],
+                        },
+                        {
+                            "finding_id": "FIND-W2",
+                            "chain_id": "CHAIN-W2",
+                            "impact_axes": {"safety": "negligible", "financial": "high", "operational": "medium", "privacy": "low", "compliance": "medium"},
+                            "max_impact": "high",
+                            "contextual_risk_rating": "high",
+                            "owner_role": "dev_team",
+                            "risk_owner": "dev_team",
+                            "safety_owner": "N/A",
+                            "evidence_ids": [ev1],
+                        },
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            p3_ok = finalize_v3_phase3(proj, "svc-core", run_id="default")
+            self.assertTrue(p3_ok["gate_passed"])
+
+            # 4. B2: Overwrite protection when non-wins file exists in documents/
+            foreign_file = proj / "documents" / "_report" / "00_manifest.md"
+            foreign_file.parent.mkdir(parents=True, exist_ok=True)
+            foreign_file.write_text("# Foreign Manifest from another tool\n", encoding="utf-8")
+            blocked_res = export_final_phase_inputs(proj, run_id="default", force_overwrite=False)
+            self.assertFalse(blocked_res["gate_passed"])
+            self.assertTrue(blocked_res["overwrite_blocked"])
+            self.assertEqual(foreign_file.read_text(encoding="utf-8"), "# Foreign Manifest from another tool\n")
+
+            # With force_overwrite=True, Phase 4 exports cleanly
+            p4_ok = export_final_phase_inputs(proj, run_id="default", force_overwrite=True)
+            self.assertTrue(p4_ok["gate_passed"])
+            self.assertTrue(p4_ok["risk_parity_verified"])
+
+            # 5. B4: Two chains sharing root_cause_cluster_id='RC-WALLET-OWNER' consolidated into 1 finding F-01
+            self.assertEqual(p4_ok["consolidated_findings_count"], 1)
+            consolidated = json.loads((proj / "documents" / "_report" / "work" / "findings_consolidated.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(consolidated["findings"]), 1)
+            self.assertEqual(consolidated["findings"][0]["id"], "F-01")
+            self.assertEqual(sorted(consolidated["findings"][0]["chain_ids"]), ["CHAIN-W1", "CHAIN-W2"])
+
+            # 6. B1: Verify exact schemas of exported documents/ files
+            prof_md = (proj / "documents" / "svc-core" / "01_repo_profile.md").read_text(encoding="utf-8")
+            self.assertIn("## Purpose", prof_md)
+            self.assertIn("## Criticality assessment", prof_md)
+            tech = json.loads((proj / "documents" / "svc-core" / "02_techstack.json").read_text(encoding="utf-8"))
+            self.assertIn("languages", tech)
+            self.assertIn("frameworks", tech)
+            io_doc = json.loads((proj / "documents" / "svc-core" / "05_inbound_outbound.json").read_text(encoding="utf-8"))
+            self.assertGreaterEqual(len(io_doc["inbound"]), 1)
+            self.assertGreaterEqual(len(io_doc["outbound"]), 1)
+            f09 = json.loads((proj / "documents" / "svc-core" / "09_findings.json").read_text(encoding="utf-8"))
+            self.assertGreaterEqual(len(f09["findings"]), len(all_cands))
+            st12 = json.loads((proj / "documents" / "svc-core" / "12_analysis_status.json").read_text(encoding="utf-8"))
+            self.assertTrue(st12["completed"])
+            basv18 = json.loads((proj / "documents" / "svc-core" / "basv" / "18_business_aware_synthesis.json").read_text(encoding="utf-8"))
+            self.assertIn("invariants", basv18)
+            self.assertIn("gaps", basv18)
+            rc06 = json.loads((proj / "documents" / "_analysis" / "06_root_cause_map.json").read_text(encoding="utf-8"))
+            self.assertIn("root_causes", rc06)
+            f01_json = json.loads((proj / "documents" / "_report" / "work" / "risk" / "F-01.json").read_text(encoding="utf-8"))
+            for req_key in ("attack_paths", "actors_considered", "yields", "detection", "business_impact", "open_questions"):
+                self.assertIn(req_key, f01_json)
+            self.assertEqual(f01_json["muc_rui_ro_suy_ra"], "critical")
+
+            # 7. B3 & B6: Verify depth of BAO_CAO_TONG_HOP_BAO_MAT.md and DANH_GIA_RUI_RO.md
+            bao_cao = (proj / "documents" / "_report" / "BAO_CAO_TONG_HOP_BAO_MAT.md").read_text(encoding="utf-8")
+            self.assertIn("## 1. Tóm tắt Điều hành", bao_cao)
+            self.assertIn("### Chi tiết `F-01`:", bao_cao)
+            self.assertIn("## 4. Lộ trình Khắc phục", bao_cao)
+            self.assertIn("## Phụ lục A — Bảng Truy vết Nguồn", bao_cao)
+
+            danh_gia = (proj / "documents" / "_report" / "DANH_GIA_RUI_RO.md").read_text(encoding="utf-8")
+            self.assertIn("(`attack_paths`)", danh_gia)
+            self.assertIn("(`holders` / `searched`)", danh_gia)
+            self.assertIn("(`_combinations.json`)", danh_gia)
+
+            # 8. B5: If derived_risk_rating is missing from sfop_risk_calibrator.json, risk_parity_verified MUST be False
+            sfop_tampered = json.loads((run_dir / "sfop_risk_calibrator.json").read_text(encoding="utf-8"))
+            for item in sfop_tampered["calibrated_findings"]:
+                item.pop("derived_risk_rating", None)
+            (run_dir / "sfop_risk_calibrator.json").write_text(json.dumps(sfop_tampered), encoding="utf-8")
+            p4_missing_derived = export_final_phase_inputs(proj, run_id="default", force_overwrite=True)
+            self.assertFalse(p4_missing_derived["risk_parity_verified"])
+            self.assertFalse(p4_missing_derived["gate_passed"])
 
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

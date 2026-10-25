@@ -43,6 +43,27 @@ NATIVE_READ_TOOLS = {
     "cat",
 }
 
+NATIVE_WRITE_TOOLS = {
+    "write",
+    "edit",
+    "multiedit",
+    "notebookedit",
+    "write_to_file",
+    "replace_file_content",
+    "multi_replace_file_content",
+}
+
+NATIVE_SHELL_TOOLS = {
+    "bash",
+    "run_command",
+    "sh",
+    "zsh",
+    "powershell",
+    "pwsh",
+    "cmd",
+    "terminal",
+}
+
 BLINDED_AGENT_IDENTIFIERS = {
     "localsec-blinded-challenger",
     "blinded_counterevidence_challenger",
@@ -51,27 +72,34 @@ BLINDED_AGENT_IDENTIFIERS = {
     "blinded_challenger",
 }
 
-# Strict whitelist regex for Read in blinded challenger mode:
-# Allows ONLY toolkit read-only directories (skills, schemas, contracts) and .localsec/tmp/*.json
-WHITELIST_READ_PATH_RE = re.compile(
+TOOLKIT_ROOT = Path(__file__).resolve().parents[1]
+
+# Strict whitelist regex for .localsec/tmp/*.json Read in blinded challenger mode
+WHITELIST_TMP_JSON_RE = re.compile(r"(?:^|/)\.localsec/tmp/[A-Za-z0-9_.-]+\.json$")
+
+# Strict whitelist regex for explicit toolkit-prefixed Read paths
+WHITELIST_TOOLKIT_PREFIX_READ_RE = re.compile(
     r"(?:^|/)(?:"
-    r"\.localsec/tmp/[A-Za-z0-9_.-]+\.json$"
-    r"|(?:AI-skills|localsec-antigravity-skills)/"
-    r"|\.(?:agents|claude)/(?:skills|agents)/"
-    r"|schemas/v3/[A-Za-z0-9_.-]+\.json$"
-    r"|contracts/[A-Za-z0-9_./-]+\.(?:json|md)$"
+    r"(?:AI-skills|localsec-antigravity-skills)/(?:schemas/v3/[A-Za-z0-9_.-]+\.json|contracts/[A-Za-z0-9_./-]+\.(?:json|md)|\.(?:agents|claude)/(?:skills|agents)/[A-Za-z0-9_./-]+\.md)$"
+    r"|\.(?:agents|claude)/(?:skills|agents)/[A-Za-z0-9_./-]+\.md$"
     r")"
 )
 
-# Strict whitelist regex for Bash in blinded challenger mode:
+# Strict whitelist regex for Write/Edit in blinded challenger mode:
+# Allows writing ONLY to `.localsec/tmp/<draft>.json` (and forbids overwriting `blinded_chains_*.json`)
+WHITELIST_WRITE_TMP_RE = re.compile(
+    r"(?:^|/)\.localsec/tmp/(?!blinded_chains_)[A-Za-z0-9_.-]+\.json$"
+)
+
+# Strict whitelist regex for Bash/PowerShell in blinded challenger mode:
 # Allows ONLY `python -m localsec.manual_session <read_file|show_evidence|list_evidence|submit_skill> ...`
 WHITELIST_BASH_CMD_RE = re.compile(
     r"^(?:PYTHONPATH=[A-Za-z0-9_./:-]+\s+)?"
-    r"python(?:3(?:\.\d+)?)?\s+-m\s+localsec\.manual_session\s+"
+    r"(?:python(?:3(?:\.\d+)?)?|py)\s+-m\s+localsec\.manual_session\s+"
     r"(?P<subcmd>read_file|show_evidence|list_evidence|submit_skill)\b(?P<rest>.*)$"
 )
 
-# Shell metacharacters forbidden in blinded Bash commands
+# Shell metacharacters forbidden in blinded Bash/PowerShell commands
 FORBIDDEN_SHELL_METACHARS_RE = re.compile(r"[|;&<>$`\n\r]")
 
 
@@ -120,13 +148,17 @@ def _extract_target_strings(tool_input: Any) -> list[str]:
             "file_path",
             "path",
             "target_file",
+            "TargetFile",
             "AbsolutePath",
+            "notebook_path",
             "SearchPath",
             "DirectoryPath",
             "pattern",
             "command",
             "CommandLine",
             "cmd",
+            "script",
+            "code",
             "query",
         ):
             val = tool_input.get(k)
@@ -160,7 +192,49 @@ def _is_whitelisted_read_path(raw_path: str) -> bool:
         return False
     if _references_forbidden_blinded_artifact(norm) is not None:
         return False
-    return bool(WHITELIST_READ_PATH_RE.search(norm))
+
+    # 1. Allow .localsec/tmp/*.json
+    if WHITELIST_TMP_JSON_RE.search(norm):
+        return True
+
+    # 2. Allow explicit toolkit-prefixed read-only paths (AI-skills/..., .agents/skills/..., .claude/skills/...)
+    if WHITELIST_TOOLKIT_PREFIX_READ_RE.search(norm):
+        return True
+
+    # 3. Allow bare relative toolkit paths (e.g. "schemas/v3/foo.schema.json" or "contracts/v3-orchestration.json")
+    # ONLY when the path starts directly with schemas/v3/ or contracts/ (never "<repo>/contracts/...") AND exists inside TOOLKIT_ROOT!
+    if re.match(r"^(?:schemas/v3/[A-Za-z0-9_.-]+\.json|contracts/[A-Za-z0-9_./-]+\.(?:json|md))$", norm):
+        if (TOOLKIT_ROOT / norm).is_file():
+            return True
+
+    # 4. Allow absolute paths that resolve strictly inside TOOLKIT_ROOT's read-only skill/schema/contract directories
+    try:
+        cand = Path(raw_path).expanduser().resolve()
+        allowed_roots = (
+            TOOLKIT_ROOT / "schemas" / "v3",
+            TOOLKIT_ROOT / "contracts",
+            TOOLKIT_ROOT / ".agents" / "skills",
+            TOOLKIT_ROOT / ".claude" / "skills",
+            TOOLKIT_ROOT / ".claude" / "agents",
+        )
+        if any(cand.is_relative_to(ar) for ar in allowed_roots) and cand.suffix.lower() in {".json", ".md"}:
+            return True
+    except Exception:
+        pass
+
+    return False
+
+
+def _is_whitelisted_write_path(raw_path: str) -> bool:
+    norm = raw_path.replace("\\", "/").strip()
+    if not norm:
+        return False
+    parts = [p for p in norm.split("/") if p]
+    if ".." in parts:
+        return False
+    if _references_forbidden_blinded_artifact(norm) is not None:
+        return False
+    return bool(WHITELIST_WRITE_TMP_RE.search(norm))
 
 
 def evaluate_tool_use(payload: Any, *, mode: str = "auto") -> dict[str, Any]:
@@ -245,20 +319,41 @@ def evaluate_tool_use(payload: Any, *, mode: str = "auto") -> dict[str, Any]:
             "reason": "Whitelisted Read path permitted in blinded_counterevidence_challenger.",
         }
 
-    # Rule 4: Bash / RunCommand uses a strict Whitelist:
+    # Rule 4: Native Write / Edit tools may ONLY write draft JSON files to `.localsec/tmp/*.json` (excluding `blinded_chains_*.json`).
+    if tool_low in NATIVE_WRITE_TOOLS:
+        if not targets:
+            return {
+                "decision": "block",
+                "reason": f"Fail-closed: native {tool_name!r} called without an explicit target file_path.",
+            }
+        for t in targets:
+            if not _is_whitelisted_write_path(t):
+                return {
+                    "decision": "block",
+                    "reason": (
+                        f"Context-Blinded Violation (C1): native {tool_name!r} on {t!r} is blocked. "
+                        f"In blinded_counterevidence_challenger, Write/Edit is restricted exclusively to `.localsec/tmp/draft_*.json`."
+                    ),
+                }
+        return {
+            "decision": "approve",
+            "reason": "Whitelisted .localsec/tmp draft JSON write permitted in blinded_counterevidence_challenger.",
+        }
+
+    # Rule 5: Bash / PowerShell / Cmd / RunCommand uses a strict Whitelist:
     # ONLY `python -m localsec.manual_session <read_file|show_evidence|list_evidence|submit_skill>` with no shell metacharacters.
-    if tool_low in {"bash", "run_command", "sh", "zsh", "powershell", "cmd"}:
+    if tool_low in NATIVE_SHELL_TOOLS:
         cmd_str = combined_blob.strip()
         if not cmd_str:
             return {
                 "decision": "block",
-                "reason": "Fail-closed: empty Bash command in blinded_counterevidence_challenger.",
+                "reason": f"Fail-closed: empty {tool_name!r} command in blinded_counterevidence_challenger.",
             }
         if FORBIDDEN_SHELL_METACHARS_RE.search(cmd_str):
             return {
                 "decision": "block",
                 "reason": (
-                    "Context-Blinded Violation (C1): Bash command contains forbidden shell metacharacters "
+                    f"Context-Blinded Violation (C1): {tool_name!r} command contains forbidden shell metacharacters "
                     "(`|`, `;`, `&`, `<`, `>`, `$`, backtick, or newline). Execute a single whitelisted "
                     "`python -m localsec.manual_session` command."
                 ),
@@ -268,7 +363,7 @@ def evaluate_tool_use(payload: Any, *, mode: str = "auto") -> dict[str, Any]:
             return {
                 "decision": "block",
                 "reason": (
-                    f"Context-Blinded Violation (C1): Bash command {cmd_str!r} is not on the blinded whitelist. "
+                    f"Context-Blinded Violation (C1): {tool_name!r} command {cmd_str!r} is not on the blinded whitelist. "
                     f"Only `python -m localsec.manual_session <read_file|show_evidence|list_evidence|submit_skill>` is allowed."
                 ),
             }
@@ -277,7 +372,7 @@ def evaluate_tool_use(payload: Any, *, mode: str = "auto") -> dict[str, Any]:
         if ".." in rest.replace("\\", "/").split("/"):
             return {
                 "decision": "block",
-                "reason": "Context-Blinded Violation (C1): parent directory traversal ('..') is forbidden in blinded Bash command.",
+                "reason": "Context-Blinded Violation (C1): parent directory traversal ('..') is forbidden in blinded shell command.",
             }
         if subcmd == "read_file":
             if not re.search(r"--skill(?:\s+|=)blinded_counterevidence_challenger\b", rest):
@@ -302,8 +397,8 @@ def evaluate_tool_use(payload: Any, *, mode: str = "auto") -> dict[str, Any]:
             "reason": f"Whitelisted manual_session {subcmd} command permitted in blinded_counterevidence_challenger.",
         }
 
-    # Any other unexpected file/execution tool in blinded mode is blocked fail-closed
-    if tool_low not in {"write", "edit", "todowrite", "task"}:
+    # Any other tool (including Task/subagent spawning, WebFetch, etc.) in blinded mode is blocked fail-closed
+    if tool_low not in {"todowrite"}:
         return {
             "decision": "block",
             "reason": f"Context-Blinded Violation (C1): tool {tool_name!r} is not whitelisted in blinded_counterevidence_challenger.",
