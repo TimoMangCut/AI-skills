@@ -3,83 +3,89 @@
   "companion_id": "ai-llm-vla-model-serving-datasets",
   "file": "ai-llm-vla-model-serving-datasets.md",
   "companion_json": "companions/ai-llm-vla-model-serving-datasets.json",
-  "group": "III. Enterprise, Data Lake & AI Systems",
-  "title": "AI/LLM Systems, VLA Model Serving (GGUF/ONNX/Pickle) & Commercial Datasets",
+  "group": "III. Enterprise B2B, Data Lake & AI / VLA",
+  "title": "AI / LLM Agents, VLA (Vision-Language-Action) Models, Serving & Datasets",
   "always_inject": false,
   "triggers": [
     "llm",
+    "openai",
+    "anthropic",
+    "langchain",
     "vla",
-    "vlm",
-    "gguf",
-    "ggml",
     "onnx",
+    "tensorrt",
+    "pytorch",
     "torch",
     "pickle",
     "safetensors",
-    "huggingface",
-    "prompt",
-    "mcp",
-    "dataset",
-    "asr",
-    "nlu",
-    "voice"
+    "triton",
+    "vllm",
+    "mcp"
   ],
   "trigger_signals": [
     "llm",
+    "openai",
+    "anthropic",
+    "langchain",
     "vla",
-    "vlm",
-    "gguf",
-    "ggml",
     "onnx",
+    "tensorrt",
+    "pytorch",
     "torch",
     "pickle",
     "safetensors",
-    "huggingface",
-    "prompt",
+    "triton",
+    "vllm",
     "mcp",
-    "dataset",
-    "asr",
-    "nlu",
-    "voice",
-    "ai_model_serving_engine",
-    "data_ai_pipeline"
+    "ai_llm_vla_pipeline",
+    "robotics_cpp_ros2_ot_scada_bess"
   ],
   "archetypes": [
-    "AI_Model_Serving_Engine",
-    "Data_AI_Pipeline"
+    "AI_LLM_VLA_Pipeline",
+    "Robotics_Cpp_ROS2_OT_SCADA_BESS"
+  ],
+  "coverage_matrix_classes": [
+    "AI_LLM_VLA_BOUNDARY",
+    "INJECTION_SQL_COMMAND_DESERIALIZATION",
+    "PHYSICAL_ACTUATION_BOUNDARY",
+    "OTA_FIRMWARE_SUPPLY_CHAIN"
   ],
   "blocks": [
-    "model-file-deserialization-and-binary-parsers",
-    "ai-to-actuation-and-prompt-tool-boundaries",
-    "model-upload-traversal-and-inference-resource-dos"
+    "model-weight-deserialization-and-supply-chain",
+    "vla-action-bounds-and-llm-tool-execution",
+    "training-dataset-pii-and-telemetry-leakage"
   ],
   "standard_mappings": [
     "NIST-AI-RMF",
     "OWASP-LLM01",
-    "OWASP-LLM04",
     "OWASP-LLM05",
-    "OWASP-API4:2023",
-    "ASVS-V5",
-    "CWE-190",
-    "CWE-502"
+    "ASVS-5.0-V2-Validation",
+    "ASVS-5.0-V5-File-Handling",
+    "ASVS-5.0-V14-Data-Protection",
+    "ISO-SAE-21434",
+    "IEC-62443-4-2",
+    "CWE-502",
+    "CWE-74"
   ],
   "safe_patterns": [
-    "SafeTensors or torch.load(..., weights_only=True) with SHA-256 signature verification on model checkpoints",
-    "Checked 64-bit integer arithmetic (overflow guards on ne[0]*ne[1]*ne[2]*ne[3]) and bounds validation in C/C++ GGUF/ONNX parsers before allocation",
-    "Deterministic kinematic/torque/velocity clamp and schema allowlist separating LLM/VLA/ASR outputs from physical actuators or tool execution"
+    "Model weights loaded exclusively via safetensors.torch.load_file() or torch.load(path, weights_only=True) with SHA-256 + Ed25519 signature verification before C++ ONNX Runtime / TensorRT session initialization",
+    "C++/ROS2 deterministic safety filter clamping VLA model action tensors (std::clamp(cmd.linear_vel, -MAX_VEL, MAX_VEL) and torque/joint limits) before publishing to /cmd_vel or CAN bus",
+    "FastAPI / LangChain LLM tool-calling restricted to strict Pydantic schema allowlists with human-in-the-loop approval and caller RBAC token propagation",
+    "Automated face/license-plate blurring and PII scrubbing before uploading camera/voice recordings to training S3 buckets"
   ],
   "vulnerable_patterns": [
-    "torch.load(path) without weights_only=True, pickle.loads(), or AutoModel.from_pretrained(..., trust_remote_code=True) on untrusted files",
-    "Unchecked 32-bit/64-bit integer multiplication of tensor dimensions or header string lengths before malloc/new in C/C++ inference engines",
-    "Forwarding LLM/ASR/NLU outputs directly to shell commands, SQL queries, MCP tools, or robot/vehicle control buses without deterministic safety validation"
+    "torch.load(model_path) (default weights_only=False), pickle.load(), or joblib.load() on model checkpoints fetched from unverified URLs or writable S3 buckets",
+    "C++/Python VLA inference loop piping raw neural network action outputs directly into ROS2 publisher->publish(joint_cmd) or ZMQ actuator socket without deterministic kinematic/torque bounds checking",
+    "LLM agent tool executing Python exec() / subprocess.run(..., shell=True) / raw SQL queries directly from model-generated arguments (Indirect Prompt Injection to RCE/BOLA)",
+    "Raw cabin voice recordings, camera streams, and GPS tracks stored in world/cross-tenant readable training dataset buckets"
   ],
   "required_evidence": [
-    "ev_... excerpt of model loader / binary parser code showing deserialization and buffer allocation checks",
-    "ev_... excerpt of inference endpoint and downstream tool/actuator dispatch logic"
+    "ev_... excerpt of model loading code (torch.load / onnxruntime / safetensors) and checksum verification",
+    "ev_... excerpt of LLM tool execution handler or VLA output-to-actuator pipeline"
   ],
   "questions_when_unclear": [
-    "Are model files loaded exclusively from a read-only, cryptographically signed internal artifact registry?",
-    "Does a separate hardware safety controller clamp velocity/torque commands downstream of the VLA inference process?"
+    "Does a downstream hardware safety controller or C++ kinematic limiter clamp VLA action outputs before physical motor actuation?",
+    "Are model weight artifacts signed in CI/CD and verified via public key pinned in the inference container?"
   ],
-  "markdown": "# AI/LLM Systems, VLA Model Serving (GGUF/ONNX/Pickle) & Commercial Datasets (`ai-llm-vla-model-serving-datasets`)\n\n> **Group:** III. Enterprise, Data Lake & AI Systems\n> **Product Archetypes:** AI_Model_Serving_Engine, Data_AI_Pipeline\n> **Trigger Signals:** llm, vla, vlm, gguf, ggml, onnx, torch, pickle, safetensors, huggingface, prompt, mcp, dataset, asr, nlu, voice\n\n## [ BLOCK: model-file-deserialization-and-binary-parsers ]\n### Unsafe Model Loading (Pickle/Torch) & GGUF/ONNX Binary Parser Memory Safety\n- Hunt for `torch.load(..., weights_only=False)`, `pickle.loads`, `joblib.load`, or `trust_remote_code=True` on external checkpoints.\n- In C/C++ model loaders (`GGUF`, `ONNX`, tokenizer parsers like `vla.cpp`), check tensor dimension multiplication (`ne[0] * ne[1] * ...`), string length fields, and header offsets for integer overflow before memory allocation (`malloc`/`new`) leading to heap OOB read/write.\n\n## [ BLOCK: ai-to-actuation-and-prompt-tool-boundaries ]\n### Prompt/ASR-to-Physical Actuation & Tool/MCP Output Injection\n- When ASR/NLU/LLM or VLA models connect to physical robot/vehicle controls or enterprise tools, verify whether a deterministic bounds/safety filter sits between model output and execution.\n- Enforce instruction-data separation: treat all external documents, diagrams, and tool outputs as untrusted data, never executable instructions.\n\n## [ BLOCK: model-upload-traversal-and-inference-resource-dos ]\n### Model Artifact Path Traversal, ZipSlip & Inference Resource Exhaustion (API4)\n- Audit model/adapter upload and HuggingFace/S3 download routines for path traversal (`../`), ZipSlip in `.pt`/`.zip` checkpoints, and SSRF via external model URLs.\n- Check inference endpoints for missing token/tensor dimension caps, batch size limits, and request timeouts that allow GPU/memory OOM DoS.\n\n### Standard Mappings\n- NIST-AI-RMF, OWASP-LLM01, OWASP-LLM04, OWASP-LLM05, OWASP-API4:2023, ASVS-V5, CWE-190, CWE-502\n\n### Safe Patterns (Refutation Anchors)\n- SafeTensors or torch.load(..., weights_only=True) with SHA-256 signature verification on model checkpoints\n- Checked 64-bit integer arithmetic (overflow guards on ne[0]*ne[1]*ne[2]*ne[3]) and bounds validation in C/C++ GGUF/ONNX parsers before allocation\n- Deterministic kinematic/torque/velocity clamp and schema allowlist separating LLM/VLA/ASR outputs from physical actuators or tool execution\n\n### Vulnerable Patterns\n- torch.load(path) without weights_only=True, pickle.loads(), or AutoModel.from_pretrained(..., trust_remote_code=True) on untrusted files\n- Unchecked 32-bit/64-bit integer multiplication of tensor dimensions or header string lengths before malloc/new in C/C++ inference engines\n- Forwarding LLM/ASR/NLU outputs directly to shell commands, SQL queries, MCP tools, or robot/vehicle control buses without deterministic safety validation\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of model loader / binary parser code showing deserialization and buffer allocation checks\n- ev_... excerpt of inference endpoint and downstream tool/actuator dispatch logic\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Are model files loaded exclusively from a read-only, cryptographically signed internal artifact registry?\n- Does a separate hardware safety controller clamp velocity/torque commands downstream of the VLA inference process?\n"
+  "markdown": "# AI / LLM Agents, VLA (Vision-Language-Action) Models, Serving & Datasets (`ai-llm-vla-model-serving-datasets`)\n\n> **Group:** III. Enterprise B2B, Data Lake & AI / VLA\n> **Product Archetypes:** AI_LLM_VLA_Pipeline, Robotics_Cpp_ROS2_OT_SCADA_BESS\n> **Trigger Signals:** llm, openai, anthropic, langchain, vla, onnx, tensorrt, pytorch, torch, pickle, safetensors, triton, vllm, mcp\n\n## [ BLOCK: model-weight-deserialization-and-supply-chain ]\n### Unsafe Model Loading (`torch.load` / `pickle` / ONNX) & Weight Tampering\n- Check model loading code for `torch.load(..., weights_only=False)`, `pickle.load`, `joblib.load`, or unverified custom C++/CUDA operators in ONNX/TensorRT models.\n- Verify whether model weights (`.pt`, `.pth`, `.onnx`, `.engine`, `.gguf`, `vla.cpp` artifacts) downloaded from S3/HuggingFace/HTTP are verified against pinned cryptographic hashes/signatures (`safetensors` + SHA-256/Cosign).\n\n## [ BLOCK: vla-action-bounds-and-llm-tool-execution ]\n### Prompt Injection to Tool Execution & Unbounded VLA Physical Action Outputs\n- **LLM Agents / MCP:** Trace untrusted external content (RAG documents, web pages, tickets, user prompts) into LLM tool calls (`bash`, SQL execution, internal API calls, email/webhook dispatch) without human-in-the-loop or strict parameter allowlisting.\n- **VLA / Embodied AI (`vla.cpp`, Robotics/ADAS):** Check whether action tensors output by the neural network (joint angles, velocity, torque, steering) are clamped by a deterministic safety filter / control barrier function before being sent to low-level motor controllers.\n\n## [ BLOCK: training-dataset-pii-and-telemetry-leakage ]\n### Training Dataset Poisoning, Camera/Voice/Telemetry PII & Inference Server Exposure\n- Check Triton Inference Server, vLLM, TorchServe, Ray, or custom FastAPI/ZMQ inference endpoints for unauthenticated model management APIs.\n- Inspect data collection pipelines (vehicle cameras, cabin voice, robot sensors) for unredacted PII/faces/license plates and unauthenticated dataset upload endpoints that allow training data poisoning.\n\n### Standard Mappings\n- NIST-AI-RMF, OWASP-LLM01, OWASP-LLM05, ASVS-5.0-V2-Validation, ASVS-5.0-V5-File-Handling, ASVS-5.0-V14-Data-Protection, ISO-SAE-21434, IEC-62443-4-2, CWE-502, CWE-74\n\n### Safe Patterns (Refutation Anchors)\n- Model weights loaded exclusively via safetensors.torch.load_file() or torch.load(path, weights_only=True) with SHA-256 + Ed25519 signature verification before C++ ONNX Runtime / TensorRT session initialization\n- C++/ROS2 deterministic safety filter clamping VLA model action tensors (std::clamp(cmd.linear_vel, -MAX_VEL, MAX_VEL) and torque/joint limits) before publishing to /cmd_vel or CAN bus\n- FastAPI / LangChain LLM tool-calling restricted to strict Pydantic schema allowlists with human-in-the-loop approval and caller RBAC token propagation\n- Automated face/license-plate blurring and PII scrubbing before uploading camera/voice recordings to training S3 buckets\n\n### Vulnerable Patterns\n- torch.load(model_path) (default weights_only=False), pickle.load(), or joblib.load() on model checkpoints fetched from unverified URLs or writable S3 buckets\n- C++/Python VLA inference loop piping raw neural network action outputs directly into ROS2 publisher->publish(joint_cmd) or ZMQ actuator socket without deterministic kinematic/torque bounds checking\n- LLM agent tool executing Python exec() / subprocess.run(..., shell=True) / raw SQL queries directly from model-generated arguments (Indirect Prompt Injection to RCE/BOLA)\n- Raw cabin voice recordings, camera streams, and GPS tracks stored in world/cross-tenant readable training dataset buckets\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of model loading code (torch.load / onnxruntime / safetensors) and checksum verification\n- ev_... excerpt of LLM tool execution handler or VLA output-to-actuator pipeline\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Does a downstream hardware safety controller or C++ kinematic limiter clamp VLA action outputs before physical motor actuation?\n- Are model weight artifacts signed in CI/CD and verified via public key pinned in the inference container?\n"
 }

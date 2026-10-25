@@ -3,6 +3,7 @@
   "title": "LocalSec v3.0 Phase 1 Coverage Ledger Schema",
   "type": "object",
   "required": [
+    "records",
     "semantic_clusters"
   ],
   "properties": {
@@ -67,6 +68,7 @@
         "required": [
           "cluster_id",
           "representative_deep_read_evidence_ids",
+          "member_endpoints",
           "outliers"
         ],
         "properties": {
@@ -86,12 +88,18 @@
           "representative_endpoint": {
             "type": "string"
           },
-          "representative_Format": {
+          "representative_file": {
             "type": "string"
           },
           "representative_deep_read_evidence_ids": {
             "type": "array",
             "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "member_files": {
+            "type": "array",
             "items": {
               "type": "string"
             }

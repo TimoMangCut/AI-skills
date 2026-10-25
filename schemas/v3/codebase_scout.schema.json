@@ -4,8 +4,11 @@
   "type": "object",
   "required": [
     "repo_tier",
+    "product_archetypes",
+    "target_modules",
+    "ignored_modules",
     "coding_conventions",
-    "target_modules"
+    "sample_evidence_ids"
   ],
   "properties": {
     "repo_tier": {
@@ -16,43 +19,44 @@
         "tier_3"
       ]
     },
-    "detected_archetypes": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "string"
-      }
-    },
     "product_archetypes": {
       "type": "array",
       "minItems": 1,
       "items": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "detected_archetypes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
       }
     },
     "coding_conventions": {
-      "type": [
-        "object",
-        "array",
-        "string"
-      ]
+      "type": "object"
     },
     "target_modules": {
       "type": "array",
-      "minItems": 1
+      "minItems": 1,
+      "items": {
+        "type": [
+          "string",
+          "object"
+        ]
+      }
     },
     "ignored_modules": {
       "type": "array",
       "items": {
         "type": "object",
         "required": [
+          "path",
           "reason"
         ],
         "properties": {
-          "module_path": {
-            "type": "string",
-            "minLength": 1
-          },
           "path": {
             "type": "string",
             "minLength": 1
@@ -70,14 +74,16 @@
     "canary_files": {
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1
       }
     },
     "sample_evidence_ids": {
       "type": "array",
       "minItems": 1,
       "items": {
-        "type": "string"
+        "type": "string",
+        "minLength": 3
       }
     },
     "evidence_ids": {

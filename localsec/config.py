@@ -16,6 +16,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "analysis": {
         "output_dir": "documents",
         "work_dir": ".localsec",
+        "default_run_id": "default",
         "ignored_dirs": [
             ".git", ".hg", ".svn", "bin", "obj", "vendor", "node_modules",
             ".venv", "venv", "dist", "build", "coverage", "TestResults",

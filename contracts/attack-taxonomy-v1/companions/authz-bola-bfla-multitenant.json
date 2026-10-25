@@ -3,81 +3,75 @@
   "companion_id": "authz-bola-bfla-multitenant",
   "file": "authz-bola-bfla-multitenant.md",
   "companion_json": "companions/authz-bola-bfla-multitenant.json",
-  "group": "I. Web, Mobile & API Core",
-  "title": "Authorization, BOLA/IDOR, BFLA & Multi-Tenant / Partner Isolation",
+  "group": "I. Client, Web, Mobile & Core Application Logic",
+  "title": "Authorization, BOLA/IDOR, BFLA & Multi-Tenant Isolation",
   "always_inject": true,
   "triggers": [
+    "always",
     "authz",
+    "rbac",
+    "abac",
+    "tenant",
     "bola",
     "idor",
     "bfla",
-    "rbac",
-    "abac",
-    "preauthorize",
-    "permission",
-    "ownership",
-    "tenant",
-    "vincode",
-    "billid",
-    "orderid",
-    "partnerid"
+    "guard",
+    "permission"
   ],
   "trigger_signals": [
+    "always",
     "authz",
+    "rbac",
+    "abac",
+    "tenant",
     "bola",
     "idor",
     "bfla",
-    "rbac",
-    "abac",
-    "preauthorize",
-    "permission",
-    "ownership",
-    "tenant",
-    "vincode",
-    "billid",
-    "orderid",
-    "partnerid",
-    "api_microservice_gateway",
-    "b2b_partner_portal",
-    "multi_tenant_saas"
+    "guard",
+    "permission"
   ],
   "archetypes": [
-    "API_Microservice_Gateway",
-    "B2B_Partner_Portal",
-    "Multi_Tenant_SaaS"
+    "ALL"
+  ],
+  "coverage_matrix_classes": [
+    "BOLA_IDOR",
+    "BFLA_FUNCTION_AUTHZ",
+    "AUTHN_SESSION_FLOW"
   ],
   "blocks": [
-    "object-ownership-bola-idor",
-    "function-level-bfla-and-filter-bypass",
-    "multi-role-lending-and-delegation",
-    "bopla-field-level-authz-and-tenant-context-spoofing"
+    "bola-idor-object-ownership",
+    "bfla-admin-and-guard-divergence",
+    "multitenant-and-header-context-spoofing"
   ],
   "standard_mappings": [
     "OWASP-API1:2023",
-    "OWASP-API3:2023",
     "OWASP-API5:2023",
-    "ASVS-V4",
-    "CWE-639",
+    "ASVS-5.0-V8-Authorization",
+    "ASVS-5.0-V7-Session-Management",
     "CWE-285",
-    "CWE-862"
+    "CWE-639",
+    "CWE-862",
+    "CWE-863"
   ],
   "safe_patterns": [
-    "Database query scopes resource lookup by both object ID and authenticated subject/tenant from verified JWT security context (WHERE id = :id AND owner_id = :sub)",
-    "Method-level and route-level RBAC/ABAC guards (@PreAuthorize, Depends(require_role), policy enforcer) verified on all sibling and admin endpoints",
-    "Immediate revocation of delegated/secondary driver permissions and cached sessions upon asset ownership transfer"
+    "NestJS @UseGuards(JwtAuthGuard, TenantOwnershipGuard) with Prisma query scoping prisma.order.findFirst({ where: { id: orderId, tenantId: req.user.tenantId } })",
+    "Spring Boot @PreAuthorize(\"hasRole('DEALER_ADMIN') and @ownershipService.canAccessVehicle(#vin, authentication)\") or repository findByIdAndTenantId(id, jwtTenantId)",
+    "FastAPI route dependency current_user: User = Depends(require_role(\"ADMIN\")) combined with SQLAlchemy select(Invoice).where(Invoice.id == id, Invoice.org_id == current_user.org_id)",
+    "Go middleware extracting subject/tenant exclusively from verified JWT claims in context.Context and stripping client-supplied X-Tenant-Id / X-User-Id headers at the edge"
   ],
   "vulnerable_patterns": [
-    "Repository lookup by primary key alone (findById(id)) without verifying resource.ownerId == currentUser.id",
-    "Trusting client-supplied userId, tenantId, partnerId, or vinCode from request body/header/query instead of the authenticated token subject",
-    "Admin or internal state-changing endpoints missing role guards or relying on easily bypassed URL path prefix matching"
+    "NestJS prisma.order.findUnique({ where: { id: paramId } }) or Spring Boot repository.findById(id) using path/body ID without checking req.user.id or req.user.tenantId",
+    "Outlier controller route missing @UseGuards(RolesGuard), @PreAuthorize, or FastAPI Depends(get_current_admin) compared to sibling endpoints in the sameSemanticCluster",
+    "Reading tenant_id, dealer_id, or user_id from request body/query or unverified X-Tenant-Id / X-User-Id headers instead of verified JWT claims",
+    "Batch/export endpoints (POST /api/v1/orders/export-csv with ids: [...]) validating auth token presence but skipping per-item ownership checks"
   ],
   "required_evidence": [
-    "ev_... excerpt of the route handler and security guard/middleware wiring",
-    "ev_... excerpt of the service/repository method showing whether authenticated subject/tenant ownership is enforced on the target object ID"
+    "ev_... excerpt of route decorator/middleware chain and handler signature",
+    "ev_... excerpt of service/repository database query showing exact WHERE clause parameters"
   ],
   "questions_when_unclear": [
-    "Is row-level security (RLS) or a global ORM tenant filter automatically injected by a shared database library not visible in this repository?",
-    "Does an external policy engine (OPA / IAM authorizer) validate resource ownership before forwarding the request?"
+    "Does an upstream API Gateway (Kong/KrakenD) overwrite X-User-Id / X-Tenant-Id from the verified JWT before forwarding to the microservice, or can clients inject those headers directly?",
+    "Is PostgreSQL Row-Level Security (RLS) enforced at the database connection level per tenant?"
   ],
-  "markdown": "# Authorization, BOLA/IDOR, BFLA & Multi-Tenant / Partner Isolation (`authz-bola-bfla-multitenant`)\n\n> **Group:** I. Web, Mobile & API Core\n> **Product Archetypes:** API_Microservice_Gateway, B2B_Partner_Portal, Multi_Tenant_SaaS\n> **Trigger Signals:** authz, bola, idor, bfla, rbac, abac, preauthorize, permission, ownership, tenant, vincode, billid, orderid, partnerid\n\n## [ BLOCK: object-ownership-bola-idor ]\n### Broken Object Level Authorization (BOLA/IDOR) on Resource Identifiers\n- For every endpoint accepting an object identifier (`vinCode`, `billId`, `orderId`, `tokenNumber`, `target` Cognito ID, `partnerId`), verify a deterministic join/check binding the authenticated subject (`sub`/`userId`) to that object.\n- Check both read paths (e.g., `/parked-images`, `/bills/{id}`) and state-changing paths (`DELETE /cards/{token}`, `POST /transfer-ownership`, `POST /attach-policy`).\n\n## [ BLOCK: function-level-bfla-and-filter-bypass ]\n### Broken Function Level Authorization (BFLA) & Security Filter Chain Bypass\n- Compare controller-level and method-level guards across sibling routes (e.g., `/user/**`, `/admin/**`, `/internal/**`).\n- Check for path matching discrepancies between API Gateway (Kong/KrakenD/ALB) and backend framework (Spring Security Ant/PathPattern matcher, trailing slash, matrix params `;`).\n\n## [ BLOCK: multi-role-lending-and-delegation ]\n### Temporary Delegation, Vehicle Lending/Valet Mode & Ownership Transfer\n- Trace lifecycle revocation: when a vehicle/asset is transferred or a secondary driver/valet permission expires, are active JWTs, refresh tokens, AWS IoT policies, and BLE digital keys immediately revoked?\n\n## [ BLOCK: bopla-field-level-authz-and-tenant-context-spoofing ]\n### Object Property Level Authz (BOPLA) & Cross-Tenant Context Spoofing\n- Verify whether callers can overwrite `tenantId`, `partnerId`, `ownerId`, `vinCode`, or `role` in PUT/PATCH/POST bodies or query parameters to pivot across tenants.\n- Check whether list/search/export endpoints enforce tenant and ownership predicates inside the database WHERE clause rather than filtering only in UI or post-query code.\n\n### Standard Mappings\n- OWASP-API1:2023, OWASP-API3:2023, OWASP-API5:2023, ASVS-V4, CWE-639, CWE-285, CWE-862\n\n### Safe Patterns (Refutation Anchors)\n- Database query scopes resource lookup by both object ID and authenticated subject/tenant from verified JWT security context (WHERE id = :id AND owner_id = :sub)\n- Method-level and route-level RBAC/ABAC guards (@PreAuthorize, Depends(require_role), policy enforcer) verified on all sibling and admin endpoints\n- Immediate revocation of delegated/secondary driver permissions and cached sessions upon asset ownership transfer\n\n### Vulnerable Patterns\n- Repository lookup by primary key alone (findById(id)) without verifying resource.ownerId == currentUser.id\n- Trusting client-supplied userId, tenantId, partnerId, or vinCode from request body/header/query instead of the authenticated token subject\n- Admin or internal state-changing endpoints missing role guards or relying on easily bypassed URL path prefix matching\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of the route handler and security guard/middleware wiring\n- ev_... excerpt of the service/repository method showing whether authenticated subject/tenant ownership is enforced on the target object ID\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Is row-level security (RLS) or a global ORM tenant filter automatically injected by a shared database library not visible in this repository?\n- Does an external policy engine (OPA / IAM authorizer) validate resource ownership before forwarding the request?\n"
+  "markdown": "# Authorization, BOLA/IDOR, BFLA & Multi-Tenant Isolation (`authz-bola-bfla-multitenant`)\n\n> **Group:** I. Client, Web, Mobile & Core Application Logic\n> **Product Archetypes:** ALL\n> **Trigger Signals:** always, authz, rbac, abac, tenant, bola, idor, bfla, guard, permission\n\n## [ BLOCK: bola-idor-object-ownership ]\n### BOLA / IDOR Across Primary Keys, UUIDs, VINs & Batch Endpoints\n- For every endpoint accepting a resource identifier (`id`, `uuid`, `order_id`, `vin`, `station_id`, `vehicle_id`, `invoice_id`, `file_id`), verify that the database query scopes lookup by the authenticated principal's identity/tenant (`WHERE id = :id AND owner_id = :current_user_id`), not just by primary key.\n- Check batch/bulk endpoints (`ids: [...]`, CSV exports, GraphQL nodes) where ownership checks are performed on the parent request but skipped on individual child IDs.\n\n## [ BLOCK: bfla-admin-and-guard-divergence ]\n### BFLA, Missing Role Guards & Semantic Cluster Outlier Detection\n- Compare middleware/decorator chains (`@UseGuards`, `@PreAuthorize`, `Depends()`, Go router groups) across all endpoints in the same `SemanticCluster`.\n- Flag outlier routes missing admin/operator role checks on state-changing or sensitive read operations (e.g., `PUT/DELETE`, export, config update, user impersonation, manual override).\n\n## [ BLOCK: multitenant-and-header-context-spoofing ]\n### Multi-Tenant Boundary Spoofing (`X-Tenant-Id`, `dealer_id`, `org_id`)\n- Trace how `tenant_id`, `org_id`, `dealer_id`, `merchant_id`, or `plant_id` is resolved. Flag any code path that trusts `X-Tenant-Id`, `X-Org-Id`, `X-User-Id`, query params, or request body fields instead of extracting the tenant binding from a cryptographically verified token/session.\n\n### Standard Mappings\n- OWASP-API1:2023, OWASP-API5:2023, ASVS-5.0-V8-Authorization, ASVS-5.0-V7-Session-Management, CWE-285, CWE-639, CWE-862, CWE-863\n\n### Safe Patterns (Refutation Anchors)\n- NestJS @UseGuards(JwtAuthGuard, TenantOwnershipGuard) with Prisma query scoping prisma.order.findFirst({ where: { id: orderId, tenantId: req.user.tenantId } })\n- Spring Boot @PreAuthorize(\"hasRole('DEALER_ADMIN') and @ownershipService.canAccessVehicle(#vin, authentication)\") or repository findByIdAndTenantId(id, jwtTenantId)\n- FastAPI route dependency current_user: User = Depends(require_role(\"ADMIN\")) combined with SQLAlchemy select(Invoice).where(Invoice.id == id, Invoice.org_id == current_user.org_id)\n- Go middleware extracting subject/tenant exclusively from verified JWT claims in context.Context and stripping client-supplied X-Tenant-Id / X-User-Id headers at the edge\n\n### Vulnerable Patterns\n- NestJS prisma.order.findUnique({ where: { id: paramId } }) or Spring Boot repository.findById(id) using path/body ID without checking req.user.id or req.user.tenantId\n- Outlier controller route missing @UseGuards(RolesGuard), @PreAuthorize, or FastAPI Depends(get_current_admin) compared to sibling endpoints in the sameSemanticCluster\n- Reading tenant_id, dealer_id, or user_id from request body/query or unverified X-Tenant-Id / X-User-Id headers instead of verified JWT claims\n- Batch/export endpoints (POST /api/v1/orders/export-csv with ids: [...]) validating auth token presence but skipping per-item ownership checks\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of route decorator/middleware chain and handler signature\n- ev_... excerpt of service/repository database query showing exact WHERE clause parameters\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Does an upstream API Gateway (Kong/KrakenD) overwrite X-User-Id / X-Tenant-Id from the verified JWT before forwarding to the microservice, or can clients inject those headers directly?\n- Is PostgreSQL Row-Level Security (RLS) enforced at the database connection level per tenant?\n"
 }

@@ -1586,56 +1586,110 @@ DEPENDENCY_MANIFEST_NAMES = {
 }
 
 
-def _classify_inventory_file(rel_path: str, stem: str, suffix: str, parts_lower: list[str], sample_text: str) -> list[str]:
-    """Classify a file into mandatory inventory buckets: entrypoint, security, wiring_config, outbound, data_access."""
+CONTENT_ENTRYPOINT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
+    ("decorator_route", re.compile(r"@(?:app|router|api|bp|GetMapping|PostMapping|PutMapping|DeleteMapping|PatchMapping|RequestMapping|HttpGet|HttpPost|HttpPut|HttpDelete|KafkaListener|RabbitListener|GrpcService|Mutation|Query)\b")),
+    ("ocpp_action", re.compile(r"@on\(\s*Action\.|\bon_(?:boot_notification|remote_start_transaction|remote_stop_transaction|start_transaction|stop_transaction|authorize|meter_values)\b")),
+    ("router_call", re.compile(r"\b(?:router|app|r|mux| server)\.(?:get|post|put|delete|patch|use|HandleFunc|Register\w*Server)\s*\(")),
+    ("zmq_or_ipc", re.compile(r"#include\s*<zmq\.h>|\bzmq_(?:recv|msg_recv|bind|connect)\b|\bhandle_zmq_frame\b")),
+    ("ros2_node", re.compile(r"\b(?:create_subscription|create_service|create_action_server)\b")),
+    ("mobile_bridge", re.compile(r"\bMethodChannel\s*\(|\bCFBundleURLSchemes\b|android:exported\s*=\s*\"true\"|<intent-filter")),
+    ("enterprise_ot_listener", re.compile(r"\bFUNCTION\s+Z\w+|\bRFC_\w+|<http:listener|\b(?:modbus|opcua|iec61850|dnp3)\b", re.IGNORECASE)),
+]
+
+CONTENT_SECURITY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
+    ("jwt_or_token_verify", re.compile(r"\b(?:jwt\.decode|jwt\.verify|verify_token|require_jwt|validate_token|parse_token|Bearer\s)\b")),
+    ("authz_guard", re.compile(r"\b(?:authorize|check_permission|has_permission|require_role|UseGuards|SecurityFilterChain|PreAuthorize|CanActivate|Depends\s*\(\s*(?:get_current_user|require_))\b|@(?:require_role|UseGuards|PreAuthorize|RolesAllowed|InternalServiceOnly)\b")),
+    ("crypto_or_hmac", re.compile(r"\b(?:hmac\.new|hmac\.compare_digest|crypto\.createHmac|bcrypt\.|argon2\.| pbkdf2)\b")),
+    ("safety_interlock", re.compile(r"\b(?:check_interlock|safety_interlock|emergency_stop|verify_contactor_safe)\b")),
+]
+
+GENERIC_NON_SIGNAL_STEMS = {
+    "main", "app", "server", "program", "startup", "index",
+    "session", "token", "policy", "config", "settings", "utils", "helpers", "common", "types",
+}
+
+
+def _is_test_or_generated_path(rel_path: str, stem: str, suffix: str, parts_lower: list[str]) -> bool:
+    lower_rel = rel_path.lower()
+    if any(
+        p in {
+            "tests", "test", "__tests__", "spec", "specs", "mocks", "mock",
+            "fixtures", "vendor", "node_modules", "third_party", "generated", "gen",
+        }
+        for p in parts_lower
+    ):
+        return True
+    if (
+        stem.startswith("test_")
+        or stem.endswith(("_test", ".test", ".spec", "_spec", "_mock", ".mock", "_pb2", "_pb2_grpc"))
+        or lower_rel.endswith((".spec.ts", ".test.ts", ".spec.js", ".test.js", ".pb.go", ".g.dart", ".freezed.dart"))
+    ):
+        return True
+    return False
+
+
+def _classify_inventory_file_with_signals(
+    rel_path: str,
+    stem: str,
+    suffix: str,
+    parts_lower: list[str],
+    sample_text: str,
+) -> tuple[list[str], list[str]]:
+    """Classify a file into mandatory inventory buckets using content signals first, returning (categories, matched_signals[:3])."""
     categories: list[str] = []
+    signals: list[str] = []
     lower_rel = rel_path.lower()
     lower_sample = sample_text.lower()
 
-    # 1. Entrypoint (including VinGroup multi-platform signatures — DEPTH-4.7)
-    is_entrypoint = (
-        any(p in {"controllers", "controller", "routes", "routers", "handlers", "handler", "consumers", "consumer", "api", "endpoints", "grpc", "graphql", "webhooks", "ws", "mqtt", "can", "ocpp", "vla", "ros2"} for p in parts_lower)
-        or any(tok in stem for tok in ("controller", "router", "route", "handler", "consumer", "endpoint", "webhook", "server", "main", "app", "program", "startup", "zmq_bridge"))
-        or lower_rel.endswith((".launch.py", ".launch.xml"))
-        or bool(re.search(r"@(?:app|router|api|bp|GetMapping|PostMapping|PutMapping|DeleteMapping|RequestMapping|HttpGet|HttpPost|KafkaListener|RabbitListener|on\(Action\.)\b", sample_text))
-        or bool(re.search(r"\b(?:router|app|r)\.(?:get|post|put|delete|patch|HandleFunc)\s*\(", sample_text))
-        or any(
-            sig in sample_text
-            for sig in (
-                "zmq_recv",
-                "zmq_msg_recv",
-                "create_subscription",
-                "create_service",
-                "@on(Action.",
-                "on_boot_notification",
-                "on_remote_start_transaction",
-                "MethodChannel(",
-                "CFBundleURLSchemes",
-                "android:exported=\"true\"",
-                "<intent-filter",
-                "FUNCTION Z",
-                "RFC_",
-                "<http:listener",
-                "modbus",
-                "opcua",
-                "iec61850",
-            )
-        )
-    )
-    if is_entrypoint and (
+    # 1. Entrypoint: require content signals or explicit controller/router/handler/ocpp/vla/ros2 path/stem (never generic main/app/server/program alone)
+    ep_signals: list[str] = []
+    for sig_name, pat in CONTENT_ENTRYPOINT_PATTERNS:
+        m = pat.search(sample_text)
+        if m:
+            snippet = m.group(0).strip()[:60]
+            ep_signals.append(f"content:{sig_name}:{snippet}")
+            if len(ep_signals) >= 3:
+                break
+    specific_ep_stem = any(
+        tok in stem
+        for tok in ("controller", "router", "route", "handler", "consumer", "endpoint", "webhook", "zmq_bridge")
+    ) and stem not in GENERIC_NON_SIGNAL_STEMS
+    specific_ep_dir = any(
+        p in {"controllers", "controller", "routes", "routers", "handlers", "consumers", "endpoints", "webhooks", "ocpp", "vla", "ros2"}
+        for p in parts_lower
+    ) and stem not in GENERIC_NON_SIGNAL_STEMS
+    if (ep_signals or specific_ep_stem or specific_ep_dir or lower_rel.endswith((".launch.py", ".launch.xml", "androidmanifest.xml", "info.plist"))) and (
         suffix not in {".md", ".txt", ".json", ".yaml", ".yml", ".lock"}
         or lower_rel.endswith(("androidmanifest.xml", "info.plist", ".launch.xml"))
     ):
         categories.append("entrypoint")
+        if ep_signals:
+            signals.extend(ep_signals[:3])
+        else:
+            signals.append(f"structural_entrypoint:{rel_path}")
 
-    # 2. Security
-    is_security = (
-        any(p in {"auth", "authn", "authz", "security", "guards", "guard", "middlewares", "middleware", "rbac", "acl", "crypto", "jwt", "oauth", "permissions", "policies"} for p in parts_lower)
-        or any(tok in stem for tok in ("auth", "jwt", "token", "guard", "middleware", "rbac", "permission", "policy", "crypto", "cipher", "signature", "hmac", "oauth", "session", "acl", "security", "interlock", "safety"))
-        or any(tok in lower_sample for tok in ("authorize", "verify_token", "jwt.decode", "jwt.verify", "hmac.", "check_permission", "@require_role", "useguards", "securityfilterchain"))
-    )
-    if is_security and suffix not in {".md", ".txt"}:
+    # 2. Security: require content signals or explicit auth/guard/rbac/security/interlock stem/dir (never generic session/token/policy alone)
+    sec_signals: list[str] = []
+    for sig_name, pat in CONTENT_SECURITY_PATTERNS:
+        m = pat.search(sample_text)
+        if m:
+            snippet = m.group(0).strip()[:60]
+            sec_signals.append(f"content:{sig_name}:{snippet}")
+            if len(sec_signals) >= 3:
+                break
+    specific_sec_stem = any(
+        tok in stem
+        for tok in ("auth", "authn", "authz", "jwt", "guard", "middleware", "rbac", "permission", "crypto", "cipher", "signature", "hmac", "oauth", "acl", "security", "interlock", "safety")
+    ) and stem not in GENERIC_NON_SIGNAL_STEMS
+    specific_sec_dir = any(
+        p in {"auth", "authn", "authz", "security", "guards", "guard", "middlewares", "middleware", "rbac", "acl", "crypto", "jwt", "oauth", "permissions"}
+        for p in parts_lower
+    ) and stem not in GENERIC_NON_SIGNAL_STEMS
+    if (sec_signals or specific_sec_stem or specific_sec_dir) and suffix not in {".md", ".txt"}:
         categories.append("security")
+        for s in (sec_signals or [f"structural_security:{rel_path}"]):
+            if len(signals) < 3 and s not in signals:
+                signals.append(s)
 
     # 3. Wiring / Config
     is_wiring = (
@@ -1644,6 +1698,8 @@ def _classify_inventory_file(rel_path: str, stem: str, suffix: str, parts_lower:
     )
     if is_wiring:
         categories.append("wiring_config")
+        if len(signals) < 3:
+            signals.append(f"wiring_config:{suffix or lower_rel}")
 
     # 4. Outbound
     is_outbound = (
@@ -1653,6 +1709,8 @@ def _classify_inventory_file(rel_path: str, stem: str, suffix: str, parts_lower:
     )
     if is_outbound and suffix not in {".md", ".txt"}:
         categories.append("outbound")
+        if len(signals) < 3:
+            signals.append("outbound_call_or_client")
 
     # 5. Data Access
     is_data = (
@@ -1662,8 +1720,16 @@ def _classify_inventory_file(rel_path: str, stem: str, suffix: str, parts_lower:
     )
     if is_data and suffix not in {".md", ".txt"}:
         categories.append("data_access")
+        if len(signals) < 3:
+            signals.append("data_access_or_schema")
 
-    return categories
+    return categories, signals[:3]
+
+
+def _classify_inventory_file(rel_path: str, stem: str, suffix: str, parts_lower: list[str], sample_text: str) -> list[str]:
+    """Classify a file into mandatory inventory buckets: entrypoint, security, wiring_config, outbound, data_access."""
+    cats, _ = _classify_inventory_file_with_signals(rel_path, stem, suffix, parts_lower, sample_text)
+    return cats
 
 
 def _redact_secret_preview(line: str) -> str:
@@ -1678,6 +1744,97 @@ def _redact_secret_preview(line: str) -> str:
     return redacted[:160]
 
 
+def _scan_external_tool_reports(project_root: Path, repo_root: Path) -> list[dict[str, Any]]:
+    """Scan <project_root>/reports/ and <repo_root>/reports/ for *.sarif, *trivy*.json, *gitleaks*.json."""
+    leads: list[dict[str, Any]] = []
+    report_dirs: list[Path] = []
+    for d in (project_root / "reports", repo_root / "reports"):
+        if d.is_dir() and d not in report_dirs:
+            report_dirs.append(d)
+    for rdir in report_dirs:
+        try:
+            files = sorted(rdir.rglob("*"))
+        except OSError:
+            continue
+        for f in files:
+            if not f.is_file():
+                continue
+            lname = f.name.lower()
+            if not (lname.endswith(".sarif") or ("trivy" in lname and lname.endswith(".json")) or ("gitleaks" in lname and lname.endswith(".json"))):
+                continue
+            try:
+                data = json.loads(f.read_text(encoding="utf-8", errors="replace"))
+            except Exception:
+                continue
+            if lname.endswith(".sarif") and isinstance(data, dict):
+                for run in data.get("runs", []):
+                    if not isinstance(run, dict):
+                        continue
+                    for res in run.get("results", []):
+                        if not isinstance(res, dict):
+                            continue
+                        rule_id = str(res.get("ruleId") or "SARIF_RULE")
+                        msg = res.get("message", {})
+                        text = str(msg.get("text") if isinstance(msg, dict) else msg or rule_id)
+                        loc_uri = ""
+                        start_line = 1
+                        locs = res.get("locations", [])
+                        if isinstance(locs, list) and locs and isinstance(locs[0], dict):
+                            phys = locs[0].get("physicalLocation", {})
+                            if isinstance(phys, dict):
+                                art = phys.get("artifactLocation", {})
+                                reg = phys.get("region", {})
+                                if isinstance(art, dict):
+                                    loc_uri = str(art.get("uri") or "")
+                                if isinstance(reg, dict) and reg.get("startLine"):
+                                    start_line = int(reg["startLine"])
+                        leads.append({
+                            "tool": "sarif",
+                            "rule_id": rule_id,
+                            "title": text[:200],
+                            "path": loc_uri,
+                            "line": start_line,
+                            "report_file": f.name,
+                        })
+            elif "trivy" in lname and isinstance(data, dict):
+                for r_item in data.get("Results", data.get("results", [])):
+                    if not isinstance(r_item, dict):
+                        continue
+                    target = str(r_item.get("Target") or r_item.get("target") or "")
+                    for vuln in list(r_item.get("Vulnerabilities") or []) + list(r_item.get("Misconfigurations") or []):
+                        if not isinstance(vuln, dict):
+                            continue
+                        vid = str(vuln.get("VulnerabilityID") or vuln.get("ID") or "TRIVY_FINDING")
+                        vtitle = str(vuln.get("Title") or vuln.get("PkgName") or vid)
+                        leads.append({
+                            "tool": "trivy",
+                            "rule_id": vid,
+                            "title": vtitle[:200],
+                            "path": target,
+                            "line": 1,
+                            "report_file": f.name,
+                        })
+            elif "gitleaks" in lname:
+                items = data if isinstance(data, list) else (data.get("findings", []) if isinstance(data, dict) else [])
+                if isinstance(items, list):
+                    for g_item in items:
+                        if not isinstance(g_item, dict):
+                            continue
+                        rid = str(g_item.get("RuleID") or g_item.get("rule_id") or "GITLEAKS_RULE")
+                        desc = str(g_item.get("Description") or g_item.get("description") or rid)
+                        gfile = str(g_item.get("File") or g_item.get("file") or "")
+                        gline = int(g_item.get("StartLine") or g_item.get("line") or 1)
+                        leads.append({
+                            "tool": "gitleaks",
+                            "rule_id": rid,
+                            "title": desc[:200],
+                            "path": gfile,
+                            "line": gline,
+                            "report_file": f.name,
+                        })
+    return leads
+
+
 def inventory_repo(
     project_root: Path,
     repo_name: str,
@@ -1687,7 +1844,9 @@ def inventory_repo(
     """ARCH-3C, DEPTH-4.1e, DEPTH-4.3d, DEPTH-4.7:
     Deterministic pre-scout file tree & mandatory surface inventory.
     Walks repo_root respecting IGNORED_DIRS, DISALLOWED_EXTENSIONS, and MAX_FILE_BYTES,
-    classifies mandatory_files, scans redacted secret leads & dependency manifests,
+    classifies mandatory_files (excluding test/mock/generated/vendor files),
+    records mandatory_file_signals (<=3 snippets per file) and external_tool_leads,
+    scans redacted secret leads & dependency manifests,
     and computes recommended_tier and tier_mismatch_warning.
     """
     project_root = Path(project_root).expanduser().resolve()
@@ -1714,6 +1873,8 @@ def inventory_repo(
         "outbound": [],
         "data_access": [],
     }
+    mandatory_file_signals: dict[str, list[str]] = {}
+    excluded_test_or_generated_files: list[str] = []
     all_eligible_files: list[str] = []
     module_Readiness: dict[str, dict[str, Any]] = {}
     secret_leads: list[dict[str, Any]] = []
@@ -1764,13 +1925,19 @@ def inventory_repo(
                 })
 
             if ManualWorkspace._is_generated_or_lockfile(child):
+                excluded_test_or_generated_files.append(rel_path)
                 continue
             if not ManualWorkspace._is_text_candidate(child):
                 continue
 
-            all_eligible_files.append(rel_path)
             parts = rel_path.split("/")
             parts_lower = [p.lower() for p in parts[:-1]]
+            stem_lower = child.stem.lower()
+            if _is_test_or_generated_path(rel_path, stem_lower, suffix, parts_lower):
+                excluded_test_or_generated_files.append(rel_path)
+                continue
+
+            all_eligible_files.append(rel_path)
             top_mod = "/".join(parts[:-1]) if len(parts) > 1 else "."
             mod_entry = module_Readiness.setdefault(top_mod, {"path": top_mod, "file_count": 0, "entrypoint_count": 0, "security_count": 0})
             mod_entry["file_count"] += 1
@@ -1783,7 +1950,9 @@ def inventory_repo(
             except OSError:
                 sample_text = ""
 
-            cats = _classify_inventory_file(rel_path, child.stem.lower(), suffix, parts_lower, sample_text)
+            cats, sigs = _classify_inventory_file_with_signals(rel_path, stem_lower, suffix, parts_lower, sample_text)
+            if cats:
+                mandatory_file_signals[rel_path] = sigs[:3]
             for c in cats:
                 mandatory_files[c].append(rel_path)
             if "entrypoint" in cats:
@@ -1815,6 +1984,7 @@ def inventory_repo(
                             })
 
     _walk(repo_root)
+    external_tool_leads = _scan_external_tool_reports(project_root, repo_root)
 
     has_entrypoints = len(mandatory_files["entrypoint"]) > 0
     has_security = len(mandatory_files["security"]) > 0
@@ -1866,12 +2036,15 @@ def inventory_repo(
         "run_id": run_id,
         "total_eligible_files": len(all_eligible_files),
         "eligible_files": all_eligible_files,
+        "excluded_test_or_generated_files": sorted(set(excluded_test_or_generated_files)),
         "mandatory_files": mandatory_files,
+        "mandatory_file_signals": mandatory_file_signals,
         "mandatory_directories": mandatory_directories,
         "discovered_modules": sorted(module_Readiness.values(), key=lambda x: x["path"]),
         "secret_leads": secret_leads,
         "dependency_manifests": dependency_manifests,
         "dependency_leads": dependency_leads,
+        "external_tool_leads": external_tool_leads,
         "recommended_tier": recommended_tier,
         "recommended_tier_number": recommended_tier_num,
         "operator_tier": norm_op_tier,
@@ -1964,47 +2137,101 @@ def audit_visibility_and_coverage(
     vis = workspace.compute_visibility_report(scout_map)
     visited_set = {p.split(":", 1)[1] if ":" in p else p for p in vis.get("visited_files", [])}
 
-    # Load clustered files and spot-check requirements from surface_map if present
+    # Build endpoint -> file lookup from surface_map.entrypoints[] so clusters using member_endpoints resolve to files
+    ep_to_file: dict[str, str] = {}
+    all_clusters: list[dict[str, Any]] = []
+    if isinstance(surface_map, dict):
+        s_res = surface_map.get("result", surface_map) if isinstance(surface_map.get("result"), dict) else surface_map
+        if isinstance(s_res, dict):
+            for ep in s_res.get("entrypoints", []):
+                if not isinstance(ep, dict):
+                    continue
+                ep_file = str(ep.get("file") or ep.get("source_file") or "").strip()
+                if not ep_file:
+                    continue
+                for k in ("id", "path", "route", "endpoint"):
+                    val = str(ep.get(k) or "").strip()
+                    if val:
+                        ep_to_file[val] = ep_file
+                method_path = f"{str(ep.get('method') or '').strip()} {str(ep.get('path') or ep.get('route') or '').strip()}".strip()
+                if method_path:
+                    ep_to_file[method_path] = ep_file
+            for cl in (s_res.get("semantic_clusters") or s_res.get("equivalence_clusters") or []):
+                if isinstance(cl, dict):
+                    all_clusters.append(cl)
+    if isinstance(coverage_ledger, dict):
+        c_res = coverage_ledger.get("result", coverage_ledger) if isinstance(coverage_ledger.get("result"), dict) else coverage_ledger
+        if isinstance(c_res, dict) and not all_clusters:
+            for cl in (c_res.get("semantic_clusters") or c_res.get("equivalence_clusters") or []):
+                if isinstance(cl, dict):
+                    all_clusters.append(cl)
+
+    def _resolve_cluster_ref_to_file(ref: str) -> str:
+        ref = ref.strip()
+        if not ref:
+            return ""
+        if ref in ep_to_file:
+            return ep_to_file[ref]
+        if "/" in ref and not ref.startswith(("GET ", "POST ", "PUT ", "DELETE ", "PATCH ", "OCPP:", "HTTP")):
+            return ref.lstrip("./")
+        return ref
+
     clustered_files: set[str] = set()
     spot_check_clusters: list[dict[str, Any]] = []
     spot_check_violations: list[str] = []
-    if isinstance(surface_map, dict):
-        s_res = surface_map.get("result", surface_map)
-        clusters = s_res.get("semantic_clusters") or s_res.get("equivalence_clusters") or []
-        if isinstance(clusters, list):
-            for idx, cl in enumerate(clusters):
-                if not isinstance(cl, dict):
-                    continue
-                cid = str(cl.get("cluster_id") or f"cluster_{idx + 1}")
-                rep = str(cl.get("representative_file") or cl.get("representative_path") or "").strip()
-                raw_members = cl.get("member_files") or cl.get("members") or []
-                members: list[str] = []
-                if isinstance(raw_members, list):
-                    for m in raw_members:
-                        if isinstance(m, str) and m.strip():
-                            members.append(m.strip())
-                        elif isinstance(m, dict) and str(m.get("path", "")).strip():
-                            members.append(str(m["path"]).strip())
-                for m in members:
-                    if not rep or rep in visited_set:
-                        clustered_files.add(m)
-                if len(members) >= 5:
-                    non_rep = sorted(m for m in members if m != rep)
-                    if non_rep:
-                        pick_idx = int(hashlib.sha256(cid.encode("utf-8")).hexdigest(), 16) % len(non_rep)
-                        spot_file = non_rep[pick_idx]
-                        spot_read = spot_file in visited_set
-                        spot_check_clusters.append({
-                            "cluster_id": cid,
-                            "member_count": len(members),
-                            "representative_file": rep,
-                            "required_spot_check_file": spot_file,
-                            "spot_check_read": spot_read,
-                        })
-                        if not spot_read:
-                            spot_check_violations.append(
-                                f"Cluster {cid!r} has {len(members)} members (>=5); spot-check member {spot_file!r} must be directly read"
-                            )
+    for idx, cl in enumerate(all_clusters):
+        cid = str(cl.get("cluster_id") or f"cluster_{idx + 1}")
+        raw_rep = str(
+            cl.get("representative_file")
+            or cl.get("representative_path")
+            or cl.get("representative_endpoint")
+            or ""
+        ).strip()
+        rep = _resolve_cluster_ref_to_file(raw_rep)
+        if not rep:
+            rep_eids = cl.get("representative_deep_read_evidence_ids", [])
+            if isinstance(rep_eids, list):
+                for eid in rep_eids:
+                    rec = workspace.evidence.get(str(eid))
+                    if isinstance(rec, dict) and rec.get("path"):
+                        rep = str(rec["path"]).strip()
+                        break
+        raw_members = (
+            cl.get("member_files")
+            or cl.get("members")
+            or cl.get("member_endpoints")
+            or []
+        )
+        members: list[str] = []
+        if isinstance(raw_members, list):
+            for m in raw_members:
+                m_str = ""
+                if isinstance(m, str) and m.strip():
+                    m_str = _resolve_cluster_ref_to_file(m.strip())
+                elif isinstance(m, dict):
+                    m_str = _resolve_cluster_ref_to_file(str(m.get("path") or m.get("file") or m.get("endpoint") or ""))
+                if m_str and m_str not in members:
+                    members.append(m_str)
+        for m in members:
+            if not rep or rep in visited_set:
+                clustered_files.add(m)
+        if len(members) >= 5:
+            non_rep = sorted(m for m in members if m != rep)
+            if non_rep:
+                pick_idx = int(hashlib.sha256(cid.encode("utf-8")).hexdigest(), 16) % len(non_rep)
+                spot_file = non_rep[pick_idx]
+                spot_read = spot_file in visited_set
+                spot_check_clusters.append({
+                    "cluster_id": cid,
+                    "member_count": len(members),
+                    "representative_file": rep,
+                    "required_spot_check_file": spot_file,
+                    "spot_check_read": spot_read,
+                })
+                if not spot_read:
+                    spot_check_violations.append(
+                        f"Cluster {cid!r} has {len(members)} members (>=5); spot-check member {spot_file!r} must be directly read"
+                    )
 
     # Check ignored/waived modules from scout_map
     waived_prefixes: list[str] = []
@@ -2102,6 +2329,7 @@ def generate_coverage_matrix(run_dir: Path, repo_name: str) -> dict[str, Any]:
     """DEPTH-4.3a: Deterministic Coverage Matrix Generator.
     Combines inventory_repo.json, codebase_scout.json, unified_surface_mapper.json, and intent_invariant_modeler.json
     to emit coverage_matrix.json with records[] covering each target module/entrypoint across applicable attack classes.
+    Never fabricates 'verified_safe' or placeholder evidence IDs; defaults unassessed cells to 'unassessed' with [].
     """
     run_dir = Path(run_dir)
 
@@ -2122,15 +2350,36 @@ def generate_coverage_matrix(run_dir: Path, repo_name: str) -> dict[str, Any]:
     intent = _read_opt("intent_invariant_modeler.json")
     existing_ledger = _read_opt("coverage_ledger.json")
 
-    workspace_evidence_ids: list[str] = []
+    ws_evidence: dict[str, dict[str, Any]] = {}
+    deferred_files: set[str] = set()
     ws_path = run_dir / "workspace_state.json"
     if ws_path.is_file():
         try:
             ws_data = json.loads(ws_path.read_text(encoding="utf-8", errors="replace"))
-            workspace_evidence_ids = sorted(ws_data.get("evidence", {}).keys())
+            if isinstance(ws_data.get("evidence"), dict):
+                ws_evidence = ws_data["evidence"]
+            for df in ws_data.get("deferred_out_of_budget", []):
+                if isinstance(df, str) and df.strip():
+                    deferred_files.add(df.strip())
         except Exception:
-            workspace_evidence_ids = []
-    default_ev = workspace_evidence_ids[0] if workspace_evidence_ids else "ev_000000000000000000"
+            ws_evidence = {}
+
+    def _filter_module_eids(raw_eids: list[Any], mod: str) -> list[str]:
+        valid: list[str] = []
+        for e in raw_eids:
+            es = str(e).strip()
+            if not es.startswith("ev_") or es == "ev_000000000000000000":
+                continue
+            if ws_evidence:
+                rec = ws_evidence.get(es)
+                if not isinstance(rec, dict):
+                    continue
+                rpath = str(rec.get("path") or "").strip().lstrip("./")
+                if mod != "." and not (rpath == mod or rpath.startswith(mod + "/")):
+                    continue
+            if es not in valid:
+                valid.append(es)
+        return valid
 
     target_mods: list[str] = []
     for item in scout.get("target_modules", []):
@@ -2142,47 +2391,166 @@ def generate_coverage_matrix(run_dir: Path, repo_name: str) -> dict[str, Any]:
         target_mods = list(inv.get("mandatory_directories", [])) or ["src"]
 
     attack_classes = ["BOLA_IDOR", "AUTH_BYPASS", "INJECTION", "SSRF_OUTBOUND", "STATE_RACE"]
-    if intent.get("safety_invariants") or intent.get("sfop_invariants"):
+    if intent.get("safety_invariants") or intent.get("sfop_invariants") or intent.get("invariants"):
         attack_classes.append("SAFETY_INVARIANT")
 
-    anomaly_modules: set[str] = set()
-    for anom in list(surf.get("anomalies", [])) + list(surf.get("intent_vs_code_gaps", [])):
-        if isinstance(anom, dict):
-            ap = str(anom.get("path") or anom.get("file") or anom.get("endpoint") or "")
+    # Index explicit surface anomalies / candidates / entrypoints per (mod, aclass)
+    flagged_evidence_by_cell: dict[tuple[str, str], list[str]] = {}
+    safe_evidence_by_cell: dict[tuple[str, str], list[str]] = {}
+
+    def _match_attack_class(raw_cls: str) -> str:
+        u = raw_cls.upper()
+        if any(k in u for k in ("BOLA", "IDOR", "BFLA", "OBJECT", "TENANT")):
+            return "BOLA_IDOR"
+        if any(k in u for k in ("AUTH", "JWT", "TOKEN", "SESSION", "OCPP")):
+            return "AUTH_BYPASS"
+        if any(k in u for k in ("INJECT", "SQL", "CMD", "XSS", "DESERIAL")):
+            return "INJECTION"
+        if any(k in u for k in ("SSRF", "OUTBOUND", "WEBHOOK")):
+            return "SSRF_OUTBOUND"
+        if any(k in u for k in ("RACE", "STATE", "IDEMPOTEN", "BOPLA", "MASS")):
+            return "STATE_RACE"
+        if any(k in u for k in ("SAFETY", "INVARIANT", "ACTUATOR", "INTERLOCK")):
+            return "SAFETY_INVARIANT"
+        return "BOLA_IDOR"
+
+    for anom in (
+        list(surf.get("anomalies", []))
+        + list(surf.get("intent_vs_code_gaps", []))
+        + list(surf.get("candidate_queue", []))
+        + list(surf.get("candidates", []))
+    ):
+        if not isinstance(anom, dict):
+            continue
+        ap = str(
+            anom.get("path")
+            or anom.get("file")
+            or anom.get("endpoint")
+            or ((anom.get("target_paths") or [""])[0] if isinstance(anom.get("target_paths"), list) else "")
+        ).strip()
+        raw_ac = str(
+            anom.get("attack_class")
+            or ((anom.get("attack_classes") or [""])[0] if isinstance(anom.get("attack_classes"), list) else "")
+            or "BOLA_IDOR"
+        )
+        mapped_ac = _match_attack_class(raw_ac)
+        raw_eids = list(anom.get("evidence_ids") or [])
+        for mod in target_mods:
+            mod_eids = _filter_module_eids(raw_eids, mod)
+            if mod_eids and (mod == "." or mod in ap or not ap):
+                cell = flagged_evidence_by_cell.setdefault((mod, mapped_ac), [])
+                for e in mod_eids:
+                    if e not in cell:
+                        cell.append(e)
+
+    for ic in surf.get("invariant_checks", []):
+        if isinstance(ic, dict) and str(ic.get("enforcement_status") or ic.get("status") or "").lower() in {"missing", "partial"}:
+            raw_eids = list(ic.get("implementation_evidence_ids") or ic.get("evidence_ids") or [])
             for mod in target_mods:
-                if mod in ap:
-                    anomaly_modules.add(mod)
+                mod_eids = _filter_module_eids(raw_eids, mod)
+                if mod_eids:
+                    cell = flagged_evidence_by_cell.setdefault((mod, "SAFETY_INVARIANT" if "SAFETY_INVARIANT" in attack_classes else "STATE_RACE"), [])
+                    for e in mod_eids:
+                        if e not in cell:
+                            cell.append(e)
+
+    for ep in surf.get("entrypoints", []):
+        if not isinstance(ep, dict):
+            continue
+        ep_file = str(ep.get("file") or ep.get("path") or "").strip()
+        raw_eids = list(ep.get("ownership_evidence_ids") or ep.get("evidence_ids") or [])
+        for mod in target_mods:
+            if mod != "." and not (ep_file == mod or ep_file.startswith(mod + "/")):
+                continue
+            mod_eids = _filter_module_eids(raw_eids, mod)
+            if not mod_eids:
+                continue
+            if ep.get("ownership_check") == "missing" or (ep.get("object_id_params") and ep.get("ownership_check") != "present"):
+                cell = flagged_evidence_by_cell.setdefault((mod, "BOLA_IDOR"), [])
+                for e in mod_eids:
+                    if e not in cell:
+                        cell.append(e)
+            elif ep.get("ownership_check") == "present":
+                cell = safe_evidence_by_cell.setdefault((mod, "BOLA_IDOR"), [])
+                for e in mod_eids:
+                    if e not in cell:
+                        cell.append(e)
 
     records: list[dict[str, Any]] = []
     seen_cids: set[str] = set()
 
-    # Preserve existing coverage_ledger records first
+    # Preserve existing coverage_ledger records only when they cite valid non-placeholder evidence IDs
     for rec in existing_ledger.get("records", []):
         if isinstance(rec, dict) and rec.get("coverage_id"):
-            seen_cids.add(str(rec["coverage_id"]))
-            records.append(rec)
+            cid_str = str(rec["coverage_id"])
+            rec_mod = str(rec.get("target_module") or ".")
+            valid_rec_eids = _filter_module_eids(list(rec.get("evidence_ids") or []), rec_mod)
+            rec_copy = dict(rec)
+            raw_st = str(rec_copy.get("status") or "unassessed")
+            if raw_st in {"verified_safe", "covered_safe"}:
+                rec_copy["status"] = "covered_safe" if valid_rec_eids else "unassessed"
+            elif raw_st in {"covered_finding", "flagged_for_phase_2"}:
+                rec_copy["status"] = "flagged_for_phase_2" if valid_rec_eids else "unassessed"
+            rec_copy["evidence_ids"] = valid_rec_eids
+            seen_cids.add(cid_str)
+            records.append(rec_copy)
 
     for mod in target_mods:
+        mod_is_deferred = any(df == mod or df.startswith(mod + "/") for df in deferred_files)
         for aclass in attack_classes:
             cid = build_coverage_id(mod, "repo_boundary", repo_name, aclass)
             if cid in seen_cids:
                 continue
             seen_cids.add(cid)
-            status = "flagged_for_phase_2" if mod in anomaly_modules else "verified_safe"
+            flagged_eids = flagged_evidence_by_cell.get((mod, aclass), [])
+            safe_eids = safe_evidence_by_cell.get((mod, aclass), [])
+            if flagged_eids:
+                status = "flagged_for_phase_2"
+                cell_eids = flagged_eids
+            elif safe_eids:
+                status = "covered_safe"
+                cell_eids = safe_eids
+            elif mod_is_deferred:
+                status = "deferred"
+                cell_eids = []
+            else:
+                status = "unassessed"
+                cell_eids = []
             records.append({
                 "coverage_id": cid,
                 "target_module": mod,
                 "attack_class": aclass,
                 "status": status,
-                "evidence_ids": [default_ev],
-                "attempts": [
-                    {
-                        "attempt_number": 1,
-                        "action": "deterministic_coverage_matrix_synthesis",
-                        "evidence_ids": [default_ev],
-                    }
-                ],
+                "evidence_ids": cell_eids,
+                "attempts": (
+                    [
+                        {
+                            "attempt_number": 1,
+                            "action": "evidence_backed_surface_assessment",
+                            "evidence_ids": cell_eids,
+                        }
+                    ]
+                    if cell_eids
+                    else []
+                ),
             })
+
+    status_counts: dict[str, int] = {
+        "covered_safe": 0,
+        "flagged_for_phase_2": 0,
+        "unassessed": 0,
+        "deferred": 0,
+    }
+    for r in records:
+        st = str(r.get("status") or "unassessed")
+        if st in status_counts:
+            status_counts[st] += 1
+        elif st in {"verified_safe"}:
+            status_counts["covered_safe"] += 1
+        elif st in {"covered_finding"}:
+            status_counts["flagged_for_phase_2"] += 1
+        else:
+            status_counts["unassessed"] += 1
 
     matrix_payload = {
         "repo_name": repo_name,
@@ -2190,17 +2558,16 @@ def generate_coverage_matrix(run_dir: Path, repo_name: str) -> dict[str, Any]:
         "target_modules": target_mods,
         "attack_classes": attack_classes,
         "record_count": len(records),
+        "status_counts": status_counts,
         "records": records,
     }
     write_json(run_dir / "coverage_matrix.json", matrix_payload)
-    if not (run_dir / "coverage_ledger.json").is_file() and workspace_evidence_ids:
-        write_json(run_dir / "coverage_ledger.json", matrix_payload)
     return matrix_payload
 
 
 def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
     """ARCH-3G & DEPTH-4.2a: Comprehensive Phase 1 -> Phase 2 Candidate Collector.
-    Collects candidates from all 7 sources, deduplicates, assigns stable cand_<12-hex> IDs,
+    Collects candidates from all 7+ sources, deduplicates, assigns stable cand_<12-hex> IDs,
     and writes run_dir/candidate_queue.json.
     """
     run_dir = Path(run_dir)
@@ -2234,6 +2601,7 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
         "contract_drift_findings": 0,
         "coverage_ledger_flagged": 0,
         "inventory_leads": 0,
+        "external_tool_leads": 0,
     }
 
     def _add_candidate(
@@ -2264,8 +2632,8 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
             "source_detail": raw_item,
         })
 
-    # 1a. unified_surface_mapper.json -> explicit candidate_queue[] and semantic_clusters[].outliers[]
-    for item in surf.get("candidate_queue", []):
+    # 1a. unified_surface_mapper.json -> explicit candidate_queue[] / candidates[] and semantic_clusters[].outliers[]
+    for item in list(surf.get("candidate_queue", [])) + list(surf.get("candidates", [])):
         if isinstance(item, dict):
             _add_candidate(
                 "surface_anomalies",
@@ -2321,12 +2689,19 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
                     ep,
                 )
 
-    # 1c. unified_surface_mapper.json -> surface_checklist unknown items
+    # 1c. unified_surface_mapper.json -> surface_checklist unknown items (status=='unknown' or present is None)
     s_chk = surf.get("surface_checklist")
     if isinstance(s_chk, dict):
         for stype, sinfo in s_chk.items():
-            st_val = sinfo.get("status") if isinstance(sinfo, dict) else sinfo
-            if str(st_val).lower() == "unknown":
+            is_unk = False
+            if sinfo is None:
+                is_unk = True
+            elif isinstance(sinfo, dict):
+                if str(sinfo.get("status", "")).lower() == "unknown" or ("present" in sinfo and sinfo.get("present") is None):
+                    is_unk = True
+            elif str(sinfo).lower() == "unknown":
+                is_unk = True
+            if is_unk:
                 _add_candidate(
                     "surface_anomalies",
                     f"Unknown Surface Type Requires Verification: {stype}",
@@ -2337,7 +2712,10 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
                 )
     elif isinstance(s_chk, list):
         for sinfo in s_chk:
-            if isinstance(sinfo, dict) and str(sinfo.get("status", "")).lower() == "unknown":
+            if isinstance(sinfo, dict) and (
+                str(sinfo.get("status", "")).lower() == "unknown"
+                or ("present" in sinfo and sinfo.get("present") is None)
+            ):
                 stype = str(sinfo.get("surface_type") or sinfo.get("type") or "surface")
                 _add_candidate(
                     "surface_anomalies",
@@ -2382,9 +2760,22 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
                 item,
             )
 
-    # 3. intent_invariant_modeler.json -> blinded_challenger_new_invariants[] and self_challenged_gaps[]
-    for item in list(intent.get("blinded_challenger_new_invariants", [])) + list(intent.get("self_challenged_gaps", [])):
-        if isinstance(item, dict):
+    # 3. intent_invariant_modeler.json -> blinded_challenger_new_invariants[], self_challenged_gaps[], and self_review_gaps[]
+    for item in (
+        list(intent.get("blinded_challenger_new_invariants", []))
+        + list(intent.get("self_challenged_gaps", []))
+        + list(intent.get("self_review_gaps", []))
+    ):
+        if isinstance(item, str) and item.strip():
+            _add_candidate(
+                "blinded_challenger_new_invariants",
+                f"Self-Review Invariant Gap: {item.strip()}",
+                "INVARIANT_VIOLATION",
+                "",
+                [],
+                {"gap": item.strip()},
+            )
+        elif isinstance(item, dict):
             if str(item.get("verification_status", "unverified")).lower() not in {"verified_enforced", "confirmed_safe"}:
                 _add_candidate(
                     "blinded_challenger_new_invariants",
@@ -2433,7 +2824,7 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
                 rec,
             )
 
-    # 7. inventory_repo.json -> secret_leads[] and dependency_leads[]
+    # 7. inventory_repo.json -> secret_leads[], dependency_leads[], and external_tool_leads[]
     for s_lead in inv.get("secret_leads", []):
         if isinstance(s_lead, dict):
             _add_candidate(
@@ -2454,6 +2845,16 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
                 [],
                 d_lead,
             )
+    for ext_lead in inv.get("external_tool_leads", []):
+        if isinstance(ext_lead, dict):
+            _add_candidate(
+                "external_tool_leads",
+                f"External Tool Lead ({ext_lead.get('tool', 'scanner')}:{ext_lead.get('rule_id', 'rule')}): {ext_lead.get('title', '')}",
+                str(ext_lead.get("rule_id") or "EXTERNAL_SCANNER_LEAD"),
+                f"{ext_lead.get('path', '')}:{ext_lead.get('line', 1)}",
+                [],
+                ext_lead,
+            )
 
     payload = {
         "repo_name": repo_name,
@@ -2465,11 +2866,46 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
     return payload
 
 
+def _normalize_boundary_target(raw_target: str, explicit_service: str = "") -> tuple[str, str, list[str]]:
+    """Normalize URL/route/topic target into (service_or_host, normalized_path, non_empty_segments).
+    Replaces path params (:id, {id}, <id>) with {param} and never matches bare '/' via endswith.
+    """
+    s = raw_target.strip()
+    # Strip HTTP method prefix if present (e.g. 'POST /api/v1/orders')
+    s = re.sub(r"^(?:GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS|RPC|GRPC|OCPP)\s+", "", s, flags=re.IGNORECASE).strip()
+    host = explicit_service.strip().lower()
+    if "://" in s:
+        _, rest = s.split("://", 1)
+        if "/" in rest:
+            raw_host, path_part = rest.split("/", 1)
+            path_part = "/" + path_part
+        else:
+            raw_host, path_part = rest, ""
+        raw_host = raw_host.split(":", 1)[0].strip().lower()
+        if raw_host and raw_host not in {"localhost", "127.0.0.1", "0.0.0.0"} and not host:
+            host = raw_host
+        s = path_part
+    s = s.split("?", 1)[0].split("#", 1)[0].strip()
+    raw_segments = [seg.strip() for seg in s.strip("/").split("/") if seg.strip()]
+    norm_segments: list[str] = []
+    for seg in raw_segments:
+        if (
+            seg.startswith(":")
+            or (seg.startswith("{") and seg.endswith("}"))
+            or (seg.startswith("<") and seg.endswith(">"))
+        ):
+            norm_segments.append("{param}")
+        else:
+            norm_segments.append(seg.lower())
+    norm_path = "/" + "/".join(norm_segments) if norm_segments else ""
+    return host, norm_path, norm_segments
+
+
 def match_cross_repo_boundaries(project_root: Path, run_id: str = "default") -> dict[str, Any]:
     """DEPTH-4.1f: Deterministic Cross-Repo Producer/Consumer Boundary Matcher.
     Reads all <repo>/unified_surface_mapper.json and <repo>/inventory_repo.json across .localsec/runs/<run_id>/*,
-    matches outbound calls/producers/data_flows against inbound entrypoints/consumers, and flags unmatched_producers,
-    unmatched_consumers, and auth_propagation_gaps.
+    normalizes paths/hosts/parameters, matches outbound calls/producers/data_flows against inbound entrypoints/consumers,
+    and flags unmatched_producers, unmatched_consumers, and auth_propagation_gaps.
     """
     project_root = Path(project_root).expanduser().resolve()
     runs_root = project_root / ".localsec" / "runs" / run_id
@@ -2508,11 +2944,21 @@ def match_cross_repo_boundaries(project_root: Path, run_id: str = "default") -> 
                         ).strip()
                         if not target_val:
                             continue
-                        id_prop = str(out_item.get("identity_propagation", "")).lower()
-                        fw_auth = bool(out_item.get("forwards_auth", out_item.get("auth_forwarded", id_prop not in {"none", "stripped", "absent"})))
+                        id_prop = str(
+                            out_item.get("identity_forwarding")
+                            or out_item.get("identity_propagation")
+                            or ""
+                        ).lower()
+                        fw_auth = bool(
+                            out_item.get(
+                                "forwards_auth",
+                                out_item.get("auth_forwarded", id_prop not in {"none", "stripped", "absent", "false"}),
+                            )
+                        )
                         producers.append({
                             "repo_name": rname,
                             "target": target_val,
+                            "target_service": str(out_item.get("target_service") or out_item.get("service") or "").strip().lower(),
                             "protocol": str(out_item.get("protocol") or "http").lower(),
                             "forwards_auth": fw_auth,
                             "path": str(out_item.get("path") or out_item.get("source") or ""),
@@ -2551,18 +2997,37 @@ def match_cross_repo_boundaries(project_root: Path, run_id: str = "default") -> 
 
     for prod in producers:
         ptarget = prod["target"]
+        phost, pnorm, psegs = _normalize_boundary_target(ptarget, prod.get("target_service", ""))
         matched_any = False
         for c_idx, cons in enumerate(consumers):
             if cons["repo_name"] == prod["repo_name"]:
                 continue
             ctarget = cons["target"]
-            if ptarget and ctarget and (ptarget == ctarget or ptarget.endswith(ctarget) or ctarget.endswith(ptarget)):
+            chost, cnorm, csegs = _normalize_boundary_target(ctarget)
+            if not pnorm or not cnorm:
+                continue
+            if phost and chost and phost != chost and phost != cons["repo_name"].lower():
+                continue
+            if phost and not chost and phost not in {cons["repo_name"].lower(), _safe_name(cons["repo_name"]).lower()} and len(repos_scanned) > 2:
+                # If producer explicitly named another repo/service host, require consumer repo match when possible
+                if any(phost == r.lower() or phost == _safe_name(r).lower() for r in repos_scanned):
+                    continue
+            is_match = False
+            if pnorm == cnorm:
+                is_match = True
+            else:
+                shorter_segs = psegs if len(psegs) <= len(csegs) else csegs
+                longer_segs = csegs if len(psegs) <= len(csegs) else psegs
+                if len(shorter_segs) >= 2 and longer_segs[-len(shorter_segs):] == shorter_segs:
+                    is_match = True
+            if is_match:
                 matched_any = True
                 matched_consumer_indices.add(c_idx)
                 edge = {
                     "producer_repo": prod["repo_name"],
                     "consumer_repo": cons["repo_name"],
                     "target": ptarget,
+                    "normalized_target": cnorm,
                     "protocol": prod["protocol"],
                     "producer_path": prod["path"],
                     "consumer_path": cons["path"],
@@ -2603,7 +3068,7 @@ def finalize_v3_phase1(project_root: Path, repo_name: str, run_id: str = "defaul
     """ARCH-3D & ARCH-3G: Script-enforced Phase 1 Finalizer.
     Runs/loads inventory_repo, generate_coverage_matrix, audit_visibility_and_coverage,
     semantic claim verification with fail-closed downgrade, and build_v3_candidate_queue,
-    validates coverage_and_evidence_auditor.json, and writes phase1_gate_Certificate.json + phase1_gate_receipt.json.
+    validates/generates coverage_and_evidence_auditor.json, and writes phase1_gate_Certificate.json + phase1_gate_receipt.json.
     """
     from .config import load_config
     from .validators import OutputValidationError, validate_agent_output, verify_claim_to_excerpt_semantics
@@ -2638,8 +3103,22 @@ def finalize_v3_phase1(project_root: Path, repo_name: str, run_id: str = "defaul
                 k: [tuple(pair) for pair in v]
                 for k, v in ws_state.get("read_ranges", {}).items()
             }
+            ws.deferred_out_of_budget = list(ws_state.get("deferred_out_of_budget", []))
         except Exception:
             pass
+
+    auditor_errors: list[str] = []
+    auditor_path = run_dir / "coverage_and_evidence_auditor.json"
+    existing_aud_payload: dict[str, Any] = {}
+    if auditor_path.is_file():
+        try:
+            raw_aud = json.loads(auditor_path.read_text(encoding="utf-8", errors="replace"))
+            existing_aud_payload = raw_aud.get("result", raw_aud) if isinstance(raw_aud, dict) else raw_aud
+            validate_agent_output("coverage_and_evidence_auditor", existing_aud_payload, set(ws.evidence.keys()) or None)
+        except OutputValidationError as exc:
+            auditor_errors.append(str(exc))
+        except Exception as exc:
+            auditor_errors.append(str(exc))
 
     # ARCH-3D: Run deterministic semantic claim verifier on Phase 1 outputs and automatically downgrade contradicted claims fail-closed
     semantic_downgrades: list[dict[str, Any]] = []
@@ -2681,6 +3160,16 @@ def finalize_v3_phase1(project_root: Path, repo_name: str, run_id: str = "defaul
         if modified:
             write_json(sf, raw_s)
 
+    if isinstance(existing_aud_payload, dict):
+        for ca in existing_aud_payload.get("claim_audits", []):
+            if isinstance(ca, dict) and str(ca.get("verdict") or "").lower() in {"unsupported", "partially_supported"}:
+                semantic_downgrades.append({
+                    "claim_ref": str(ca.get("claim_id") or ca.get("claim_ref") or "audited_claim"),
+                    "previous_status": "observed",
+                    "new_status": "hypothesis",
+                    "contradictions": [str(ca.get("notes") or ca.get("verdict") or "Unsupported claim flagged by auditor")],
+                })
+
     surface_map: dict[str, Any] = {}
     if (run_dir / "unified_surface_mapper.json").is_file():
         surface_map = json.loads((run_dir / "unified_surface_mapper.json").read_text(encoding="utf-8", errors="replace"))
@@ -2703,21 +3192,36 @@ def finalize_v3_phase1(project_root: Path, repo_name: str, run_id: str = "defaul
         surface_map=surface_map or None,
     )
 
-    auditor_errors: list[str] = []
-    auditor_path = run_dir / "coverage_and_evidence_auditor.json"
-    if auditor_path.is_file():
-        try:
-            raw_aud = json.loads(auditor_path.read_text(encoding="utf-8", errors="replace"))
-            aud_payload = raw_aud.get("result", raw_aud) if isinstance(raw_aud, dict) else raw_aud
-            validate_agent_output("coverage_and_evidence_auditor", aud_payload, set(ws.evidence.keys()) or None)
-        except OutputValidationError as exc:
-            auditor_errors.append(str(exc))
-
     gate_passed = bool(
         scout_validation.get("valid", True)
         and vis_audit.get("gate_passed", False)
         and not auditor_errors
     )
+
+    authoritative_auditor = {
+        "skill": "coverage_and_evidence_auditor",
+        "version": "3.0.0",
+        "status": "ok",
+        "result": {
+            "repo_name": repo_name,
+            "gate_passed": gate_passed,
+            "visibility_audit_passed": bool(vis_audit.get("gate_passed", False)),
+            "evidence_audit_passed": len(auditor_errors) == 0,
+            "visibility_report": vis_audit.get("visibility_report", {}),
+            "downgraded_claims": semantic_downgrades,
+            "claim_audits": existing_aud_payload.get("claim_audits", []) if isinstance(existing_aud_payload, dict) else [],
+            "blocker_reasons": (
+                list(vis_audit.get("visibility_report", {}).get("unvisited_target_modules", []))
+                + list(vis_audit.get("visibility_report", {}).get("grazed_files", []))
+                + auditor_errors
+            ),
+            "summary": (
+                f"Authoritative Phase 1 audit finalized (gate_passed={gate_passed}, "
+                f"downgrades={len(semantic_downgrades)}, candidates={cand_queue.get('candidate_count', 0)})."
+            ),
+        },
+    }
+    write_json(auditor_path, authoritative_auditor)
 
     cert = {
         "phase": "phase_1",
@@ -2750,13 +3254,20 @@ CHALLENGER_RECONCILIATION_MATRIX = {
 
 def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "default") -> dict[str, Any]:
     """ARCH-3D, ARCH-3G, ARCH-3H: Script-enforced Phase 2 Finalizer.
-    Verifies every candidate in candidate_queue.json is accounted for, verifies blinded_counterevidence_challenger,
-    enforces request_plan_is_not_execution and the Challenger Reconciliation Matrix,
-    and writes phase2_gate_Certificate.json, phase2_gate_receipt.json, and phase3_verified_queue.json.
+    Verifies every candidate in candidate_queue.json is accounted for, verifies blinded_counterevidence_challenger
+    is fresh and complete (all chains challenged + 6-location checklist), enforces request_plan_is_not_execution
+    and the Challenger Reconciliation Matrix (fail-closed), and writes phase2_gate_Certificate.json,
+    phase2_gate_receipt.json, analysis_evidence_gate.json, and phase3_verified_queue.json.
     """
     project_root = Path(project_root).expanduser().resolve()
     run_dir = project_root / ".localsec" / "runs" / run_id / repo_name
     run_dir.mkdir(parents=True, exist_ok=True)
+
+    dt_file = run_dir / "deep_trace_chain_analyst.json"
+    ch_file = run_dir / "blinded_counterevidence_challenger.json"
+    dt_mtime = dt_file.stat().st_mtime if dt_file.is_file() else 0.0
+    ch_mtime = ch_file.stat().st_mtime if ch_file.is_file() else 0.0
+    stale_challenger = bool(dt_mtime and ch_mtime and ch_mtime + 0.001 < dt_mtime)
 
     def _load(fname: str) -> dict[str, Any]:
         fp = run_dir / fname
@@ -2784,15 +3295,27 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
     )
     for ch in raw_challenges:
         if isinstance(ch, dict):
-            cid = str(ch.get("chain_id") or ch.get("candidate_id") or "")
-            if cid:
-                challenger_by_id[cid] = ch
+            for k in ("chain_id", "candidate_id", "finding_id"):
+                cid = str(ch.get(k) or "").strip()
+                if cid:
+                    challenger_by_id[cid] = ch
 
     verified_phase3_findings: list[dict[str, Any]] = []
     refuted_ledger: list[dict[str, Any]] = list(ev_gate.get("empirical_refutations_ledger", []))
     hypothesis_only: list[dict[str, Any]] = []
     reconciliation_log: list[dict[str, Any]] = []
     accounted_candidate_ids: set[str] = set()
+    unchallenged_chains: list[str] = []
+    incomplete_checklist_chains: list[str] = []
+
+    required_6_locations = {
+        "global_middleware_or_filter",
+        "gateway_or_ingress_config",
+        "service_or_domain_guard",
+        "orm_global_filter_or_scoped_query",
+        "db_constraint_rls_or_trigger",
+        "upstream_caller_validation",
+    }
 
     for unexp in deep_trace.get("unexploitable_candidates", []):
         if isinstance(unexp, str) and unexp.strip():
@@ -2827,7 +3350,7 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
             accounted_candidate_ids.add(cand_id)
         if chain_id:
             accounted_candidate_ids.add(chain_id)
-        for cid_item in chain.get("candidate_ids", []):
+        for cid_item in list(chain.get("candidate_ids") or []) + list(chain.get("source_candidate_ids") or []):
             if cid_item:
                 accounted_candidate_ids.add(str(cid_item))
 
@@ -2840,15 +3363,48 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
             chain["chain_verdict"] = "code_supported"
             dt_modified = True
 
-        ch_entry = challenger_by_id.get(chain_id) or challenger_by_id.get(cand_id) or {}
-        ch_verdict = str(
-            ch_entry.get("challenger_verdict")
-            or ch_entry.get("challenge_verdict")
-            or ch_entry.get("verdict")
-            or chain.get("challenger_verdict")
-            or "confirmed_exploit_chain"
-        ).strip()
-        reconciled_status = CHALLENGER_RECONCILIATION_MATRIX.get(ch_verdict, "REACHABLE_VULNERABILITY")
+        ch_entry = challenger_by_id.get(chain_id) or challenger_by_id.get(cand_id)
+        if not ch_entry:
+            for cid_item in list(chain.get("candidate_ids") or []) + list(chain.get("source_candidate_ids") or []):
+                if str(cid_item) in challenger_by_id:
+                    ch_entry = challenger_by_id[str(cid_item)]
+                    break
+
+        if not ch_entry:
+            ch_verdict = "unchallenged"
+            reconciled_status = "UNCHALLENGED_BLOCKED"
+            unchallenged_chains.append(chain_id or cand_id)
+        else:
+            raw_verdict = str(
+                ch_entry.get("challenge_verdict")
+                or ch_entry.get("challenger_verdict")
+                or ch_entry.get("verdict")
+                or ch_entry.get("overall_challenge_outcome")
+                or ""
+            ).strip()
+            if raw_verdict not in CHALLENGER_RECONCILIATION_MATRIX:
+                ch_verdict = raw_verdict or "unchallenged"
+                reconciled_status = "UNCHALLENGED_BLOCKED"
+                unchallenged_chains.append(chain_id or cand_id)
+            else:
+                ch_verdict = raw_verdict
+                reconciled_status = CHALLENGER_RECONCILIATION_MATRIX[ch_verdict]
+
+            checklist = ch_entry.get("control_search_checklist")
+            if isinstance(checklist, list):
+                seen_locs = {
+                    str(c.get("location") or c.get("control_location") or "").strip()
+                    for c in checklist
+                    if isinstance(c, dict)
+                }
+                if not required_6_locations.issubset(seen_locs):
+                    incomplete_checklist_chains.append(chain_id or cand_id)
+            elif isinstance(checklist, dict):
+                seen_locs = {str(k).strip() for k in checklist.keys()}
+                if not required_6_locations.issubset(seen_locs):
+                    incomplete_checklist_chains.append(chain_id or cand_id)
+            elif "control_search_checklist" in ch_entry:
+                incomplete_checklist_chains.append(chain_id or cand_id)
 
         reconciled_item = {
             **chain,
@@ -2856,12 +3412,14 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
             "candidate_id": cand_id or chain_id,
             "chain_verdict": effective_chain_verdict,
             "challenger_verdict": ch_verdict,
+            "challenge_verdict": ch_verdict,
             "reconciled_status": reconciled_status,
         }
         reconciliation_log.append({
             "chain_id": chain_id or cand_id,
             "chain_verdict": effective_chain_verdict,
             "challenger_verdict": ch_verdict,
+            "challenge_verdict": ch_verdict,
             "reconciled_status": reconciled_status,
         })
 
@@ -2872,19 +3430,25 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
                 "candidate_id": cand_id or chain_id,
                 "chain_id": chain_id or cand_id,
                 "refutation_reason": f"Refuted by blinded_counterevidence_challenger ({ch_verdict})",
-                "counterevidence_ids": list(ch_entry.get("counter_evidence_ids") or ch_entry.get("counterevidence_ids") or ch_entry.get("evidence_ids") or chain.get("evidence_ids") or []),
+                "counterevidence_ids": list(
+                    (ch_entry or {}).get("counter_evidence_ids")
+                    or (ch_entry or {}).get("counterevidence_ids")
+                    or (ch_entry or {}).get("evidence_ids")
+                    or chain.get("evidence_ids")
+                    or []
+                ),
             })
-        else:
+        elif reconciled_status == "HYPOTHESIS_ONLY_UNVERIFIED":
             hypothesis_only.append(reconciled_item)
 
-    if dt_modified and (run_dir / "deep_trace_chain_analyst.json").is_file():
+    if dt_modified and dt_file.is_file():
         try:
-            raw_dt = json.loads((run_dir / "deep_trace_chain_analyst.json").read_text(encoding="utf-8", errors="replace"))
+            raw_dt = json.loads(dt_file.read_text(encoding="utf-8", errors="replace"))
             if isinstance(raw_dt, dict) and isinstance(raw_dt.get("result"), dict):
                 raw_dt["result"] = deep_trace
-                write_json(run_dir / "deep_trace_chain_analyst.json", raw_dt)
+                write_json(dt_file, raw_dt)
             else:
-                write_json(run_dir / "deep_trace_chain_analyst.json", deep_trace)
+                write_json(dt_file, deep_trace)
         except Exception:
             pass
 
@@ -2897,7 +3461,12 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
 
     blinded_artifact_path = project_root / ".localsec" / "tmp" / f"blinded_chains_{repo_name}.json"
     blinded_challenger_verified = bool(
-        (run_dir / "blinded_counterevidence_challenger.json").is_file()
+        (
+            ch_file.is_file()
+            and not stale_challenger
+            and len(unchallenged_chains) == 0
+            and len(incomplete_checklist_chains) == 0
+        )
         or len(chains) == 0
     )
 
@@ -2913,23 +3482,31 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
         "reconciliation_log": reconciliation_log,
     }
     write_json(run_dir / "phase3_verified_queue.json", phase3_queue)
-    if not (run_dir / "analysis_evidence_gate.json").is_file():
-        write_json(
-            run_dir / "analysis_evidence_gate.json",
-            {
-                "skill": "analysis_evidence_gate",
-                "version": "3.0.0",
-                "status": "ok",
-                "result": {
-                    "repo_name": repo_name,
-                    "gate_passed": gate_passed,
-                    "confirmed_reachable_chains": [f.get("chain_id") for f in verified_phase3_findings],
-                    "downgraded_or_refuted_chains": [r.get("chain_id") or r.get("candidate_id") for r in refuted_ledger],
-                    "empirical_refutations_ledger": refuted_ledger,
-                    "summary": f"Phase 2 gate finalized ({len(verified_phase3_findings)} reachable, {len(refuted_ledger)} refuted).",
-                },
+    write_json(
+        run_dir / "analysis_evidence_gate.json",
+        {
+            "skill": "analysis_evidence_gate",
+            "version": "3.0.0",
+            "status": "ok",
+            "result": {
+                "repo_name": repo_name,
+                "gate_passed": gate_passed,
+                "confirmed_reachable_chains": [f.get("chain_id") for f in verified_phase3_findings],
+                "downgraded_or_refuted_chains": [r.get("chain_id") or r.get("candidate_id") for r in refuted_ledger],
+                "hypothesis_only_chains": [h.get("chain_id") for h in hypothesis_only],
+                "unchallenged_chains": unchallenged_chains,
+                "incomplete_checklist_chains": incomplete_checklist_chains,
+                "stale_challenger": stale_challenger,
+                "empirical_refutations_ledger": refuted_ledger,
+                "reconciliation_log": reconciliation_log,
+                "summary": (
+                    f"Phase 2 gate finalized (gate_passed={gate_passed}, "
+                    f"{len(verified_phase3_findings)} reachable, {len(refuted_ledger)} refuted, "
+                    f"{len(unchallenged_chains)} unchallenged)."
+                ),
             },
-        )
+        },
+    )
 
     cert = {
         "phase": "phase_2",
@@ -2938,6 +3515,9 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
         "gate_passed": gate_passed,
         "blinded_artifact_present": blinded_artifact_path.is_file(),
         "blinded_challenger_verified": blinded_challenger_verified,
+        "stale_challenger": stale_challenger,
+        "unchallenged_chains": unchallenged_chains,
+        "incomplete_checklist_chains": incomplete_checklist_chains,
         "total_candidates": len(queued_ids),
         "accounted_candidates_count": len(queued_ids) - len(unaccounted_candidates),
         "unaccounted_candidates": unaccounted_candidates,
@@ -2988,9 +3568,11 @@ def ingest_runtime_facts(
 
 def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "default") -> dict[str, Any]:
     """ARCH-3D, ARCH-3G, ARCH-3H & DEPTH-4.4a: Script-enforced Phase 3 Finalizer.
-    Verifies surviving chain_ids from Phase 2 are accounted for, derives feasibility_derived & key_questions.json,
-    cross-checks beyond_code_control_mapper.json against repo evidence and runtime_environment_facts.json,
-    validates sfop_risk_calibrator.json against the 3 hard laws, and writes phase3_gate_Certificate.json + phase3_gate_receipt.json.
+    Verifies surviving chain_ids from Phase 2 are accounted for, derives feasibility_derived & key_questions.json
+    (including preconditions from 3.1 and beyond-code controls from 3.2 with outcome_if_yes/outcome_if_no),
+    computes derived_risk_rating, cross-checks beyond_code_control_mapper.json against repo evidence and
+    runtime_environment_facts.json, validates sfop_risk_calibrator.json against the 3 hard laws,
+    and writes phase3_gate_Certificate.json + phase3_gate_receipt.json.
     """
     from .validators import OutputValidationError, validate_v30_epistemic_gates
 
@@ -3039,6 +3621,28 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
 
     downgraded_controls: list[dict[str, Any]] = []
     key_questions: list[dict[str, Any]] = []
+
+    # Index 3.1 actor assessments by chain_id / finding_id
+    actor_by_id: dict[str, dict[str, Any]] = {}
+    for a_entry in list(actor_map.get("actor_assessments") or []) + list(actor_map.get("assessments") or []):
+        if isinstance(a_entry, dict):
+            aid = str(a_entry.get("chain_id") or a_entry.get("finding_id") or a_entry.get("candidate_id") or "").strip()
+            if aid:
+                actor_by_id[aid] = a_entry
+            for pre in a_entry.get("preconditions", []):
+                if isinstance(pre, dict) and str(pre.get("status") or pre.get("satisfied") or "").lower() in {"unknown", "unverified", "hypothesis"}:
+                    cond_desc = str(pre.get("condition") or pre.get("description") or pre.get("precondition") or "unknown precondition")
+                    key_questions.append({
+                        "question_id": f"KQ-{len(key_questions) + 1:02d}",
+                        "chain_id": aid or "repo_wide",
+                        "target_team": "appsec_architecture",
+                        "question": f"Does runtime precondition '{cond_desc}' hold for {aid or repo_name}?",
+                        "searched_paths": list(pre.get("searched_paths", [])),
+                        "outcome_if_yes": "Feasibility becomes 'feasible'; contextual risk resolves to full S-F-O-P-C impact.",
+                        "outcome_if_no": "Feasibility becomes 'infeasible'; contextual risk downgrades to 'low'.",
+                        "status": "pending_operator",
+                    })
+
     controls_list = list(beyond_code.get("beyond_code_controls", []))
     for a_item in beyond_code.get("assessments", []):
         if isinstance(a_item, dict):
@@ -3071,39 +3675,83 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
                     "new_status": "ASSUMED_UNVERIFIED",
                     "reason": "No repo ev_... evidence or runtime_environment_facts.json confirmation found",
                 })
-        if str(ctrl.get("status", "")).lower() in {"hypothesis", "unknown", "assumed_unverified"} or str(ctrl.get("present", "")).lower() == "unknown":
+            elif ctrl.get("mitigation_effect") == "blocks_exploit" and cid_ref:
+                blocked_by_runtime_controls.add(cid_ref.lower())
+        if (
+            str(ctrl.get("status", "")).lower() in {"hypothesis", "unknown", "assumed_unverified"}
+            or str(ctrl.get("enforcement_status", "")).upper() == "ASSUMED_UNVERIFIED"
+            or str(ctrl.get("present", "")).lower() == "unknown"
+        ):
             key_questions.append({
                 "question_id": f"KQ-{len(key_questions) + 1:02d}",
                 "chain_id": cid_ref or "repo_wide",
                 "target_team": "infra_cloud_sec",
                 "question": f"Is control '{cname}' actively enforced in production for {cid_ref or repo_name}?",
                 "searched_paths": list(ctrl.get("searched_paths", [])),
+                "outcome_if_yes": "Control is confirmed enforced; if mitigation_effect=='blocks_exploit', feasibility becomes 'infeasible' and contextual_risk_rating downgrades to 'low'.",
+                "outcome_if_no": "Control is absent; feasibility becomes 'feasible' and contextual_risk_rating resolves to full S-F-O-P-C impact.",
                 "status": "answered" if (cname.lower() in confirmed_runtime_controls or cid_ref.lower() in confirmed_runtime_controls) else "pending_operator",
             })
 
     if downgraded_controls:
         write_json(run_dir / "beyond_code_control_mapper.json", beyond_code)
 
-    # ARCH-3H: Derive feasibility_derived and Safety HSE handoff questions on calibrated_findings
+    # ARCH-3H: Derive feasibility_derived, derived_risk_rating, and Safety HSE handoff questions on calibrated_findings
     calibrated_list = sfop.get("calibrated_findings", []) if isinstance(sfop, dict) else []
     accounted_chain_ids: set[str] = set()
-    rank_order = ["negligible", "low", "medium", "high", "critical"]
+    rank_map = {"none": 0, "negligible": 0, "low": 1, "medium": 2, "high": 3, "critical": 4, "catastrophic": 4}
+    inv_rank = {0: "negligible", 1: "low", 2: "medium", 3: "high", 4: "critical"}
+
     for cf in calibrated_list:
         if not isinstance(cf, dict):
             continue
         fid = str(cf.get("chain_id") or cf.get("finding_id") or "")
         if fid:
             accounted_chain_ids.add(fid)
-        if fid.lower() in blocked_by_runtime_controls:
+
+        # Compute max S-F-O-P-C impact
+        axes = cf.get("impact_axes") or cf.get("sfop_impacts") or {}
+        max_axis_rank = 0
+        for ax in ("safety", "financial", "operational", "privacy", "compliance"):
+            ax_obj = axes.get(ax) if isinstance(axes, dict) and ax in axes else cf.get(f"{ax}_impact")
+            lvl = str(ax_obj.get("level") if isinstance(ax_obj, dict) else (ax_obj or "negligible")).lower()
+            max_axis_rank = max(max_axis_rank, rank_map.get(lvl, 0))
+        max_impact_str = inv_rank.get(max_axis_rank, "medium")
+
+        # Check 3.1 preconditions for this finding
+        a_info = actor_by_id.get(fid, {})
+        pre_list = a_info.get("preconditions", []) if isinstance(a_info, dict) else []
+        has_false_precondition = any(
+            isinstance(p, dict) and str(p.get("status") or p.get("satisfied") or "").lower() in {"false", "unsatisfied", "impossible"}
+            for p in pre_list
+        )
+        has_unknown_precondition = any(
+            isinstance(p, dict) and str(p.get("status") or p.get("satisfied") or "").lower() in {"unknown", "unverified", "hypothesis"}
+            for p in pre_list
+        )
+
+        if fid.lower() in blocked_by_runtime_controls or has_false_precondition:
             cf["feasibility_derived"] = "infeasible"
-            cf["contextual_risk_rating"] = "low"
-        elif any(q["chain_id"] == fid and q["status"] == "pending_operator" for q in key_questions):
+            derived_risk = "low" if max_axis_rank >= 1 else "negligible"
+            cf["derived_risk_rating"] = derived_risk
+            cf["contextual_risk_rating"] = derived_risk
+            cf["provisional"] = False
+        elif has_unknown_precondition or any(q["chain_id"] in {fid, "repo_wide"} and q["status"] == "pending_operator" for q in key_questions):
             cf["feasibility_derived"] = "provisional_unknown"
+            cf["derived_risk_rating"] = max_impact_str
+            cf["provisional"] = True
         else:
             cf["feasibility_derived"] = cf.get("feasibility_derived") or "feasible"
+            cf["derived_risk_rating"] = max_impact_str
+            cf["provisional"] = False
+
+        # Ensure contextual_risk_rating never exceeds derived_risk_rating
+        cur_risk = str(cf.get("contextual_risk_rating") or cf.get("overall_risk") or max_impact_str).lower()
+        derived_rank = rank_map.get(str(cf["derived_risk_rating"]).lower(), max_axis_rank)
+        if rank_map.get(cur_risk, 0) > derived_rank:
+            cf["contextual_risk_rating"] = cf["derived_risk_rating"]
 
         # Check Safety axis for HSE/Functional Safety handoff question (DEPTH-4.4b)
-        axes = cf.get("impact_axes") or cf.get("sfop_impacts") or {}
         s_axis = axes.get("safety") if isinstance(axes, dict) else None
         s_level = (s_axis.get("level") if isinstance(s_axis, dict) else s_axis) or cf.get("safety_impact") or "negligible"
         if str(s_level).lower() not in {"negligible", "none", ""}:
@@ -3112,6 +3760,8 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
                 "chain_id": fid or "repo_wide",
                 "target_team": "ot_safety_engineering",
                 "question": f"Confirm hardware/firmware safety interlock outside software repo for {fid} (actuator_command_path_without_interlock={s_axis.get('actuator_command_path_without_interlock', 'unknown') if isinstance(s_axis, dict) else 'unknown'}).",
+                "outcome_if_yes": "Hardware interlock confirmed outside software; safety risk mitigated at physical layer.",
+                "outcome_if_no": "No hardware interlock; software path can directly actuate physical state — Gate 0 Emergency Brake remains active.",
                 "status": "pending_safety_owner",
             })
 

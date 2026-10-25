@@ -4,74 +4,77 @@
   "file": "edge-cloudflare-kong-krakend-nginx.md",
   "companion_json": "companions/edge-cloudflare-kong-krakend-nginx.json",
   "group": "II. Identity, Gateways & Multi-Cloud / On-Prem",
-  "title": "Edge & API Gateways: Cloudflare WAF, Kong, KrakenD, HAProxy, Nginx & ALB",
+  "title": "Edge & API Gateways: Cloudflare, AWS ALB, Kong, KrakenD & Nginx",
   "always_inject": false,
   "triggers": [
     "cloudflare",
     "kong",
     "krakend",
-    "haproxy",
     "nginx",
-    "envoy",
-    "istio",
-    "alb",
-    "elb",
     "ingress",
+    "envoy",
+    "alb",
     "waf",
-    "turnstile",
-    "x-forwarded-for"
+    "x-forwarded",
+    "gateway"
   ],
   "trigger_signals": [
     "cloudflare",
     "kong",
     "krakend",
-    "haproxy",
     "nginx",
-    "envoy",
-    "istio",
-    "alb",
-    "elb",
     "ingress",
+    "envoy",
+    "alb",
     "waf",
-    "turnstile",
-    "x-forwarded-for",
-    "edge_gateway_config",
-    "api_microservice_gateway"
+    "x-forwarded",
+    "gateway",
+    "cloud_infra_iac",
+    "onprem_enterprise_network"
   ],
   "archetypes": [
-    "Edge_Gateway_Config",
-    "API_Microservice_Gateway"
+    "Cloud_Infra_IaC",
+    "OnPrem_Enterprise_Network"
+  ],
+  "coverage_matrix_classes": [
+    "AUTHN_SESSION_FLOW",
+    "BFLA_FUNCTION_AUTHZ",
+    "TRANSPORT_TLS_TRUST",
+    "SSRF_OUTBOUND_FETCH"
   ],
   "blocks": [
-    "asymmetric-edge-and-direct-origin-bypass",
-    "gateway-header-spoofing-and-contract-shims",
-    "api4-gateway-rate-limiting-and-body-size-enforcement"
+    "cloudflare-vs-bare-alb-origin-exposure",
+    "kong-krakend-nginx-header-spoofing",
+    "path-normalization-and-admin-port-exposure"
   ],
   "standard_mappings": [
-    "OWASP-API4:2023",
     "OWASP-API8:2023",
-    "ASVS-V13",
-    "ASVS-V14",
+    "OWASP-API9:2023",
+    "ASVS-5.0-V13-Configuration",
+    "ASVS-5.0-V14-Data-Protection",
     "CWE-290",
-    "CWE-770"
+    "CWE-436",
+    "CWE-444"
   ],
   "safe_patterns": [
-    "Origin ALB/Ingress restricted to Cloudflare IP ranges + authenticated Origin Pull mTLS certificates",
-    "Gateway strips untrusted client-supplied X-Authenticated-Userid, X-Consumer-*, and X-Forwarded-For headers before injecting verified identity claims",
-    "Explicit deny rules blocking /internal/*, /actuator/*, and Kong Admin (:8001/:8444) on external listeners"
+    "Origin ALB Security Group locked exclusively to Cloudflare IP ranges + Authenticated Origin Pulls (mTLS) or Cloudflare Tunnel",
+    "Nginx proxy_set_header X-User-Id \"\"; / Kong request-transformer removing all client X-User-Id, X-Tenant-Id, X-Roles headers before injecting verified JWT claims",
+    "Express app.set('trust proxy', ['10.0.0.0/8']) / Spring server.forward-headers-strategy=framework / Go trustedCIDRs restricted to known load balancer subnets",
+    "Management and metrics ports (Kong :8001, Prometheus :9090, Spring Actuator /actuator) bound to localhost or isolated management VLAN"
   ],
   "vulnerable_patterns": [
-    "Direct internet-facing Bare ALB or public IP exposing backend services without WAF or mTLS origin authentication",
-    "Backend trusting X-Forwarded-For, X-Device-Platform, or X-User-Id headers directly from unverified ingress paths",
-    "KrakenD/Kong route definitions exposing debug endpoints or forwarding all headers (\"input_headers\": [\"*\"]) without stripping identity headers"
+    "Public AWS ALB (*.elb.amazonaws.com) or origin public IP reachable directly on 0.0.0.0/0, bypassing Cloudflare WAF and bot/rate limits",
+    "KrakenD input_headers: [\"*\"] or Nginx passing client-supplied X-User-Id, X-Tenant-Id, X-Forwarded-For directly to backend microservices",
+    "Nginx alias path traversal (location /static { alias /var/www/app/; } missing trailing slash) or URL decoding disparity (/api/v1/public/../admin/users) bypassing gateway ACLs",
+    "Kong Admin API (:8001/:8444), Spring Boot /actuator/env, or Envoy /stats exposed on public ingress routes"
   ],
   "required_evidence": [
-    "ev_... excerpt of gateway config (krakend.json, kong.yml, nginx.conf, Ingress/ALB Terraform/Helm) showing route and header rules",
-    "ev_... excerpt of backend middleware reading identity or client IP headers"
+    "ev_... excerpt of nginx.conf, krakend.json, kong.yml, Ingress manifest, or Terraform ALB/SecurityGroup config",
+    "ev_... excerpt of backend middleware reading X-Forwarded-* or X-User-* headers"
   ],
   "questions_when_unclear": [
-    "Do AWS Security Groups or network ACLs restrict the origin ALB to Cloudflare IP CIDRs only?",
-    "Does the API Gateway overwrite or strip client-supplied identity headers before forwarding requests upstream?"
+    "Are AWS Security Groups or NACL rules restricting the ALB ingress to Cloudflare IPs only, or is the ALB directly reachable from 0.0.0.0/0?",
+    "Does the upstream API Gateway strip all incoming X-User-* / X-Tenant-* headers before forwarding?"
   ],
-  "markdown": "# Edge & API Gateways: Cloudflare WAF, Kong, KrakenD, HAProxy, Nginx & ALB (`edge-cloudflare-kong-krakend-nginx`)\n\n> **Group:** II. Identity, Gateways & Multi-Cloud / On-Prem\n> **Product Archetypes:** Edge_Gateway_Config, API_Microservice_Gateway\n> **Trigger Signals:** cloudflare, kong, krakend, haproxy, nginx, envoy, istio, alb, elb, ingress, waf, turnstile, x-forwarded-for\n\n## [ BLOCK: asymmetric-edge-and-direct-origin-bypass ]\n### Asymmetric WAF Posture, Bare ALB Exposure & Direct-Origin Bypass\n- Check whether regional or staging gateways (e.g., Bare AWS ALBs, GCP direct IPs, DR endpoints) expose the same backend Kong/KrakenD services without Cloudflare WAF protection.\n- Verify whether management interfaces (Kong Admin `:8001/:8444`, KrakenD debug/config endpoints, Spring Actuator) are reachable on direct origins.\n\n## [ BLOCK: gateway-header-spoofing-and-contract-shims ]\n### Static Gateway Headers (x-device-platform) & Trusted Header Spoofing\n- Refute security controls that rely solely on static client headers (`x-device-platform: android`, `x-service-name`).\n- Check whether backend services trust `X-Forwarded-For`, `X-Real-IP`, `X-Authenticated-Userid`, or `X-Consumer-*` headers when requests bypass the gateway or arrive via an untrusted ingress.\n\n## [ BLOCK: api4-gateway-rate-limiting-and-body-size-enforcement ]\n### Gateway Rate-Limiting, Payload Size Caps & Upstream Timeout Hardening\n- Verify whether Kong/KrakenD/Nginx/ALB configurations enforce rate-limiting plugins, `client_max_body_size`, and header sanitization before forwarding to microservices.\n- Check whether internal/admin routes (`/actuator`, `/metrics`, `/swagger`, `/internal/*`) are explicitly blocked on public ingress rules.\n\n### Standard Mappings\n- OWASP-API4:2023, OWASP-API8:2023, ASVS-V13, ASVS-V14, CWE-290, CWE-770\n\n### Safe Patterns (Refutation Anchors)\n- Origin ALB/Ingress restricted to Cloudflare IP ranges + authenticated Origin Pull mTLS certificates\n- Gateway strips untrusted client-supplied X-Authenticated-Userid, X-Consumer-*, and X-Forwarded-For headers before injecting verified identity claims\n- Explicit deny rules blocking /internal/*, /actuator/*, and Kong Admin (:8001/:8444) on external listeners\n\n### Vulnerable Patterns\n- Direct internet-facing Bare ALB or public IP exposing backend services without WAF or mTLS origin authentication\n- Backend trusting X-Forwarded-For, X-Device-Platform, or X-User-Id headers directly from unverified ingress paths\n- KrakenD/Kong route definitions exposing debug endpoints or forwarding all headers (\"input_headers\": [\"*\"]) without stripping identity headers\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of gateway config (krakend.json, kong.yml, nginx.conf, Ingress/ALB Terraform/Helm) showing route and header rules\n- ev_... excerpt of backend middleware reading identity or client IP headers\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Do AWS Security Groups or network ACLs restrict the origin ALB to Cloudflare IP CIDRs only?\n- Does the API Gateway overwrite or strip client-supplied identity headers before forwarding requests upstream?\n"
+  "markdown": "# Edge & API Gateways: Cloudflare, AWS ALB, Kong, KrakenD & Nginx (`edge-cloudflare-kong-krakend-nginx`)\n\n> **Group:** II. Identity, Gateways & Multi-Cloud / On-Prem\n> **Product Archetypes:** Cloud_Infra_IaC, OnPrem_Enterprise_Network\n> **Trigger Signals:** cloudflare, kong, krakend, nginx, ingress, envoy, alb, waf, x-forwarded, gateway\n\n## [ BLOCK: cloudflare-vs-bare-alb-origin-exposure ]\n### Cloudflare Edge vs Bare AWS ALB / Direct Origin Exposure\n- Check whether public domains route through Cloudflare WAF/Zero-Trust or expose bare AWS ALBs (`*.elb.amazonaws.com`), API Gateways, or public EC2/EKS IPs directly to the internet without WAF or rate limiting.\n- Verify whether origin servers restrict ingress strictly to Cloudflare IP ranges / Authenticated Origin Pulls (mTLS), or if an attacker can bypass Cloudflare by hitting the origin ALB/IP directly.\n\n## [ BLOCK: kong-krakend-nginx-header-spoofing ]\n### Gateway Header Trust (`X-Forwarded-For`, `X-User-Id`, `X-Consumer-*`)\n- Inspect `krakend.json`, `kong.yml`, `nginx.conf`, Envoy, or Kubernetes Ingress annotations for header forwarding rules (`input_headers`, `proxy_set_header`).\n- Flag configurations where client-supplied identity/routing headers (`X-User-Id`, `X-Tenant-Id`, `X-Roles`, `X-Consumer-Username`, `X-Forwarded-For`, `X-Real-IP`, `X-Forwarded-Host`) are passed through to upstream services without being stripped/overwritten by the gateway.\n\n## [ BLOCK: path-normalization-and-admin-port-exposure ]\n### Path Normalization Bypass, Nginx `alias` Traversal & Admin Port Exposure\n- Check for path parsing mismatches between gateway ACLs and backend routers (`/api/v1/public/../admin`, `/api/v1/admin;foo=bar`, URL-encoded `%2f`).\n- Inspect Nginx `location` blocks for off-by-slash `alias` traversal (`location /static { alias /app/static/; }`) and exposed gateway admin APIs (Kong Admin `:8001`/`:8444`, KrakenD debug endpoints, Envoy `:9901`).\n\n### Standard Mappings\n- OWASP-API8:2023, OWASP-API9:2023, ASVS-5.0-V13-Configuration, ASVS-5.0-V14-Data-Protection, CWE-290, CWE-436, CWE-444\n\n### Safe Patterns (Refutation Anchors)\n- Origin ALB Security Group locked exclusively to Cloudflare IP ranges + Authenticated Origin Pulls (mTLS) or Cloudflare Tunnel\n- Nginx proxy_set_header X-User-Id \"\"; / Kong request-transformer removing all client X-User-Id, X-Tenant-Id, X-Roles headers before injecting verified JWT claims\n- Express app.set('trust proxy', ['10.0.0.0/8']) / Spring server.forward-headers-strategy=framework / Go trustedCIDRs restricted to known load balancer subnets\n- Management and metrics ports (Kong :8001, Prometheus :9090, Spring Actuator /actuator) bound to localhost or isolated management VLAN\n\n### Vulnerable Patterns\n- Public AWS ALB (*.elb.amazonaws.com) or origin public IP reachable directly on 0.0.0.0/0, bypassing Cloudflare WAF and bot/rate limits\n- KrakenD input_headers: [\"*\"] or Nginx passing client-supplied X-User-Id, X-Tenant-Id, X-Forwarded-For directly to backend microservices\n- Nginx alias path traversal (location /static { alias /var/www/app/; } missing trailing slash) or URL decoding disparity (/api/v1/public/../admin/users) bypassing gateway ACLs\n- Kong Admin API (:8001/:8444), Spring Boot /actuator/env, or Envoy /stats exposed on public ingress routes\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of nginx.conf, krakend.json, kong.yml, Ingress manifest, or Terraform ALB/SecurityGroup config\n- ev_... excerpt of backend middleware reading X-Forwarded-* or X-User-* headers\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Are AWS Security Groups or NACL rules restricting the ALB ingress to Cloudflare IPs only, or is the ALB directly reachable from 0.0.0.0/0?\n- Does the upstream API Gateway strip all incoming X-User-* / X-Tenant-* headers before forwarding?\n"
 }

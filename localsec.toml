@@ -1,6 +1,7 @@
 [analysis]
 output_dir = "documents"
 work_dir = ".localsec"
+default_run_id = "default"
 ignored_dirs = [".git", ".hg", ".svn", "bin", "obj", "vendor", "node_modules", ".venv", "venv", "dist", "build", "coverage", "TestResults", ".idea", ".vscode", ".dart_tool", "Pods", ".gradle", "DerivedData", "AI-skills", ".agents", ".claude", ".localsec", "documents"]
 max_file_bytes = 2000000
 max_lines_per_read = 180

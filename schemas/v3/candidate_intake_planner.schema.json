@@ -2,6 +2,11 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "LocalSec v3.0 Phase 2.1 Candidate Intake Planner Schema",
   "type": "object",
+  "required": [
+    "selected_companions",
+    "deduplicated_batches",
+    "summary"
+  ],
   "properties": {
     "repo_name": {
       "type": "string"
@@ -30,19 +35,40 @@
     "excluded_companions": {
       "type": "array",
       "items": {
-        "type": "object"
+        "type": "object",
+        "required": [
+          "module_id",
+          "reason"
+        ],
+        "properties": {
+          "module_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 3
+          }
+        }
       }
     },
     "deduplicated_batches": {
       "type": "array",
       "items": {
         "type": "object",
+        "required": [
+          "batch_id",
+          "candidate_ids",
+          "rationale"
+        ],
         "properties": {
           "batch_id": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "candidate_ids": {
             "type": "array",
+            "minItems": 1,
             "items": {
               "type": "string"
             }
@@ -59,8 +85,20 @@
               "type": "string"
             }
           },
+          "priority_severity": {
+            "type": "string",
+            "enum": [
+              "negligible",
+              "low",
+              "medium",
+              "high",
+              "critical",
+              "catastrophic"
+            ]
+          },
           "rationale": {
-            "type": "string"
+            "type": "string",
+            "minLength": 3
           }
         }
       }
@@ -74,22 +112,5 @@
     "summary": {
       "type": "string"
     }
-  },
-  "anyOf": [
-    {
-      "required": [
-        "deduplicated_batches"
-      ]
-    },
-    {
-      "required": [
-        "candidates"
-      ]
-    },
-    {
-      "required": [
-        "batches"
-      ]
-    }
-  ]
+  }
 }

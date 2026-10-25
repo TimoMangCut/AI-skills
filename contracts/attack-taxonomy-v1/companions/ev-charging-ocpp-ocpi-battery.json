@@ -3,74 +3,85 @@
   "companion_id": "ev-charging-ocpp-ocpi-battery",
   "file": "ev-charging-ocpp-ocpi-battery.md",
   "companion_json": "companions/ev-charging-ocpp-ocpi-battery.json",
-  "group": "IV. IoT, Automotive, Robotics & OT",
-  "title": "EV Charging Stations (OCPP 1.6/2.0.1, OCPI Roaming) & Battery Swapping Cabinets",
+  "group": "IV. Physical-Cyber: Automotive, EV Charging, Robotics & OT",
+  "title": "EV Charging & Energy: OCPP 1.6J/2.0.1, OCPI Roaming, ISO 15118, Battery Swap & BESS",
   "always_inject": false,
   "triggers": [
     "ocpp",
     "ocpi",
-    "charging",
-    "charger",
     "evse",
-    "csms",
-    "cpola",
-    "vgreen",
-    "battery",
-    "swap",
-    "kwh",
+    "charger",
+    "charging",
+    "iso15118",
+    "plugandcharge",
+    "bms",
+    "bess",
+    "batteryswap",
+    "cdr",
     "metervalues"
   ],
   "trigger_signals": [
     "ocpp",
     "ocpi",
-    "charging",
-    "charger",
     "evse",
-    "csms",
-    "cpola",
-    "vgreen",
-    "battery",
-    "swap",
-    "kwh",
+    "charger",
+    "charging",
+    "iso15118",
+    "plugandcharge",
+    "bms",
+    "bess",
+    "batteryswap",
+    "cdr",
     "metervalues",
-    "ev_charging_csms_ocpp",
-    "iot_telematics_broker"
+    "ev_charging_ocpp_ocpi_bess",
+    "commerce_loyalty_billing"
   ],
   "archetypes": [
-    "EV_Charging_CSMS_OCPP",
-    "IoT_Telematics_Broker"
+    "EV_Charging_OCPP_OCPI_BESS",
+    "Commerce_Loyalty_Billing"
+  ],
+  "coverage_matrix_classes": [
+    "AUTHN_SESSION_FLOW",
+    "RACE_CONDITION_TOCTOU",
+    "PHYSICAL_ACTUATION_BOUNDARY",
+    "OTA_FIRMWARE_SUPPLY_CHAIN"
   ],
   "blocks": [
-    "ocpp-security-profiles-and-billing-integrity",
-    "remote-battery-lock-and-cabinet-actuation",
-    "ocpp-session-token-revocation-and-rate-limiting"
+    "ocpp-websocket-auth-and-remote-start-stop",
+    "metervalues-cdr-billing-and-ocpi-roaming",
+    "setchargingprofile-thermal-bms-and-firmware"
   ],
   "standard_mappings": [
-    "OCPP-2.0.1-SecurityProfile3",
-    "ISO-15118",
     "IEC-62443-4-2",
-    "OWASP-API1:2023",
-    "OWASP-API4:2023",
-    "ASVS-V7",
-    "ASVS-V16"
+    "ISO-SAE-21434",
+    "OWASP-API2:2023",
+    "OWASP-API6:2023",
+    "ASVS-5.0-V6-Authentication",
+    "ASVS-5.0-V8-Authorization",
+    "ASVS-5.0-V15-Business-Logic-Race",
+    "CWE-306",
+    "CWE-345",
+    "CWE-840"
   ],
   "safe_patterns": [
-    "OCPP over wss:// with Security Profile 2/3 client certificate binding chargeBoxId to the authenticated TLS certificate CN",
-    "Signed meter values (OCMF) and monotonic kWh delta validation before calculating billing or franchise subsidies",
-    "Signed firmware URLs and multi-party authorization with immutable audit logs for battery lock/unlock and cabinet actuation"
+    "OCPP 1.6J/2.0.1 Security Profile 2/3 (TLS with per-charger unique Basic Auth or mTLS client certificate matching chargeBoxIdentity in WebSocket path /ocpp/{chargeBoxId})",
+    "Server-side monotonic MeterValues energy integration (rejecting negative/decreasing Wh deltas) and cryptographic signature verification on signed meter readings / OCPI CDRs",
+    "Server-side clamp on SetChargingProfile limits (0 <= limit_amps <= hardware_max_amps) and SignedUpdateFirmware enforcing cryptographic signature validation on the EVSE",
+    "FastAPI / Go / Spring RemoteStartTransaction & RemoteStopTransaction handlers verifying active session ownership and atomic Redis/DB lock per connectorId"
   ],
   "vulnerable_patterns": [
-    "Plain ws:// OCPP connections or accepting any chargeBoxId in the WebSocket URL path without matching credentials/certificate",
-    "Trusting unverified MeterValues payloads from chargers to compute high-value franchise payouts or free-charging credits",
-    "Unauthenticated or BOLA-vulnerable HTTP endpoints triggering RemoteStartTransaction, RemoteStopTransaction, or battery cabinet unlock"
+    "OCPP WebSocket endpoint (/ocpp/{chargeBoxId}) accepting connections strictly by URL chargeBoxId without per-charger credentials or mTLS certificate binding",
+    "CSMS billing calculation trusting final MeterValues / StopTransaction Wh or OCPI CDR total_cost without checking monotonic progression or tariff integrity (negative delta or zero-cost charging)",
+    "OCPP TriggerMessage / ChangeConfiguration / UpdateFirmware accepting arbitrary HTTP/FTP URLs without firmware signature check, or SetChargingProfile accepting unbounded current/power values",
+    "Mobile/Web API allowing any authenticated user to call POST /api/v1/chargers/{evseId}/stop on another user's active transactionId (BOLA)"
   ],
   "required_evidence": [
-    "ev_... excerpt of OCPP WebSocket upgrade/authentication handler and message dispatcher",
-    "ev_... excerpt of billing/MeterValues calculation or remote charging/battery actuation API handler"
+    "ev_... excerpt of OCPP WebSocket handshake handler and message router (BootNotification, RemoteStartTransaction, MeterValues, SetChargingProfile)",
+    "ev_... excerpt of CDR billing calculation or OCPI token/settlement handler"
   ],
   "questions_when_unclear": [
-    "Does an upstream mTLS termination proxy validate charger client certificates and inject the verified CN header before reaching the CSMS?",
-    "Does the physical battery swapping cabinet BMS enforce local thermal and current-limit interlocks during charging/unlocking?"
+    "Do charging stations connect to the CSMS over a private cellular APN / mTLS VPN or over the public internet?",
+    "Does the physical EVSE / BMS hardware enforce hard current and thermal cutoffs independent of OCPP SetChargingProfile commands?"
   ],
-  "markdown": "# EV Charging Stations (OCPP 1.6/2.0.1, OCPI Roaming) & Battery Swapping Cabinets (`ev-charging-ocpp-ocpi-battery`)\n\n> **Group:** IV. IoT, Automotive, Robotics & OT\n> **Product Archetypes:** EV_Charging_CSMS_OCPP, IoT_Telematics_Broker\n> **Trigger Signals:** ocpp, ocpi, charging, charger, evse, csms, cpola, vgreen, battery, swap, kwh, metervalues\n\n## [ BLOCK: ocpp-security-profiles-and-billing-integrity ]\n### OCPP WebSocket Authentication, MeterValues Billing Integrity & Franchise Revenue\n- Check whether OCPP endpoints use plain `ws://` or enforce `wss://` with client certificates (OCPP Security Profile 2/3).\n- Trace `StartTransaction`, `StopTransaction`, and `MeterValues`: verify whether a spoofed charger or MITM can inflate kWh readings to defraud free-charging subsidies or franchise revenue sharing (e.g., 750 VND/kWh).\n\n## [ BLOCK: remote-battery-lock-and-cabinet-actuation ]\n### Remote Battery Kill-Switch, Cabinet Unlock & Roaming Bus (OCPI)\n- Audit authentication, multi-party authorization, and immutable audit logging on remote battery locking/disabling commands and cabinet door/charging actuation.\n\n## [ BLOCK: ocpp-session-token-revocation-and-rate-limiting ]\n### Charger Identity Revocation, Message Rate-Limiting & Audit Tampering\n- Verify that decommissioned or compromised chargeBoxIds have their TLS client certificates / Basic Auth credentials immediately revoked (ASVS V7).\n- Check OCPP WebSocket handlers for message flood / payload size rate-limiting (API4) and tamper-evident logging of all `RemoteStartTransaction`, `RemoteStopTransaction`, `ChangeConfiguration`, and `UpdateFirmware` commands (ASVS V16).\n\n### Standard Mappings\n- OCPP-2.0.1-SecurityProfile3, ISO-15118, IEC-62443-4-2, OWASP-API1:2023, OWASP-API4:2023, ASVS-V7, ASVS-V16\n\n### Safe Patterns (Refutation Anchors)\n- OCPP over wss:// with Security Profile 2/3 client certificate binding chargeBoxId to the authenticated TLS certificate CN\n- Signed meter values (OCMF) and monotonic kWh delta validation before calculating billing or franchise subsidies\n- Signed firmware URLs and multi-party authorization with immutable audit logs for battery lock/unlock and cabinet actuation\n\n### Vulnerable Patterns\n- Plain ws:// OCPP connections or accepting any chargeBoxId in the WebSocket URL path without matching credentials/certificate\n- Trusting unverified MeterValues payloads from chargers to compute high-value franchise payouts or free-charging credits\n- Unauthenticated or BOLA-vulnerable HTTP endpoints triggering RemoteStartTransaction, RemoteStopTransaction, or battery cabinet unlock\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of OCPP WebSocket upgrade/authentication handler and message dispatcher\n- ev_... excerpt of billing/MeterValues calculation or remote charging/battery actuation API handler\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Does an upstream mTLS termination proxy validate charger client certificates and inject the verified CN header before reaching the CSMS?\n- Does the physical battery swapping cabinet BMS enforce local thermal and current-limit interlocks during charging/unlocking?\n"
+  "markdown": "# EV Charging & Energy: OCPP 1.6J/2.0.1, OCPI Roaming, ISO 15118, Battery Swap & BESS (`ev-charging-ocpp-ocpi-battery`)\n\n> **Group:** IV. Physical-Cyber: Automotive, EV Charging, Robotics & OT\n> **Product Archetypes:** EV_Charging_OCPP_OCPI_BESS, Commerce_Loyalty_Billing\n> **Trigger Signals:** ocpp, ocpi, evse, charger, charging, iso15118, plugandcharge, bms, bess, batteryswap, cdr, metervalues\n\n## [ BLOCK: ocpp-websocket-auth-and-remote-start-stop ]\n### OCPP 1.6J / 2.0.1 WebSocket Auth, `BootNotification` Spoofing & `RemoteStartTransaction`\n- Check how Charge Points (EVSE) authenticate on the OCPP WebSocket connection (`/ocpp/{charge_point_id}`). Flag connections that accept any `charge_point_id` in the URL without per-charger Basic Auth (Security Profile 1/2) or mTLS client certificate (Security Profile 3) bound to that specific `charge_point_id`.\n- Check `RemoteStartTransaction`, `RemoteStopTransaction`, `UnlockConnector`, and `Reset` for BOLA (stopping another driver's charging session or starting a free session on an arbitrary connector).\n\n## [ BLOCK: metervalues-cdr-billing-and-ocpi-roaming ]\n### `MeterValues` / CDR Manipulation, Free Charging & OCPI Partner Settlement\n- Trace how `MeterValues` and `StopTransaction` / `TransactionEvent` calculate energy consumed (`kWh`) and session cost. Check for negative delta injection, meter counter wrap-around, timestamp manipulation, or currency/tariff override.\n- For OCPI roaming (`TOKENS`, `SESSIONS`, `CDRS`, `TARIFFS`, `COMMANDS`): verify partner `Authorization: Token <token>` scoping so Partner A cannot spoof CDRs or query sessions belonging to Partner B.\n\n## [ BLOCK: setchargingprofile-thermal-bms-and-firmware ]\n### `SetChargingProfile` Overload, `UpdateFirmware` & Battery Swap / BESS Safety Limits\n- Inspect `SetChargingProfile`, `ChangeConfiguration`, and BMS/BESS dispatch handlers. Check whether software validates maximum current/power/SOC/temperature bounds before sending setpoints to chargers or battery racks.\n- Check `UpdateFirmware` / `SignedUpdateFirmware` for unverified firmware URLs (`UpdateFirmware` accepting plain HTTP URLs without cryptographic signature verification).\n\n### Standard Mappings\n- IEC-62443-4-2, ISO-SAE-21434, OWASP-API2:2023, OWASP-API6:2023, ASVS-5.0-V6-Authentication, ASVS-5.0-V8-Authorization, ASVS-5.0-V15-Business-Logic-Race, CWE-306, CWE-345, CWE-840\n\n### Safe Patterns (Refutation Anchors)\n- OCPP 1.6J/2.0.1 Security Profile 2/3 (TLS with per-charger unique Basic Auth or mTLS client certificate matching chargeBoxIdentity in WebSocket path /ocpp/{chargeBoxId})\n- Server-side monotonic MeterValues energy integration (rejecting negative/decreasing Wh deltas) and cryptographic signature verification on signed meter readings / OCPI CDRs\n- Server-side clamp on SetChargingProfile limits (0 <= limit_amps <= hardware_max_amps) and SignedUpdateFirmware enforcing cryptographic signature validation on the EVSE\n- FastAPI / Go / Spring RemoteStartTransaction & RemoteStopTransaction handlers verifying active session ownership and atomic Redis/DB lock per connectorId\n\n### Vulnerable Patterns\n- OCPP WebSocket endpoint (/ocpp/{chargeBoxId}) accepting connections strictly by URL chargeBoxId without per-charger credentials or mTLS certificate binding\n- CSMS billing calculation trusting final MeterValues / StopTransaction Wh or OCPI CDR total_cost without checking monotonic progression or tariff integrity (negative delta or zero-cost charging)\n- OCPP TriggerMessage / ChangeConfiguration / UpdateFirmware accepting arbitrary HTTP/FTP URLs without firmware signature check, or SetChargingProfile accepting unbounded current/power values\n- Mobile/Web API allowing any authenticated user to call POST /api/v1/chargers/{evseId}/stop on another user's active transactionId (BOLA)\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of OCPP WebSocket handshake handler and message router (BootNotification, RemoteStartTransaction, MeterValues, SetChargingProfile)\n- ev_... excerpt of CDR billing calculation or OCPI token/settlement handler\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Do charging stations connect to the CSMS over a private cellular APN / mTLS VPN or over the public internet?\n- Does the physical EVSE / BMS hardware enforce hard current and thermal cutoffs independent of OCPP SetChargingProfile commands?\n"
 }

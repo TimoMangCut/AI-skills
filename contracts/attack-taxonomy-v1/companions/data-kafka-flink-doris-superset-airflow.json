@@ -3,76 +3,79 @@
   "companion_id": "data-kafka-flink-doris-superset-airflow",
   "file": "data-kafka-flink-doris-superset-airflow.md",
   "companion_json": "companions/data-kafka-flink-doris-superset-airflow.json",
-  "group": "III. Enterprise, Data Lake & AI Systems",
-  "title": "Data Lakehouse & Streaming: Kafka, Flink, Spark, Doris, Superset, Airflow & Digital Twin",
+  "group": "III. Enterprise B2B, Data Lake & AI / VLA",
+  "title": "Data Lake & Streaming: Kafka, Flink, Apache Doris, Superset & Airflow",
   "always_inject": false,
   "triggers": [
     "kafka",
     "flink",
-    "spark",
     "doris",
+    "clickhouse",
     "superset",
     "airflow",
-    "digital-twin",
-    "clickhouse",
-    "elasticsearch",
-    "apm",
-    "redis",
-    "mongodb",
-    "cassandra"
+    "spark",
+    "parquet",
+    "datalake",
+    "bi"
   ],
   "trigger_signals": [
     "kafka",
     "flink",
-    "spark",
     "doris",
+    "clickhouse",
     "superset",
     "airflow",
-    "digital-twin",
-    "clickhouse",
-    "elasticsearch",
-    "apm",
-    "redis",
-    "mongodb",
-    "cassandra",
-    "data_ai_pipeline",
-    "telemetry_streaming_platform"
+    "spark",
+    "parquet",
+    "datalake",
+    "bi",
+    "data_lake_streaming_bi"
   ],
   "archetypes": [
-    "Data_AI_Pipeline",
-    "Telemetry_Streaming_Platform"
+    "Data_Lake_Streaming_BI"
+  ],
+  "coverage_matrix_classes": [
+    "INJECTION_SQL_COMMAND_DESERIALIZATION",
+    "BOLA_IDOR",
+    "SECRETS_CRYPTO_EXPOSURE",
+    "TRANSPORT_TLS_TRUST"
   ],
   "blocks": [
-    "kafka-and-stream-processor-exposure",
-    "superset-doris-and-analytics-ssrf-sqli",
-    "general-injection-sqli-nosqli-and-log-poisoning"
+    "kafka-flink-unauthenticated-streams-and-poisoning",
+    "doris-clickhouse-superset-sql-and-rls",
+    "airflow-dag-injection-and-pii-lake-governance"
   ],
   "standard_mappings": [
+    "OWASP-API1:2023",
     "OWASP-API8:2023",
-    "ASVS-V5",
-    "ASVS-V16",
+    "ASVS-5.0-V2-Validation",
+    "ASVS-5.0-V8-Authorization",
+    "ASVS-5.0-V13-Configuration",
+    "ASVS-5.0-V14-Data-Protection",
+    "ASVS-5.0-V16-Logging",
     "CWE-89",
     "CWE-94",
-    "CWE-117",
-    "CWE-502"
+    "CWE-306"
   ],
   "safe_patterns": [
-    "SASL/SCRAM or mTLS authentication with topic-level ACLs on Kafka brokers, Schema Registry, and Flink/Airflow APIs",
-    "Parameterized SQL queries / bound parameters on Doris, ClickHouse, and Postgres analytics endpoints with tenant row-level filtering",
-    "Strict Avro/Protobuf schema validation and bounds checking on Kafka consumers before updating Digital Twin state"
+    "Kafka producers/consumers configured with security.protocol=SASL_SSL, sasl.mechanism=SCRAM-SHA-512 / MSK IAM, and per-topic ACLs",
+    "Apache Doris / ClickHouse queries in FastAPI / Go / Java using bound parameters or strict identifier allowlists with Superset Row-Level Security (RLS) filters bound to JWT tenant claims",
+    "Airflow DAGs passing dag_run.conf parameters exclusively as list arguments to PythonOperator / KubernetesPodOperator without BashOperator Jinja shell interpolation",
+    "PII / GPS / VIN columns tokenized or masked before landing in shared analytical Data Lake tables"
   ],
   "vulnerable_patterns": [
-    "Raw f-string or string concatenation in Doris/ClickHouse/SQL queries or Airflow BashOperator commands using untrusted input",
-    "Unauthenticated Kafka REST proxy, Flink job submission API, or Airflow webserver reachable on internal or public networks",
-    "Kafka consumer deserializing untrusted Pickle/Java objects or applying unvalidated telemetry directly to actuation topics"
+    "Kafka brokers on security.protocol=PLAINTEXT (:9092) or Flink JobManager REST API (:8081) exposed without authentication allowing arbitrary JAR upload",
+    "Python f\"SELECT * FROM doris_telemetry WHERE vin = '{user_vin}'\" or Go fmt.Sprintf SQL concatenation into Apache Doris / ClickHouse, or Superset dashboards using a shared superuser DB connection without RLS",
+    "Airflow BashOperator(bash_command=f\"python run.py --input {{ dag_run.conf['param'] }}\") enabling OS command injection via DAG trigger payload",
+    "Unmasked customer PII, phone numbers, CCCD, and real-time GPS history dumped into shared Parquet/S3 buckets or logs"
   ],
   "required_evidence": [
-    "ev_... excerpt of Kafka/Flink/Airflow consumer or DAG code showing input parsing and query/command construction",
-    "ev_... excerpt of broker/database client configuration showing SASL/mTLS and ACL settings"
+    "ev_... excerpt of Kafka/Flink client config, Doris/ClickHouse query builder, or Airflow DAG file",
+    "ev_... excerpt of Superset/BI configuration or data pipeline sink"
   ],
   "questions_when_unclear": [
-    "Are Kafka topic ACLs enforced at the MSK / EMQX / Confluent broker layer restricting which producers can publish to this topic?",
-    "Does Apache Superset / Doris enforce row-level security (RLS) policies per user role in the database metadata?"
+    "Are Flink (:8081), Doris (:8030/:9030), and Kafka (:9092) ports isolated inside a dedicated data-plane VPC subnet with mTLS/SASL enforced?",
+    "Are Superset Row-Level Security (RLS) rules enforced centrally for all embedded analytics views?"
   ],
-  "markdown": "# Data Lakehouse & Streaming: Kafka, Flink, Spark, Doris, Superset, Airflow & Digital Twin (`data-kafka-flink-doris-superset-airflow`)\n\n> **Group:** III. Enterprise, Data Lake & AI Systems\n> **Product Archetypes:** Data_AI_Pipeline, Telemetry_Streaming_Platform\n> **Trigger Signals:** kafka, flink, spark, doris, superset, airflow, digital-twin, clickhouse, elasticsearch, apm, redis, mongodb, cassandra\n\n## [ BLOCK: kafka-and-stream-processor-exposure ]\n### Kafka Brokers/Proxies, Flink/Spark Job Submission & Digital Twin State\n- Check whether Kafka proxies (`coms-kafka`), Schema Registries, Flink/Spark REST APIs, or Airflow webservers are reachable without SASL/mTLS or role authentication.\n- Trace whether poisoned telemetry events on Kafka topics can corrupt Digital Twin vehicle/device state or trigger downstream automated actions.\n\n## [ BLOCK: superset-doris-and-analytics-ssrf-sqli ]\n### Apache Superset, Doris OLAP & BI Dashboard SSRF / SQL Injection\n- Audit analytics queries and BI connectors for raw SQL interpolation, metadata SSRF, and missing row-level security (RLS) across regions/subsidiaries.\n\n## [ BLOCK: general-injection-sqli-nosqli-and-log-poisoning ]\n### OLAP SQL/NoSQL Injection, Airflow DAG Code Injection & Log/Telemetry Poisoning\n- Audit Doris, ClickHouse, Superset, Elasticsearch, and MongoDB query builders for raw string formatting (`f\"SELECT ... {param}\"`), SQL injection, and NoSQL operator injection.\n- Check Airflow DAGs and Spark/Flink jobs for unsafe `eval`/`exec` or shell command injection via `dag_run.conf` parameters.\n- Verify schema validation and log sanitization (ASVS V16) to prevent poisoned Kafka events from corrupting analytics or SIEM audit pipelines.\n\n### Standard Mappings\n- OWASP-API8:2023, ASVS-V5, ASVS-V16, CWE-89, CWE-94, CWE-117, CWE-502\n\n### Safe Patterns (Refutation Anchors)\n- SASL/SCRAM or mTLS authentication with topic-level ACLs on Kafka brokers, Schema Registry, and Flink/Airflow APIs\n- Parameterized SQL queries / bound parameters on Doris, ClickHouse, and Postgres analytics endpoints with tenant row-level filtering\n- Strict Avro/Protobuf schema validation and bounds checking on Kafka consumers before updating Digital Twin state\n\n### Vulnerable Patterns\n- Raw f-string or string concatenation in Doris/ClickHouse/SQL queries or Airflow BashOperator commands using untrusted input\n- Unauthenticated Kafka REST proxy, Flink job submission API, or Airflow webserver reachable on internal or public networks\n- Kafka consumer deserializing untrusted Pickle/Java objects or applying unvalidated telemetry directly to actuation topics\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of Kafka/Flink/Airflow consumer or DAG code showing input parsing and query/command construction\n- ev_... excerpt of broker/database client configuration showing SASL/mTLS and ACL settings\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Are Kafka topic ACLs enforced at the MSK / EMQX / Confluent broker layer restricting which producers can publish to this topic?\n- Does Apache Superset / Doris enforce row-level security (RLS) policies per user role in the database metadata?\n"
+  "markdown": "# Data Lake & Streaming: Kafka, Flink, Apache Doris, Superset & Airflow (`data-kafka-flink-doris-superset-airflow`)\n\n> **Group:** III. Enterprise B2B, Data Lake & AI / VLA\n> **Product Archetypes:** Data_Lake_Streaming_BI\n> **Trigger Signals:** kafka, flink, doris, clickhouse, superset, airflow, spark, parquet, datalake, bi\n\n## [ BLOCK: kafka-flink-unauthenticated-streams-and-poisoning ]\n### Kafka SASL/mTLS/ACLs, Schema Poisoning & Flink JobManager Exposure\n- Check Kafka producer/consumer configs for `PLAINTEXT` listeners (`:9092`), missing SASL/mTLS, or wildcard topic ACLs where an attacker or compromised service can inject forged events (payment completed, telemetry, command events).\n- Check Flink JobManager (`:8081`) and Spark UI/REST endpoints for unauthenticated JAR/job submission (remote code execution).\n\n## [ BLOCK: doris-clickhouse-superset-sql-and-rls ]\n### Apache Doris / ClickHouse SQL Injection & Superset Row-Level Security (RLS)\n- Trace dynamic analytical queries (Doris, ClickHouse, Trino, Presto) where table names, `ORDER BY`, or filter expressions are interpolated via f-strings / `fmt.Sprintf`.\n- Check Apache Superset (`SECRET_KEY` defaults, SQL Lab exposure, Guest Token signing) and verify whether Row-Level Security (RLS) is enforced per tenant/region.\n\n## [ BLOCK: airflow-dag-injection-and-pii-lake-governance ]\n### Airflow DAG Command Injection & Unmasked PII / GPS in Data Lake\n- Inspect Airflow DAGs (`dag_run.conf` interpolated into `BashOperator` or `PythonOperator` `eval`) and exposed Airflow Webserver/API configs.\n- Check ETL pipelines for bulk ingestion of unmasked PII (CCCD, phone, email, home/work GPS coordinates, voice recordings) into shared Parquet/Iceberg/Doris tables without column-level access control.\n\n### Standard Mappings\n- OWASP-API1:2023, OWASP-API8:2023, ASVS-5.0-V2-Validation, ASVS-5.0-V8-Authorization, ASVS-5.0-V13-Configuration, ASVS-5.0-V14-Data-Protection, ASVS-5.0-V16-Logging, CWE-89, CWE-94, CWE-306\n\n### Safe Patterns (Refutation Anchors)\n- Kafka producers/consumers configured with security.protocol=SASL_SSL, sasl.mechanism=SCRAM-SHA-512 / MSK IAM, and per-topic ACLs\n- Apache Doris / ClickHouse queries in FastAPI / Go / Java using bound parameters or strict identifier allowlists with Superset Row-Level Security (RLS) filters bound to JWT tenant claims\n- Airflow DAGs passing dag_run.conf parameters exclusively as list arguments to PythonOperator / KubernetesPodOperator without BashOperator Jinja shell interpolation\n- PII / GPS / VIN columns tokenized or masked before landing in shared analytical Data Lake tables\n\n### Vulnerable Patterns\n- Kafka brokers on security.protocol=PLAINTEXT (:9092) or Flink JobManager REST API (:8081) exposed without authentication allowing arbitrary JAR upload\n- Python f\"SELECT * FROM doris_telemetry WHERE vin = '{user_vin}'\" or Go fmt.Sprintf SQL concatenation into Apache Doris / ClickHouse, or Superset dashboards using a shared superuser DB connection without RLS\n- Airflow BashOperator(bash_command=f\"python run.py --input {{ dag_run.conf['param'] }}\") enabling OS command injection via DAG trigger payload\n- Unmasked customer PII, phone numbers, CCCD, and real-time GPS history dumped into shared Parquet/S3 buckets or logs\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of Kafka/Flink client config, Doris/ClickHouse query builder, or Airflow DAG file\n- ev_... excerpt of Superset/BI configuration or data pipeline sink\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Are Flink (:8081), Doris (:8030/:9030), and Kafka (:9092) ports isolated inside a dedicated data-plane VPC subnet with mTLS/SASL enforced?\n- Are Superset Row-Level Security (RLS) rules enforced centrally for all embedded analytics views?\n"
 }

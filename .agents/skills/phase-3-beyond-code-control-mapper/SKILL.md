@@ -6,6 +6,8 @@ description: >-
 
 # Phase 3.2: Beyond-Code Infrastructure, Network & OT Control Mapper (`beyond_code_control_mapper`)
 
+> **Subagent Isolation Directive**: Map infrastructure, gateway, network, and physical OT interlock controls for all surviving `chain_id` entries in Phase 3.
+
 Bạn đang thực thi **Bước 3.2 (`beyond_code_control_mapper`)** trong **Phase 3: Contextual Risk & Exploitability Assessment (LocalSec v3.0)**.
 Trước khi nộp kết quả, hãy đối chiếu hợp đồng điều phối `AI-skills/contracts/v3-orchestration.json` và schema mục tiêu `AI-skills/schemas/v3/beyond_code_control_mapper.schema.json`.
 
@@ -23,28 +25,31 @@ Một lỗ hổng tồn tại trong mã nguồn ứng dụng không đồng ngh�
 
 ---
 
-## 2. Quy tắc Kỷ luật về Kiểm soát Bù trừ Ngoài Code (`compensating_controls` — `ARCH-3H`, `DEPTH-4.4a`)
+## 2. Quy tắc Kỷ luật về Kiểm soát Ngoài Code (`beyond_code_controls` — `ARCH-3H`, `DEPTH-4.4a`, `R2-P0-01`)
 
-1. **Giữ nguyên `chain_id` từ Phase 2 & Khai báo Cấu trúc `yes` / `no` / `unknown` (`ARCH-3H`)**:
-   - Mỗi bản ghi trong `assessments[]` phải giữ nguyên `chain_id` (và `finding_id`) từ Phase 2.
-   - Mỗi kiểm soát trong `compensating_controls[]` phải khai báo rõ:
-     - `present`: `"yes"` | `"no"` | `"unknown"`
-     - `status`: `"observed"` | `"confirmed"` | `"hypothesis"` | `"absent"`
-     - `mitigation_effect`: `"blocks_exploit"` | `"reduces_likelihood"` | `"none"`
-     - `evidence_ids` và `searched_paths` (hoặc tham chiếu `runtime_facts.json` đã nạp qua `ingest_runtime_facts` — `DEPTH-4.4a`).
-2. **Luật Cứng (`validator` chặn tự động)**:
-   - Một kiểm soát đang ở trạng thái `status: "hypothesis"` hoặc `present: "unknown"` **TUYỆT ĐỐI KHÔNG ĐƯỢC GÁN `mitigation_effect: "blocks_exploit"`**. Nếu chưa có bằng chứng xác nhận kiểm soát hạ tầng đó đang bật và chặn đúng vector tấn công, không được dùng nó để xóa bỏ rủi ro!
+1. **Sử dụng Cấu trúc Chuẩn `beyond_code_controls[]` (`R2-P0-01`)**:
+   - Khai báo danh sách kiểm soát trong trường **`"beyond_code_controls"`** với các trường bắt buộc:
+     - `"control_id"`: mã định danh kiểm soát (ví dụ `"CTRL-WAF-01"`).
+     - `"chain_id"`: giữ nguyên mã `chain_id` từ Phase 2 (ví dụ `"CHAIN-OCPP-01"`).
+     - `"layer"`: tầng kiểm soát (`"edge_waf"`, `"api_gateway"`, `"network_vpc"`, `"iot_mtls_policy"`, `"ot_hardware_interlock"`).
+     - `"status"`: bắt buộc thuộc đúng 3 giá trị **`"confirmed" | "hypothesis" | "absent"`** (TUYỆT ĐỐI KHÔNG dùng `"observed"`).
+     - `"mitigation_effect"`: bắt buộc thuộc **`"blocks_exploit" | "reduces_likelihood" | "partial_mitigation" | "none"`**.
+     - `"searched_paths"`: mảng đường dẫn file cấu hình/IaC đã kiểm tra.
+     - `"evidence_ids"`: mảng mã bằng chứng `["ev_001"]`.
+2. **Hai Luật Cứng (`validator` & `finalize_v3_phase3` chặn tự động)**:
+   - Nếu `"status": "confirmed"`, bắt buộc phải có `"evidence_ids"` khác rỗng (`["ev_001"]`) hoặc được xác nhận trong `runtime_environment_facts.json` qua `ingest_runtime_facts`.
+   - Nếu `"status": "hypothesis"`, trường `"mitigation_effect"` **BẮT BUỘC chỉ được là `"reduces_likelihood"` hoặc `"none"`** (TUYỆT ĐỐI KHÔNG ĐƯỢC GÁN `"blocks_exploit"`). Nếu chưa có bằng chứng xác nhận kiểm soát hạ tầng đó đang bật và chặn đúng vector tấn công, không được dùng nó để xóa bỏ rủi ro!
 
 ---
 
-## 3. Giao thức Thực thi CLI & Đầu ra JSON (`AI-skills/schemas/v3/beyond_code_control_mapper.schema.json`)
+## 3. Giao thức Thực thi CLI & Đầu ra JSON Chuẩn (`AI-skills/schemas/v3/beyond_code_control_mapper.schema.json`)
 
-```bash
+```powershell
 # (Tùy chọn) Nạp thông tin hạ tầng thực tế do đội vận hành cung cấp
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session ingest_runtime_facts <repo_name> /tmp/runtime_facts.json
 
 # Đọc các file cấu hình Ingress, Helm, Terraform, Kong, Docker Compose nếu có trong repo
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <path> 1 140 --skill beyond_code_control_mapper
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> src/ocpp_controller.py 1 120 --skill beyond_code_control_mapper
 
 # Lưu kết quả đánh giá Beyond-Code Controls (đối chiếu AI-skills/schemas/v3/beyond_code_control_mapper.schema.json)
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> beyond_code_control_mapper /tmp/beyond_code_control_mapper_<repo_name>.json
@@ -52,23 +57,43 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_nam
 
 ```json
 {
-  "assessments": [
-    {
-      "chain_id": "CHAIN-OCPP-STOP-01",
-      "finding_id": "CHAIN-OCPP-STOP-01",
-      "exposure_tier": "internet_public_behind_cloudflare_waf",
-      "compensating_controls": [
-        {
-          "layer": "edge_waf",
-          "control": "Cloudflare WAF managed ruleset",
-          "present": "yes",
-          "status": "observed",
-          "mitigation_effect": "none",
-          "searched_paths": ["deploy/ingress.yaml"],
-          "evidence_ids": ["ev_..."]
-        }
-      ]
-    }
-  ]
+  "status": "ok",
+  "result": {
+    "beyond_code_controls": [
+      {
+        "control_id": "CTRL-WAF-01",
+        "chain_id": "CHAIN-OCPP-01",
+        "layer": "edge_waf",
+        "control": "Cloudflare WAF managed ruleset",
+        "exposure_tier": "internet_public_behind_cloudflare_waf",
+        "status": "confirmed",
+        "mitigation_effect": "none",
+        "searched_paths": [
+          "src/ocpp_controller.py"
+        ],
+        "evidence_ids": [
+          "ev_001"
+        ],
+        "notes": "Cloudflare WAF inspects HTTP signatures but does not validate BOLA session ownership in application state"
+      },
+      {
+        "control_id": "CTRL-OT-INTERLOCK-01",
+        "chain_id": "CHAIN-OCPP-01",
+        "layer": "ot_hardware_interlock",
+        "control": "EVSE hardware contactor plug-present interlock",
+        "exposure_tier": "internet_public_behind_cloudflare_waf",
+        "status": "hypothesis",
+        "mitigation_effect": "reduces_likelihood",
+        "searched_paths": [
+          "src/ocpp_controller.py"
+        ],
+        "evidence_ids": [
+          "ev_001"
+        ],
+        "notes": "Physical EVSE firmware interlock is outside software repository and requires operator verification"
+      }
+    ],
+    "summary": "Mapped edge WAF (confirmed, mitigation_effect=none for BOLA) and EVSE hardware interlock (hypothesis, reduces_likelihood) for CHAIN-OCPP-01."
+  }
 }
 ```

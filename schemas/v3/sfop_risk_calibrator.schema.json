@@ -12,6 +12,7 @@
         "type": "object",
         "required": [
           "finding_id",
+          "impact_axes",
           "max_impact",
           "contextual_risk_rating",
           "risk_owner"
@@ -27,12 +28,13 @@
           "code_verified_severity": {
             "type": "string",
             "enum": [
-              "critical",
-              "high",
-              "medium",
-              "low",
+              "negligible",
               "informational",
-              "negligible"
+              "low",
+              "medium",
+              "high",
+              "critical",
+              "catastrophic"
             ]
           },
           "exploitability_likelihood": {
@@ -43,48 +45,6 @@
               "low",
               "theoretical"
             ]
-          },
-          "sfop_impacts": {
-            "type": "object",
-            "required": [
-              "safety",
-              "financial",
-              "operational",
-              "privacy",
-              "compliance"
-            ],
-            "properties": {
-              "safety": {
-                "type": [
-                  "string",
-                  "object"
-                ]
-              },
-              "financial": {
-                "type": [
-                  "string",
-                  "object"
-                ]
-              },
-              "operational": {
-                "type": [
-                  "string",
-                  "object"
-                ]
-              },
-              "privacy": {
-                "type": [
-                  "string",
-                  "object"
-                ]
-              },
-              "compliance": {
-                "type": [
-                  "string",
-                  "object"
-                ]
-              }
-            }
           },
           "impact_axes": {
             "type": "object",
@@ -131,24 +91,24 @@
           "max_impact": {
             "type": "string",
             "enum": [
-              "catastrophic",
-              "critical",
-              "high",
-              "medium",
+              "negligible",
               "low",
-              "negligible"
+              "medium",
+              "high",
+              "critical",
+              "catastrophic"
             ]
           },
           "contextual_risk_rating": {
             "type": "string",
             "enum": [
-              "catastrophic",
-              "critical",
-              "high",
-              "medium",
-              "low",
+              "negligible",
               "informational",
-              "negligible"
+              "low",
+              "medium",
+              "high",
+              "critical",
+              "catastrophic"
             ]
           },
           "risk_owner": {
@@ -181,6 +141,12 @@
               "cross_domain",
               "platform"
             ]
+          },
+          "actuator_command_path_without_interlock": {
+            "type": "string"
+          },
+          "feasibility_derived": {
+            "type": "string"
           },
           "sfop_details": {
             "type": "object"

@@ -2,6 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "LocalSec v3.0 Phase 1.5 Cross-Repo & Architecture Review Schema",
   "type": "object",
+  "required": [
+    "architecture_findings",
+    "matched_cross_repo_boundaries",
+    "diagrams",
+    "summary"
+  ],
   "properties": {
     "repo_name": {
       "type": "string"
@@ -21,7 +27,46 @@
     "architecture_findings": {
       "type": "array",
       "items": {
-        "type": "object"
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "status",
+          "evidence_ids"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "negligible",
+              "low",
+              "medium",
+              "high",
+              "critical",
+              "catastrophic"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
       }
     },
     "architecture_observations": {
@@ -92,27 +137,5 @@
     "summary": {
       "type": "string"
     }
-  },
-  "anyOf": [
-    {
-      "required": [
-        "architecture_findings"
-      ]
-    },
-    {
-      "required": [
-        "trust_boundary_mismatches"
-      ]
-    },
-    {
-      "required": [
-        "interactions"
-      ]
-    },
-    {
-      "required": [
-        "matched_cross_repo_boundaries"
-      ]
-    }
-  ]
+  }
 }

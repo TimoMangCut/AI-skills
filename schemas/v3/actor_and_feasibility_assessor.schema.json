@@ -2,7 +2,6 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "LocalSec v3.0 Phase 3.1 Actor & Feasibility Assessor Schema",
   "type": "object",
-  "required": [],
   "properties": {
     "actor_assessments": {
       "type": "array",
@@ -13,7 +12,6 @@
           "minimum_actor",
           "identity_acquisition_cost",
           "preconditions",
-          "attack_feasibility",
           "evidence_ids"
         ],
         "properties": {
@@ -26,7 +24,16 @@
           },
           "minimum_actor": {
             "type": "string",
-            "minLength": 1
+            "enum": [
+              "external_unauthenticated",
+              "authenticated_user",
+              "b2b_partner_cross_scope",
+              "rogue_insider_or_operator",
+              "compromised_internal_component",
+              "physical_or_local_bus_attacker",
+              "authenticated_ev_driver",
+              "compromised_edge_device_tbox_charger_robot"
+            ]
           },
           "minimum_viable_actor": {
             "type": "string"

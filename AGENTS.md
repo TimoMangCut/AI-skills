@@ -22,7 +22,7 @@ Tài liệu ứng dụng/kiến trúc cung cấp override kiến thức chung. M
 
 ## Severity & Risk Thực tế theo Ngữ cảnh (5 Trục S-F-O-P-C)
 Không gán severity từ CVSS suông và không đánh đồng "Reachable trong code" với "Exploitable ngoài thực tế".
-- Đánh giá hậu quả trên 5 trục **S-F-O-P-C**: **Safety** (An toàn vật lý: xe điện, trạm sạc/pin, robot, y tế, lưới điện BESS, nhà máy thép/đường sắt) · **Financial** (Thanh toán, cước sạc/đổi pin, đối soát B2B, thuê bao OTA) · **Operational** (Đội xe, nhà máy, cổng bán hàng/đại lý, Identity/CI-CD/ERP/Data Lake) · **Privacy/Data** (PII, tọa độ GPS, camera, giọng nói, dataset huấn luyện) · **Compliance** (Luật BVDLCN 91/2025, Luật ANM 116/2025, R155/R156, GDPR, TT 05/2025/TT-BCT).
+- Đánh giá hậu quả trên 5 trục **S-F-O-P-C**: **Safety** (An toàn vật lý: xe điện, trạm sạc/pin, robot, y tế, lưới điện BESS, nhà máy thép/đường sắt) · **Financial** (Thanh toán, cước sạc/đổi pin, đối soát B2B, thuê bao OTA) · **Operational** (Đội xe, nhà máy, cổng bán hàng/đại lý, Identity/CI-CD/ERP/Data Lake) · **Privacy/Data** (PII, tọa độ GPS, camera, giọng nói, dataset huấn luyện) · **Compliance** (Luật BVDLCN 91/2025, Luật ANM 116/2025 (cần Pháp chế/Compliance xác nhận số hiệu và hiệu lực hiện hành), R155/R156, GDPR, TT 05/2025/TT-BCT (cần Pháp chế/Compliance xác nhận số hiệu và hiệu lực hiện hành)).
 - Luôn áp trần cứng: **`overall_risk <= max_impact`**.
 - Chứng minh rõ **Actor/Role nào** chạm được code path, **khả năng xảy ra (Attack Feasibility)**, và **kiểm soát ngoài code** (Cloudflare WAF vs Bare ALB, VPC nội bộ `10.x`, AWS IoT Policy, mTLS, OT Interlock).
 

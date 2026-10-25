@@ -2,6 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "LocalSec v3.0 Phase 2.3 Blinded Counterevidence Challenger Schema",
   "type": "object",
+  "required": [
+    "challenged_chains"
+  ],
   "properties": {
     "repo_name": {
       "type": "string"
@@ -10,6 +13,12 @@
       "type": "array",
       "items": {
         "type": "object",
+        "required": [
+          "chain_id",
+          "challenge_verdict",
+          "control_search_checklist",
+          "counter_evidence_ids"
+        ],
         "properties": {
           "chain_id": {
             "type": "string",
@@ -18,20 +27,50 @@
           "challenge_verdict": {
             "type": "string",
             "enum": [
+              "confirmed_exploit_chain",
+              "sustained",
               "upheld",
-              "partially_mitigated",
+              "mitigated_by_existing_control",
               "refuted",
-              "inconclusive",
-              "confirmed",
-              "code_supported",
-              "weakened"
+              "broken_link",
+              "needs_runtime_verification",
+              "partially_mitigated"
             ]
           },
           "control_search_checklist": {
-            "type": [
-              "object",
-              "array"
-            ]
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "required": [
+                "status",
+                "searched_paths"
+              ],
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "checked_found",
+                    "checked_not_found",
+                    "not_applicable"
+                  ]
+                },
+                "searched_paths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "evidence_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
+            }
           },
           "counter_evidence_ids": {
             "type": "array",
@@ -51,24 +90,6 @@
         }
       }
     },
-    "challenges": {
-      "type": "array",
-      "items": {
-        "type": "object"
-      }
-    },
-    "chain_challenges": {
-      "type": "array",
-      "items": {
-        "type": "object"
-      }
-    },
-    "control_search_checklist": {
-      "type": [
-        "object",
-        "array"
-      ]
-    },
     "empirical_refutations": {
       "type": "array",
       "items": {
@@ -78,22 +99,5 @@
     "summary": {
       "type": "string"
     }
-  },
-  "anyOf": [
-    {
-      "required": [
-        "challenged_chains"
-      ]
-    },
-    {
-      "required": [
-        "challenges"
-      ]
-    },
-    {
-      "required": [
-        "chain_challenges"
-      ]
-    }
-  ]
+  }
 }

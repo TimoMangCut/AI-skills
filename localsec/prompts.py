@@ -17,6 +17,7 @@ ACA_REGISTRY_PATH = ACA_ROOT / "registry.json"
 ACA_SCHEMA_DIR = ACA_ROOT / "schemas"
 ACA_PROMPT_DIR = ACA_ROOT / "prompts"
 TAXONOMY_ROOT = ROOT / "contracts" / "attack-taxonomy-v1"
+TAXONOMY_MANIFEST_PATH = TAXONOMY_ROOT / "manifest.json"
 TAXONOMY_REGISTRY_PATH = TAXONOMY_ROOT / "taxonomy_registry.json"
 TAXONOMY_COMPANIONS_DIR = TAXONOMY_ROOT / "companions"
 
@@ -222,33 +223,119 @@ def load_v3_orchestration() -> dict[str, Any]:
     }
 
 
+def _format_companion_json_block(mid: str, comp_json: dict[str, Any]) -> str:
+    """Format a rich companion JSON into verbatim markdown preserving ## [ BLOCK: ... ] headers and structured sections."""
+    title = str(comp_json.get("title") or mid)
+    base_md = str(comp_json.get("markdown") or "").strip()
+    lines: list[str] = []
+    if f"## [ BLOCK: {mid}" not in base_md and "## [ BLOCK:" not in base_md:
+        lines.append(f"## [ BLOCK: {mid} — {title} ]")
+    if base_md:
+        lines.append(base_md)
+    else:
+        lines.append(f"## [ BLOCK: {mid} — {title} ]")
+
+    std_map = comp_json.get("standard_mappings")
+    if isinstance(std_map, dict) and std_map and "Standard Mappings" not in base_md:
+        std_parts = [f"{k}: {', '.join(str(x) for x in v)}" for k, v in std_map.items() if isinstance(v, list) and v]
+        if std_parts:
+            lines.append("### Standard Mappings\n- " + "\n- ".join(std_parts))
+
+    for section_key, section_title in (
+        ("safe_patterns", "Safe Patterns"),
+        ("vulnerable_patterns", "Vulnerable Patterns"),
+        ("required_evidence", "Required Evidence"),
+        ("questions_when_unclear", "Questions When Unclear"),
+    ):
+        items = comp_json.get(section_key)
+        if isinstance(items, list) and items and section_title not in base_md:
+            lines.append(f"### {section_title}\n" + "\n".join(f"- {item}" for item in items))
+
+    return "\n\n".join(lines).strip()
+
+
 def load_attack_taxonomy_registry() -> dict[str, Any]:
-    if not TAXONOMY_REGISTRY_PATH.is_file():
+    raw: dict[str, Any] = {}
+    reg_fallback: dict[str, Any] = {}
+    if TAXONOMY_REGISTRY_PATH.is_file():
+        try:
+            reg_fallback = json.loads(TAXONOMY_REGISTRY_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            reg_fallback = {}
+    if TAXONOMY_MANIFEST_PATH.is_file():
+        try:
+            raw = json.loads(TAXONOMY_MANIFEST_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            raw = dict(reg_fallback)
+    else:
+        raw = dict(reg_fallback)
+
+    if not raw:
         return {"version": "3.0.0", "always_inject_modules": [], "modules": []}
-    raw = json.loads(TAXONOMY_REGISTRY_PATH.read_text(encoding="utf-8"))
+
     always_default = [
         "authz-bola-bfla-multitenant",
         "api-rest-graphql-grpc-websocket",
         "state-race-financial-commerce",
     ]
-    always_list = raw.get("always_inject_modules", always_default)
+    always_list = list(raw.get("always_inject_modules") or reg_fallback.get("always_inject_modules") or always_default)
+    fallback_companions = reg_fallback.get("companions") if isinstance(reg_fallback.get("companions"), dict) else {}
+
     modules: list[dict[str, Any]] = []
-    if isinstance(raw.get("modules"), list):
-        modules = list(raw["modules"])
-    elif isinstance(raw.get("companions"), dict):
-        for mid, spec in raw["companions"].items():
-            if not isinstance(spec, dict):
-                continue
-            triggers = list(spec.get("triggers", [])) + [str(a).lower() for a in spec.get("archetypes", [])]
-            modules.append({
-                "id": mid,
-                "file": spec.get("file", f"{mid}.md"),
-                "title": spec.get("title", mid),
-                "group": spec.get("group", ""),
-                "always_inject": mid in always_list,
-                "trigger_signals": triggers,
-                "blocks": spec.get("blocks", []),
-            })
+    raw_companions = raw.get("companions")
+    companion_entries: list[tuple[str, dict[str, Any]]] = []
+    if isinstance(raw_companions, list):
+        for item in raw_companions:
+            if isinstance(item, dict):
+                mid = str(item.get("companion_id") or item.get("id") or "").strip()
+                if mid:
+                    merged_spec = {**(fallback_companions.get(mid) or {}), **item}
+                    companion_entries.append((mid, merged_spec))
+    elif isinstance(raw_companions, dict):
+        for mid, spec in raw_companions.items():
+            if isinstance(spec, dict):
+                companion_entries.append((str(mid), spec))
+    elif isinstance(raw.get("modules"), list):
+        for item in raw["modules"]:
+            if isinstance(item, dict):
+                mid = str(item.get("id") or item.get("companion_id") or "").strip()
+                if mid:
+                    companion_entries.append((mid, item))
+
+    for mid, spec in companion_entries:
+        json_file = TAXONOMY_COMPANIONS_DIR / f"{mid}.json"
+        comp_json: dict[str, Any] = {}
+        if json_file.is_file():
+            try:
+                comp_json = json.loads(json_file.read_text(encoding="utf-8"))
+            except Exception:
+                comp_json = {}
+        if bool(spec.get("always_inject")) and mid not in always_list:
+            always_list.append(mid)
+        raw_triggers = list(comp_json.get("triggers") or spec.get("triggers") or spec.get("trigger_signals") or [])
+        raw_archetypes = list(comp_json.get("archetypes") or spec.get("archetypes") or [])
+        triggers = [str(t).lower() for t in raw_triggers] + [str(a).lower() for a in raw_archetypes]
+        rel_file = str(spec.get("file") or f"companions/{mid}.json")
+        modules.append({
+            "id": mid,
+            "companion_id": mid,
+            "file": rel_file,
+            "json_file": f"companions/{mid}.json" if json_file.is_file() else "",
+            "title": str(comp_json.get("title") or spec.get("title") or mid),
+            "group": str(comp_json.get("group") or spec.get("group") or ""),
+            "always_inject": mid in always_list or bool(spec.get("always_inject")) or bool(comp_json.get("always_inject")),
+            "triggers": raw_triggers,
+            "trigger_signals": triggers,
+            "archetypes": raw_archetypes,
+            "blocks": list(comp_json.get("blocks") or spec.get("blocks") or []),
+            "standard_mappings": comp_json.get("standard_mappings", {}),
+            "safe_patterns": comp_json.get("safe_patterns", []),
+            "vulnerable_patterns": comp_json.get("vulnerable_patterns", []),
+            "required_evidence": comp_json.get("required_evidence", []),
+            "questions_when_unclear": comp_json.get("questions_when_unclear", []),
+            "companion_json": comp_json,
+        })
+
     raw["always_inject_modules"] = always_list
     raw["modules"] = modules
     return raw
@@ -261,8 +348,9 @@ def select_companion_blocks(
     candidate_classes: list[str] | None = None,
     exclude_reasons: dict[str, str] | None = None,
     run_dir: Path | None = None,
+    max_companions: int | None = None,
 ) -> dict[str, Any]:
-    """Select verbatim Attack-Class Companion Markdown blocks for sub-agent prompts.
+    """Select verbatim Attack-Class Companion blocks (JSON-first with Markdown fallback) for sub-agent prompts.
     Enforces verbatim `## [ BLOCK: ... ]` preservation and requires explicit reasons for any exclusions.
     """
     reg = load_attack_taxonomy_registry()
@@ -281,7 +369,8 @@ def select_companion_blocks(
 
     selected_ids: list[str] = []
     excluded_blocks: list[dict[str, str]] = []
-    verbatim_blocks: list[dict[str, str]] = []
+    verbatim_blocks: list[dict[str, Any]] = []
+    companions_json: list[dict[str, Any]] = []
 
     for mod in reg.get("modules", []):
         mid = mod.get("id", "")
@@ -301,12 +390,50 @@ def select_companion_blocks(
                 raise ValueError(f"Exclusion of companion module {mid!r} requires a non-empty reason")
             excluded_blocks.append({"module_id": mid, "reason": reason})
             continue
+        if max_companions is not None and max_companions > 0 and len(selected_ids) >= max_companions and not is_always:
+            excluded_blocks.append({"module_id": mid, "reason": f"Exceeded max_companions={max_companions}"})
+            continue
+
+        json_path = TAXONOMY_COMPANIONS_DIR / f"{mid}.json"
         rel_file = mod.get("file", "")
         file_path = TAXONOMY_ROOT / rel_file
         if not file_path.is_file() and (TAXONOMY_COMPANIONS_DIR / rel_file).is_file():
             file_path = TAXONOMY_COMPANIONS_DIR / rel_file
-        if file_path.is_file():
-            content = file_path.read_text(encoding="utf-8").strip()
+
+        comp_obj: dict[str, Any] = dict(mod.get("companion_json") or {})
+        if not comp_obj and json_path.is_file():
+            try:
+                comp_obj = json.loads(json_path.read_text(encoding="utf-8"))
+            except Exception:
+                comp_obj = {}
+
+        if comp_obj:
+            content = _format_companion_json_block(mid, comp_obj)
+            used_file = f"companions/{mid}.json"
+            selected_ids.append(mid)
+            companions_json.append(comp_obj)
+            verbatim_blocks.append({
+                "module_id": mid,
+                "block_header": mod.get("block_header", mid),
+                "file": used_file,
+                "markdown": content,
+                "standard_mappings": comp_obj.get("standard_mappings", {}),
+                "safe_patterns": comp_obj.get("safe_patterns", []),
+                "vulnerable_patterns": comp_obj.get("vulnerable_patterns", []),
+                "required_evidence": comp_obj.get("required_evidence", []),
+                "questions_when_unclear": comp_obj.get("questions_when_unclear", []),
+            })
+        elif file_path.is_file():
+            raw_text = file_path.read_text(encoding="utf-8").strip()
+            if file_path.suffix == ".json":
+                try:
+                    parsed = json.loads(raw_text)
+                    content = _format_companion_json_block(mid, parsed)
+                    companions_json.append(parsed)
+                except Exception:
+                    content = raw_text
+            else:
+                content = raw_text
             selected_ids.append(mid)
             verbatim_blocks.append({
                 "module_id": mid,
@@ -322,6 +449,7 @@ def select_companion_blocks(
         "selected_companion_ids": list(selected_ids),
         "excluded_blocks": excluded_blocks,
         "verbatim_blocks": verbatim_blocks,
+        "companions_json": companions_json,
         "combined_markdown": combined_md,
     }
     if run_dir is not None:
