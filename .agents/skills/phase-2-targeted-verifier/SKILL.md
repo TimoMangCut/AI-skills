@@ -1,6 +1,7 @@
 ---
 name: phase-2-targeted-verifier
-description: Phase 2.6 — Thực thi đọc file giới hạn trong danh sách `exact_paths` ở chế độ mù ngữ cảnh và chủ động tìm bằng chứng phản bác (`targeted_verifier`).
+description: >-
+  Phase 2.6 — Thực thi đọc file giới hạn trong danh sách exact_paths ở chế độ mù ngữ cảnh và chủ động tìm bằng chứng phản bác (targeted_verifier). Kích hoạt khi người dùng gọi /phase-2-targeted-verifier hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-2-targeted-verifier` (PHASE-2 — Internal Skill ID: `targeted_verifier`)

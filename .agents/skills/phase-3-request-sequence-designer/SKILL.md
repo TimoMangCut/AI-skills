@@ -1,6 +1,7 @@
 ---
 name: phase-3-request-sequence-designer
-description: Phase 3.5 — Thiết kế chuỗi HTTP/RPC request kiểm định có khả năng phân biệt rõ hành vi an toàn và hành vi lỗi bằng dữ liệu giả lập (`request_sequence_designer`).
+description: >-
+  Phase 3.5 — Thiết kế chuỗi HTTP/RPC request kiểm định có khả năng phân biệt rõ hành vi an toàn và hành vi lỗi bằng dữ liệu giả lập (request_sequence_designer). Kích hoạt khi người dùng gọi /phase-3-request-sequence-designer hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-3-request-sequence-designer` (PHASE-3 — Internal Skill ID: `request_sequence_designer`)

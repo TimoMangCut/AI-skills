@@ -1,67 +1,39 @@
 ---
 name: phase-1-orchestrator
-description: Master Orchestrator duy nhất cần gọi để chạy trọn bộ Phase 1 (Manual Code Reconnaissance v0.2 — 8 bước bắt buộc) trên toàn bộ repositories của dự án.
+description: >-
+  Master Orchestrator duy nhất cần gọi để chạy trọn bộ Phase 1 Unified Reconnaissance v3.0 (kết hợp Technical Recon và Business/Safety Intent Recon trong một lượt đọc, kèm AI Scouting, Tailored Extractor, AI Semantic Clustering và Visibility Tracker) trên toàn bộ repositories của dự án. Kích hoạt khi người dùng gọi /phase-1-orchestrator.
+---
 
-## Bản Đồ Đường Dẫn Nội Bộ (Internal Resource Mapping tại `AI-skills/`)
-> **LƯU Ý QUAN TRỌNG CHO AI AGENT**: Khi bộ kỹ năng được tích hợp vào một Project mục tiêu (`<Project-Root>`), toàn bộ mã nguồn Engine, Prompts và JSON Schemas nằm gọn bên trong thư mục `AI-skills/` (không nằm rời rạc ở gốc Project). Hãy truy cập trực tiếp các đường dẫn chuẩn hóa sau:
-- **Engine CLI**: `AI-skills/localsec/manual_session.py` (gọi qua `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session ...`)
-- **Cấu hình Runtime**: `AI-skills/localsec.toml` (hoặc `<Project-Root>/localsec.toml` nếu muốn ghi đè)
-- **Skill Registry**: `AI-skills/skills/registry.json`
-- **Thư mục Prompts gốc**: `AI-skills/skills/prompts/`
-- **Thư mục JSON Schemas**: `AI-skills/schemas/`
-- **Quy ước `<repo_name>`**:
-  - **Multi-repo Workspace** (nhiều repo con nằm trong `<Project-Root>`): truyền tên thư mục con (ví dụ: `auth-service`, `payment-api`).
-  - **Single-repo Project** (`<Project-Root>` chính là repo cần review): truyền `.` hoặc tên thư mục gốc của project; Engine tự động bỏ qua `AI-skills/`, `.agents/`, `.localsec/`, `documents/`.
+# Phase 1 Master Orchestrator: Unified Reconnaissance (LocalSec v3.0)
+
+Khi người dùng gọi `/phase-1-orchestrator`, bạn là **Master Orchestrator của Phase 1 (Unified Reconnaissance v3.0)**.
+Phase 1 của LocalSec v3.0 gộp **Technical Recon** và **Business/Safety Intent Recon (S-F-O-P-C)** vào chung một lượt khảo sát thông minh để **tiết kiệm 50–60% usage** đồng thời **chống triệt để bệnh "giả vờ đủ coverage"** trên các dự án đa sản phẩm (VinFast Connected Car, V-Green OCPP, VinEnergo BESS SCADA, VinRobotics `vla.cpp`, WebApps/SPAs, Mobile Apps, Multi-Cloud/Edge/On-Prem, CI/CD, Data/AI Lakehouse, SAP/MuleSoft).
 
 ---
 
-# `phase-1-orchestrator` — Master Orchestrator cho Phase 1 (Manual Code Reconnaissance)
+## Kiến trúc 6 Bước Tinh gọn của Phase 1 (LocalSec v3.0)
 
-Khi người dùng gọi `/phase-1-orchestrator`, bạn **BẮT BUỘC** thực thi tuần tự toàn bộ **8 bước chuyên môn** bên dưới cho từng repository và tổng hợp toàn hệ thống. **Cơ chế khóa cứng (State-Machine Gate)** trong `AI-skills/localsec/manual_session.py` sẽ chặn lệnh `finalize_repo` nếu bạn bỏ qua bất kỳ bước nào.
+Với mỗi repository trong dự án (hoặc chạy增量 `--changed-files` qua `diff_prior_run`), thực thi tuần tự:
 
-## Prompt Kích hoạt Tư duy Phản biện (Critical-Thinking Booster — 2–4 dòng)
-```text
-/phase-1-orchestrator Thực hiện trọn bộ Phase 1 (Manual Recon) cho toàn bộ repositories trên nhánh <prod|main>.
-Áp dụng kỷ luật Refute-first: không dùng SAST/grep, chỉ đọc file thủ công qua ManualWorkspace để sinh mã ev_..., tách bạch Confirmed (observed/derived) với Hypothesis/Unknown, và bắt buộc chạy evidence_auditor hạ cấp fail-closed trước khi tổng hợp hệ thống.
-```
+1. **Bước 1.1 — `/phase-1-codebase-scout` (`codebase_scout` Micro-Skill)**:
+   - AI dùng `list_dir` (depth 2) và đọc lướt 3–5 file mẫu để xác định **Product Archetypes**, phân hạng **Repo Tier (`tier_1` / `tier_2` / `tier_3`)**, nắm quy ước code của team và lập **`Target Modules Map`** (`target_modules` + `ignored_modules` kèm lý do).
+   - Đăng ký qua CLI: `python3 -m localsec.manual_session register_scout_map <repo_name> <json_file>`.
+2. **Bước 1.2 — `/phase-1-extractor-tailor` (`extractor_tailor` Micro-Skill)**:
+   - AI đánh giá xem quy ước code của repo có dùng được Python structural extractor hay không:
+     - Chọn `USE_STANDARD_EXTRACTOR` hoặc `TAILOR_CUSTOM_EXTRACTOR` (bắt buộc kiểm thử khớp trên `canary_files` trước: `canary_verified = true`).
+     - Hoặc chọn `SKIP_EXTRACTOR_DIRECT_READ` nếu code quá động/macro C++ phức tạp để tránh thiên kiến SAST.
+   - Chạy qua CLI: `python3 -m localsec.manual_session run_tailored_extractor <repo_name> --mode ... --canary-files ...`.
+3. **Bước 1.3 — `/phase-1-intent-invariant-modeler` (`intent_invariant_modeler`)**:
+   - Đọc tài liệu thiết kế/README/OpenAPI/Proto/SQL/Manifest để lập mô hình **Ý định Nghiệp vụ & Bất biến An toàn Vật lý (5 trục S-F-O-P-C)** và tự phản biện mù ngữ cảnh trước khi đọc code thực thi.
+4. **Bước 1.4 — `/phase-1-unified-surface-mapper` (`unified_surface_mapper` + `coverage_ledger`)**:
+   - Nạp nguyên văn các khối `Attack-Class Companion` (`python3 -m localsec.manual_session select_attack_companions <repo_name>`).
+   - Đọc mã nguồn **một lượt duy nhất (Single-Pass)**: vừa kiểm kê Entrypoints/AuthN/AuthZ/Dataflow, vừa đối sánh Intent vs Implementation.
+   - Thực hiện **AI Semantic Clustering** (100% do AI quyết định): đọc sâu đại diện của nhóm `Shared-Control Group` và dồn toàn lực đọc sâu các **Dị biệt (`outliers`)**.
+   - Ghi sổ `coverage_ledger.json` (chuẩn `coverage_id` RFC 3986 4–5 phân đoạn `surface::boundary::subsystem::attack_class[::lifecycle]`) và lập **`Candidate Queue`** cho Phase 2.
+5. **Bước 1.5 — `/phase-1-cross-repo-and-arch-review` (`cross_repo_and_arch_review`)**:
+   - Phân tích lệch giả định tin cậy xuyên dịch vụ/xuyên repo (Gateway $\leftrightarrow$ Upstream, Producer $\leftrightarrow$ Consumer Kafka/EMQX/ZeroMQ, Cloud $\leftrightarrow$ Edge/OT) và vẽ sơ đồ Mermaid (`-->` confirmed vs `-.->` hypothesis).
+6. **Bước 1.6 — `/phase-1-coverage-and-evidence-auditor` (`coverage_and_evidence_auditor`)**:
+   - Chạy `python3 -m localsec.manual_session audit_visibility <repo_name>` để kiểm tra **Visibility Tracker** (`unvisited_target_modules == 0`) và **Anti-Grazing** (`shallow_grazing_files == 0`, cấm đọc lướt $\le 8$ dòng).
+   - Chạy `python3 -m localsec.manual_session verify_semantic_claims <repo_name>` để kiểm toán bằng chứng `ev_...` theo cơ chế **Fail-Closed**.
 
----
-
-## Vòng lặp Thực thi Bắt buộc cho Từng Repository (`<repo_name>`)
-
-Trước và sau mỗi bước, kiểm tra trạng thái và chẩn đoán độ phủ ngữ nghĩa (`semantic_coverage_diagnostics`) bằng:
-```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session phase_status <repo_name> --phase 1
-```
-- **Cổng Chống Độ Phủ Giả Tạo (Semantic vs File Coverage Gate)**: Không được dừng ở việc nộp đủ 7 file JSON trên giấy tờ. Phải kiểm tra `semantic_coverage_diagnostics.distinct_files_read` và đảm bảo không còn `semantic_warnings` (đọc tối thiểu các manifest, entrypoints, auth middleware, controllers và DB/HTTP clients trước khi đóng gói).
-
-1. **Bước 1.1 — `repo_profile`** (Tham chiếu `.agents/skills/phase-1-repo-profile/SKILL.md` & `AI-skills/schemas/repo_profile.schema.json`):
-   - Chạy `list_dir` (`--depth 2`) và `read_file` (`--skill repo_profile`) trên manifest, entrypoint, config.
-   - Nộp kết quả: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> repo_profile <json_file>`
-2. **Bước 1.2 — `api_authz`** (Tham chiếu `.agents/skills/phase-1-api-authz/SKILL.md` & `AI-skills/schemas/api_authz.schema.json`):
-   - Đọc controllers, routes, auth middleware (`--skill api_authz`), kiểm tra RBAC/ABAC và `object_level_authz` (BOLA/IDOR).
-   - Nộp kết quả: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> api_authz <json_file>`
-3. **Bước 1.3 — `dataflow`** (Tham chiếu `.agents/skills/phase-1-dataflow/SKILL.md` & `AI-skills/schemas/dataflow.schema.json`):
-   - Đọc DB repositories, HTTP/gRPC clients, queue producers/consumers (`--skill dataflow`), xác định `trust_boundaries` và `identity_context`.
-   - Nộp kết quả: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> dataflow <json_file>`
-4. **Bước 1.4 — `threat_model`** (Tham chiếu `.agents/skills/phase-1-threat-model/SKILL.md` & `AI-skills/schemas/threat_model.schema.json`):
-   - Xây dựng kịch bản STRIDE và lạm dụng nghiệp vụ gắn với `evidence_ids` thực tế.
-   - Nộp kết quả: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> threat_model <json_file>`
-5. **Bước 1.5 — `architecture_review`** (Tham chiếu `.agents/skills/phase-1-architecture-review/SKILL.md` & `AI-skills/schemas/architecture_review.schema.json`):
-   - Đánh giá kiến trúc bảo mật, quản lý secret, logging/auditability.
-   - Nộp kết quả: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> architecture_review <json_file>`
-6. **Bước 1.6 — `evidence_auditor` (Cổng Kiểm toán Độc lập — Bắt buộc chạy trước khi xuất báo cáo)**:
-   - Trích xuất claims: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session extract_claims <repo_name>`
-   - Đối chiếu từng claim với trích đoạn `ev_...` và nộp: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> evidence_auditor <json_file>`
-7. **Bước 1.7 — `diagram_author`** (Tham chiếu `.agents/skills/phase-1-diagram-author/SKILL.md` & `AI-skills/schemas/diagrams.schema.json`):
-   - Nộp sơ đồ Mermaid của repo: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> diagram_author <json_file>`
-8. **Bước 1.8 — Khóa sổ Repository (`finalize_repo`)**:
-   - Chạy `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_repo <repo_name>` (tự động áp dụng `_apply_audit` hạ cấp fail-closed và xuất `./documents/<repo_name>/`).
-
----
-
-## Tổng hợp Cấp Hệ thống (Sau khi tất cả Repositories hoàn tất Bước 1.1 – 1.8)
-
-1. Chuẩn bị ngữ cảnh Round-Robin: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_system_context`
-2. Thực thi `cross_repo_review` (`.agents/skills/phase-1-cross-repo-review/SKILL.md`), kiểm toán `evidence_auditor` cấp hệ thống và `diagram_author` cấp hệ thống.
-3. Khóa sổ toàn hệ thống: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_system --cross-repo <path> --sys-audit <path> --diagrams <path>`
+> **Tương thích ngược (Granular Mode)**: Nếu người vận hành yêu cầu xuất đầy đủ từng báo cáo riêng lẻ theo chuẩn v2.4 (`repo_profile`, `api_authz`, `dataflow`, `threat_model`, `architecture_review`, `evidence_auditor`, `cross_repo_review`, `diagram_author`), bạn vẫn có thể gọi các sub-skills tương ứng và kết thúc bằng `finalize_repo` / `finalize_system`.

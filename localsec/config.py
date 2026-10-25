@@ -20,7 +20,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
             ".git", ".hg", ".svn", "bin", "obj", "vendor", "node_modules",
             ".venv", "venv", "dist", "build", "coverage", "TestResults",
             ".idea", ".vscode", ".dart_tool", "Pods", ".gradle", "DerivedData",
-            "AI-skills", ".agents", ".localsec", "documents",
+            "AI-skills", ".agents", ".claude", ".localsec", "documents",
         ],
         "max_file_bytes": 2_000_000,
         "max_lines_per_read": 180,

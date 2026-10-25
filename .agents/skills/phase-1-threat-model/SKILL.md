@@ -1,6 +1,7 @@
 ---
 name: phase-1-threat-model
-description: Phase 1.4 — Xây dựng mô hình mối đe dọa STRIDE & kịch bản lạm dụng nghiệp vụ dựa trên bằng chứng mã nguồn (`threat_model`).
+description: >-
+  Phase 1.4 — Xây dựng mô hình mối đe dọa STRIDE & kịch bản lạm dụng nghiệp vụ dựa trên bằng chứng mã nguồn (threat_model). Kích hoạt khi người dùng gọi /phase-1-threat-model hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-1-threat-model` (PHASE-1 — Internal Skill ID: `threat_model`)

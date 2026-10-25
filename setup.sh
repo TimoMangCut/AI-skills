@@ -124,10 +124,13 @@ def _update_git_exclude(root: Path, skill_folder: str, remove: bool = False) -> 
         "/.agents/skills/phase-1-*",
         "/.agents/skills/phase-2-*",
         "/.agents/skills/phase-3-*",
+        "/.claude/skills/phase-1-*",
+        "/.claude/skills/phase-2-*",
+        "/.claude/skills/phase-3-*",
         "/.localsec/",
         "/documents/",
     ]
-    for root_doc in ("AGENTS.md", "SOUL.md"):
+    for root_doc in ("AGENTS.md", "SOUL.md", "CLAUDE.md"):
         if not _is_git_tracked(root, root_doc):
             entries.append(f"/{root_doc}")
     block = begin_tag + "\n" + "\n".join(entries) + "\n" + end_tag + "\n"
@@ -157,16 +160,33 @@ if mode in ("--uninstall", "--clean", "uninstall", "clean"):
             subdir.rmdir()
     if agents_dir.is_dir() and not any(agents_dir.iterdir()):
         agents_dir.rmdir()
+
+    claude_dir = project_root / ".claude"
+    if (claude_dir / "skills").is_dir():
+        for sp in (skill_dir / ".agents" / "skills").iterdir():
+            if sp.is_dir():
+                target_sp = claude_dir / "skills" / sp.name
+                if target_sp.exists():
+                    shutil.rmtree(target_sp)
+        if not any((claude_dir / "skills").iterdir()):
+            (claude_dir / "skills").rmdir()
+    if claude_dir.is_dir() and not any(claude_dir.iterdir()):
+        claude_dir.rmdir()
+
     _unmerge_marked_file(project_root / "AGENTS.md", skill_dir / "AGENTS.md", "AGENTS.md")
     _unmerge_marked_file(project_root / "SOUL.md", skill_dir / "SOUL.md", "SOUL.md")
+    if (skill_dir / "CLAUDE.md").is_file():
+        _unmerge_marked_file(project_root / "CLAUDE.md", skill_dir / "CLAUDE.md", "CLAUDE.md")
     _update_git_exclude(project_root, folder_name, remove=True)
     print(f"[✓] Đã gỡ cài đặt các file AI-skills khỏi {project_root} (giữ nguyên mọi nội dung gốc của dự án).")
     sys.exit(0)
 
-# 1. Sync .agents/README.md, .agents/rules/soul.md, and .agents/skills/phase-*
+# 1. Sync .agents/ (Antigravity) and .claude/skills/ (Claude Code)
 agents_dst = project_root / ".agents"
+claude_dst = project_root / ".claude"
 (agents_dst / "skills").mkdir(parents=True, exist_ok=True)
 (agents_dst / "rules").mkdir(parents=True, exist_ok=True)
+(claude_dst / "skills").mkdir(parents=True, exist_ok=True)
 shutil.copy2(skill_dir / ".agents" / "README.md", agents_dst / "README.md")
 if (skill_dir / ".agents" / "rules" / "soul.md").is_file():
     shutil.copy2(skill_dir / ".agents" / "rules" / "soul.md", agents_dst / "rules" / "soul.md")
@@ -174,27 +194,34 @@ if (skill_dir / ".agents" / "rules" / "soul.md").is_file():
 copied_skills = 0
 for sp in sorted((skill_dir / ".agents" / "skills").iterdir()):
     if sp.is_dir():
-        target_sp = agents_dst / "skills" / sp.name
-        if target_sp.exists():
-            shutil.rmtree(target_sp)
-        shutil.copytree(sp, target_sp)
+        for dst_root in (agents_dst / "skills", claude_dst / "skills"):
+            target_sp = dst_root / sp.name
+            if target_sp.exists():
+                shutil.rmtree(target_sp)
+            shutil.copytree(sp, target_sp)
         copied_skills += 1
 
-# 2. If cloned under a custom folder name != AI-skills, rewrite references in copied .agents/
+# 2. If cloned under a custom folder name != AI-skills, rewrite references in copied .agents/ and .claude/skills/
 if folder_name != "AI-skills":
-    for md in agents_dst.rglob("*.md"):
-        txt = md.read_text(encoding="utf-8")
-        md.write_text(txt.replace("AI-skills", folder_name), encoding="utf-8")
+    for root_target in (agents_dst, claude_dst / "skills"):
+        for md in root_target.rglob("*.md"):
+            txt = md.read_text(encoding="utf-8")
+            md.write_text(txt.replace("AI-skills", folder_name), encoding="utf-8")
 
-# 3. Non-destructively install or merge AGENTS.md and SOUL.md
+# 3. Non-destructively install or merge AGENTS.md, SOUL.md, and CLAUDE.md
 agents_status = _merge_marked_file(skill_dir / "AGENTS.md", project_root / "AGENTS.md", "AGENTS.md")
 soul_status = _merge_marked_file(skill_dir / "SOUL.md", project_root / "SOUL.md", "SOUL.md")
+claude_status = (
+    _merge_marked_file(skill_dir / "CLAUDE.md", project_root / "CLAUDE.md", "CLAUDE.md")
+    if (skill_dir / "CLAUDE.md").is_file()
+    else "skipped"
+)
 
 # 4. Update .git/info/exclude so target project git status stays clean
 exclude_updated = _update_git_exclude(project_root, folder_name, remove=False)
 
-print(f"[+] Đã đồng bộ {copied_skills} skills và .agents/rules/soul.md vào: {agents_dst}")
-print(f"[+] Trạng thái AGENTS.md: {agents_status} | SOUL.md: {soul_status}")
+print(f"[+] Đã đồng bộ {copied_skills} skills vào .agents/skills/ (Antigravity) và .claude/skills/ (Claude Code)")
+print(f"[+] Trạng thái AGENTS.md: {agents_status} | SOUL.md: {soul_status} | CLAUDE.md: {claude_status}")
 if exclude_updated:
     print(f"[+] Đã cập nhật .git/info/exclude để giữ sạch 'git status' cho Project.")
 print(f"[+] Toàn bộ Engine & Schemas được giữ gọn trong: {skill_dir}")
@@ -209,7 +236,7 @@ if [ "${AI_SKILLS_SKIP_TESTS:-0}" != "1" ]; then
     PYTHONPATH="$SKILL_DIR:." python3 -m unittest discover -s "$SKILL_DIR/tests"
 fi
 
-echo "[✓] Sẵn sàng! Hãy mở $PROJECT_ROOT trong Antigravity và chạy /phase-1-orchestrator, /phase-2-orchestrator, hoặc /phase-3-orchestrator."
+echo "[✓] Sẵn sàng! Hãy mở $PROJECT_ROOT trong Antigravity hoặc Claude Code và chạy /phase-1-orchestrator, /phase-2-orchestrator, hoặc /phase-3-orchestrator."
 
 
 

@@ -1,6 +1,7 @@
 ---
 name: phase-3-chain-step-verifier
-description: Phase 3.4 — Xác minh độc lập từng mắt xích (`step_results`) và từng cạnh chuyển tiếp (`edge_results`) của chuỗi tấn công trong chế độ mù kết luận (`chain_step_verifier`).
+description: >-
+  Phase 3.4 — Xác minh độc lập từng mắt xích (step_results) và từng cạnh chuyển tiếp (edge_results) của chuỗi tấn công trong chế độ mù kết luận (chain_step_verifier). Kích hoạt khi người dùng gọi /phase-3-chain-step-verifier hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-3-chain-step-verifier` (PHASE-3 — Internal Skill ID: `chain_step_verifier`)

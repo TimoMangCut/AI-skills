@@ -1,6 +1,7 @@
 ---
 name: phase-2-intent-implementation-comparator
-description: Phase 2.4 — Đối sánh Ý định Nghiệp vụ với Triển khai Thực tế qua cổng kiểm định bằng chứng kép (`intent_implementation_comparator`).
+description: >-
+  Phase 2.4 — Đối sánh Ý định Nghiệp vụ với Triển khai Thực tế qua cổng kiểm định bằng chứng kép (intent_implementation_comparator). Kích hoạt khi người dùng gọi /phase-2-intent-implementation-comparator hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-2-intent-implementation-comparator` (PHASE-2 — Internal Skill ID: `intent_implementation_comparator`)

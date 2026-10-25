@@ -1,6 +1,7 @@
 ---
 name: phase-1-repo-profile
-description: Phase 1.1 — Khảo sát thủ công mục đích nghiệp vụ, mức độ trọng yếu, techstack, entrypoints và dữ liệu nhạy cảm của repository (`repo_profile`).
+description: >-
+  Phase 1.1 — Khảo sát thủ công mục đích nghiệp vụ, mức độ trọng yếu, techstack, entrypoints và dữ liệu nhạy cảm của repository (repo_profile). Kích hoạt khi người dùng gọi /phase-1-repo-profile hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-1-repo-profile` (PHASE-1 — Internal Skill ID: `repo_profile`)

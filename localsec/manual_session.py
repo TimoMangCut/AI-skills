@@ -53,7 +53,7 @@ def _project_root() -> Path:
     # resolve project_root to <Project-Root> while keeping schemas/contracts/config inside the toolkit folder.
     if toolkit.parent == cwd:
         return cwd
-    if cwd != toolkit and (cwd / ".agents").is_dir():
+    if cwd != toolkit and ((cwd / ".agents").is_dir() or (cwd / ".claude").is_dir()):
         return cwd
     if toolkit.name.lower() in {"ai-skills", "localsec-antigravity-skills"} and cwd != toolkit:
         return toolkit.parent
@@ -239,9 +239,112 @@ def main(argv: list[str] | None = None) -> int:
     p_vsem = sub.add_parser("verify_semantic_claims", help="Run deterministic Semantic Claim-to-Excerpt Verifier Gate on a repo or _analysis")
     p_vsem.add_argument("repo_name", nargs="?", default="_analysis")
 
+    p_sac = sub.add_parser("select_attack_companions", help="Select verbatim Attack-Class Companion blocks for a repo based on scouted archetypes/techstack")
+    p_sac.add_argument("repo_name")
+    p_sac.add_argument("--techstack", nargs="*", default=[])
+    p_sac.add_argument("--archetypes", nargs="*", default=[])
+    p_sac.add_argument("--signals", nargs="*", default=[])
+
+    p_rsm = sub.add_parser("register_scout_map", help="Validate and save Phase 1.1 codebase_scout output (Target Modules Map & Repo Tier)")
+    p_rsm.add_argument("repo_name")
+    p_rsm.add_argument("json_file")
+
+    p_rte = sub.add_parser("run_tailored_extractor", help="Phase 1.2: Run standard or AI-tailored structural extractor verified on canary files first")
+    p_rte.add_argument("repo_name")
+    p_rte.add_argument("--mode", choices=["USE_STANDARD_EXTRACTOR", "TAILOR_CUSTOM_EXTRACTOR", "SKIP_EXTRACTOR_DIRECT_READ"], default="USE_STANDARD_EXTRACTOR")
+    p_rte.add_argument("--canary-files", nargs="*", default=[])
+
+    p_avis = sub.add_parser("audit_visibility", help="Phase 1.6: Run physical Visibility Tracker and Coverage Ledger gate")
+    p_avis.add_argument("repo_name")
+
+    p_dpr = sub.add_parser("diff_prior_run", help="Incremental delta-recon: reopen coverage_ledger records affected by changed files")
+    p_dpr.add_argument("repo_name")
+    p_dpr.add_argument("--changed-files", nargs="+", required=True)
+    p_dpr.add_argument("--prior-ledger", default=None)
+
     args = parser.parse_args(argv)
     root = _project_root()
     cfg = load_config(_resolve_config_path(root))
+
+    if args.cmd == "select_attack_companions":
+        from .prompts import select_companion_blocks
+
+        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        scout_file = run_dir / "codebase_scout.json"
+        archetypes = list(args.archetypes or [])
+        techstack = list(args.techstack or [])
+        signals = list(args.signals or [])
+        if scout_file.is_file():
+            sdata = json.loads(scout_file.read_text(encoding="utf-8"))
+            sres = sdata.get("result") if isinstance(sdata.get("result"), dict) else sdata
+            archetypes.extend(str(x) for x in sres.get("product_archetypes", []))
+            conv = sres.get("coding_conventions", {})
+            if isinstance(conv, dict):
+                for v in conv.values():
+                    if isinstance(v, str):
+                        signals.append(v)
+                    elif isinstance(v, list):
+                        signals.extend(str(i) for i in v)
+        selected = select_companion_blocks(techstack=techstack, archetypes=archetypes, signals=signals)
+        write_json(run_dir / "selected_attack_companions.json", selected)
+        print(json.dumps(selected, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.cmd == "register_scout_map":
+        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        payload = json.loads(Path(args.json_file).read_text(encoding="utf-8"))
+        valid_eids = set(ws.evidence.keys()) | set(_all_project_evidence_ids(root).keys())
+        validate_agent_output("codebase_scout", payload, valid_eids, evidence_catalog=ws.evidence)
+        env = {"skill": "codebase_scout", "version": "3.0.0", "status": "ok", "result": payload}
+        write_json(run_dir / "codebase_scout.json", env)
+        print(f"OK: registered codebase_scout map for {ws.repo_name} (tier={payload.get('repo_tier')}, target_modules={len(payload.get('target_modules', []))})")
+        return 0
+
+    if args.cmd == "run_tailored_extractor":
+        from .orchestrator import run_tailored_extractor_safely
+
+        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        res = run_tailored_extractor_safely(
+            repo_root=ws.root,
+            mode=args.mode,
+            canary_files=args.canary_files,
+        )
+        write_json(run_dir / "extractor_tailor.json", {"skill": "extractor_tailor", "version": "3.0.0", "status": "ok" if res.get("canary_verified") else "failed_canary", "result": res})
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 0 if res.get("canary_verified") else 2
+
+    if args.cmd == "audit_visibility":
+        from .orchestrator import audit_visibility_and_coverage
+
+        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        scout_map = None
+        if (run_dir / "codebase_scout.json").is_file():
+            raw_s = json.loads((run_dir / "codebase_scout.json").read_text(encoding="utf-8"))
+            scout_map = raw_s.get("result") if isinstance(raw_s.get("result"), dict) else raw_s
+        cov_ledger = None
+        if (run_dir / "coverage_ledger.json").is_file():
+            raw_c = json.loads((run_dir / "coverage_ledger.json").read_text(encoding="utf-8"))
+            cov_ledger = raw_c.get("result") if isinstance(raw_c.get("result"), dict) else raw_c
+        report = audit_visibility_and_coverage(workspace=ws, scout_map=scout_map, coverage_ledger=cov_ledger)
+        write_json(run_dir / "visibility_audit.json", report)
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return 0 if report.get("gate_passed") else 2
+
+    if args.cmd == "diff_prior_run":
+        from .orchestrator import diff_prior_run
+
+        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        scout_map = {}
+        if (run_dir / "codebase_scout.json").is_file():
+            raw_s = json.loads((run_dir / "codebase_scout.json").read_text(encoding="utf-8"))
+            scout_map = raw_s.get("result") if isinstance(raw_s.get("result"), dict) else raw_s
+        ledger_path = Path(args.prior_ledger) if args.prior_ledger else (run_dir / "coverage_ledger.json")
+        prior_ledger = json.loads(ledger_path.read_text(encoding="utf-8")) if ledger_path.is_file() else {"records": [], "semantic_clusters": []}
+        if isinstance(prior_ledger.get("result"), dict):
+            prior_ledger = prior_ledger["result"]
+        diff_res = diff_prior_run(current_scout_map=scout_map, prior_coverage_ledger=prior_ledger, changed_files=args.changed_files)
+        print(json.dumps(diff_res, ensure_ascii=False, indent=2))
+        return 0
 
     if args.cmd == "verify_semantic_claims":
         from .orchestrator import _resolve_path

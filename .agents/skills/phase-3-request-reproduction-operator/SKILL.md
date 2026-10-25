@@ -1,6 +1,7 @@
 ---
 name: phase-3-request-reproduction-operator
-description: Phase 3.6 — Thực thi có kiểm soát chuỗi request trên môi trường local/test được phê duyệt hoặc ghi nhận trạng thái `not_executed` / `blocked` (`request_reproduction_operator`).
+description: >-
+  Phase 3.6 — Thực thi có kiểm soát chuỗi request trên môi trường local/test được phê duyệt hoặc ghi nhận trạng thái not_executed / blocked (request_reproduction_operator). Kích hoạt khi người dùng gọi /phase-3-request-reproduction-operator hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-3-request-reproduction-operator` (PHASE-3 — Internal Skill ID: `request_reproduction_operator`)

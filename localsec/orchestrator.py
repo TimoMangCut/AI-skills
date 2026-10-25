@@ -1281,3 +1281,190 @@ def analyze_repositories(repos: list[str | Path], *, cfg: dict[str, Any], output
     write_json(run_root / "system_coverage.json", system_coverage)
     _log_event(run_log, "run_finished", run_id=run_id, workflow_status=workflow_status, cross_repo_status=cross.get("status"), evidence_audit_status=sys_audit.get("status"), diagram_status=diagrams.get("status"))
     return {"run_id": run_id, "output_dir": str(output_root), "work_dir": str(work_root), "system_coverage": system_coverage}
+
+
+def build_coverage_id(
+    surface: str,
+    boundary: str,
+    subsystem: str,
+    attack_class: str,
+    lifecycle: str | None = None,
+) -> str:
+    """Build canonical RFC 3986 percent-encoded 4-or-5 segment coverage_id."""
+    from urllib.parse import quote
+
+    parts = [surface, boundary, subsystem, attack_class]
+    if lifecycle is not None and str(lifecycle).strip():
+        parts.append(str(lifecycle))
+    encoded: list[str] = []
+    for p in parts:
+        clean = str(p).strip()
+        if not clean:
+            raise ValueError("coverage_id segment cannot be empty")
+        encoded.append(quote(clean, safe="-._~"))
+    return "::".join(encoded)
+
+
+def run_tailored_extractor_safely(
+    *,
+    repo_root: Path,
+    mode: str = "USE_STANDARD_EXTRACTOR",
+    canary_files: list[str] | None = None,
+    custom_patterns: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Phase 1.2 (phase-1-extractor-tailor) helper:
+    Runs standard or AI-tailored structural regex/route hints ONLY after verifying against canary_files.
+    Never acts as a standalone SAST tool or ground-truth denominator.
+    """
+    import re
+
+    if mode == "SKIP_EXTRACTOR_DIRECT_READ":
+        return {
+            "mode": mode,
+            "canary_files": canary_files or [],
+            "canary_verified": True,
+            "extracted_hints": [],
+            "note": "Extractor intentionally skipped; AI will perform 100% direct manual reading.",
+        }
+
+    canary_list = [c.strip() for c in (canary_files or []) if isinstance(c, str) and c.strip()]
+    if not canary_list:
+        return {
+            "mode": mode,
+            "canary_files": [],
+            "canary_verified": False,
+            "extracted_hints": [],
+            "error": "canary_files must be non-empty when running a standard or tailored extractor",
+        }
+
+    default_patterns = [
+        {"name": "decorator_route", "regex": r"@(?:app|router|api|bp|GetMapping|PostMapping|PutMapping|DeleteMapping|RequestMapping|HttpGet|HttpPost|Get|Post|Put|Delete)\b[^\n]*"},
+        {"name": "express_or_gin_route", "regex": r"\b(?:app|router|r|group|v1|v2)\.(?:get|post|put|delete|patch|use| handle|HandleFunc|POST|GET|PUT|DELETE)\s*\([^\n]*"},
+        {"name": "grpc_or_mq_consumer", "regex": r"\b(?:rpc\s+\w+|@KafkaListener|@RabbitListener|zmq_recv|on_message|subscribe)\b[^\n]*"},
+    ]
+    active_patterns = custom_patterns if (mode == "TAILOR_CUSTOM_EXTRACTOR" and custom_patterns) else default_patterns
+    compiled = [(p.get("name", "hint"), re.compile(p["regex"])) for p in active_patterns if "regex" in p]
+
+    def _scan_file(rel_path: str) -> list[dict[str, Any]]:
+        fpath = (repo_root / rel_path).resolve()
+        if not fpath.is_file():
+            return []
+        try:
+            text = fpath.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return []
+        hits: list[dict[str, Any]] = []
+        for line_no, line in enumerate(text.splitlines(), 1):
+            for pat_name, creg in compiled:
+                if creg.search(line):
+                    hits.append({
+                        "path": rel_path,
+                        "line": line_no,
+                        "pattern": pat_name,
+                        "snippet": line.strip()[:180],
+                    })
+        return hits
+
+    canary_hits: list[dict[str, Any]] = []
+    for cfile in canary_list:
+        canary_hits.extend(_scan_file(cfile))
+
+    if not canary_hits:
+        return {
+            "mode": mode,
+            "canary_files": canary_list,
+            "canary_verified": False,
+            "extracted_hints": [],
+            "error": "Extractor returned 0 matches on canary_files; refusing to run on repo to prevent SAST false-negative anchoring bias. Tailor patterns or use SKIP_EXTRACTOR_DIRECT_READ.",
+        }
+
+    return {
+        "mode": mode,
+        "canary_files": canary_list,
+        "canary_verified": True,
+        "canary_hit_count": len(canary_hits),
+        "extracted_hints": canary_hits,
+    }
+
+
+def audit_visibility_and_coverage(
+    *,
+    workspace: ManualWorkspace,
+    scout_map: dict[str, Any] | None = None,
+    coverage_ledger: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Phase 1.6 deterministic Visibility Tracker & Coverage Ledger audit gate."""
+    from .validators import OutputValidationError, validate_coverage_ledger
+
+    vis = workspace.compute_visibility_report(scout_map)
+    ledger_issues: list[str] = []
+    if coverage_ledger is not None:
+        try:
+            validate_coverage_ledger(coverage_ledger, set(workspace.evidence.keys()), visibility_report=vis)
+        except OutputValidationError as exc:
+            ledger_issues.append(str(exc))
+    else:
+        if not vis.get("gate_passed", False):
+            ledger_issues.append("Visibility Tracker gate failed (unvisited_target_modules or shallow_grazing_files present)")
+
+    return {
+        "gate_passed": bool(vis.get("gate_passed", False) and not ledger_issues),
+        "visibility_report": vis,
+        "ledger_validation_issues": ledger_issues,
+    }
+
+
+def diff_prior_run(
+    *,
+    current_scout_map: dict[str, Any],
+    prior_coverage_ledger: dict[str, Any],
+    changed_files: list[str],
+) -> dict[str, Any]:
+    """Incremental Delta-Recon (--prior-run-id): invalidate coverage_ledger entries touching changed_files or their target modules."""
+    norm_changed = [c.strip().strip("/") for c in changed_files if isinstance(c, str) and c.strip()]
+    target_mods = [
+        (m.strip().strip("/") if isinstance(m, str) else str(m.get("path", "")).strip().strip("/"))
+        for m in current_scout_map.get("target_modules", [])
+        if (isinstance(m, str) and m.strip()) or (isinstance(m, dict) and m.get("path"))
+    ]
+    affected_modules = sorted({
+        mod for mod in target_mods
+        if any(cf == mod or cf.startswith(mod + "/") for cf in norm_changed)
+    })
+
+    from urllib.parse import unquote
+
+    reopened_records: list[dict[str, Any]] = []
+    preserved_records: list[dict[str, Any]] = []
+    for rec in prior_coverage_ledger.get("records", []):
+        if not isinstance(rec, dict):
+            continue
+        cid = str(rec.get("coverage_id", ""))
+        decoded_cid = unquote(cid)
+        item = json.loads(json.dumps(rec))
+        is_hit = (
+            any(mod in cid or mod in decoded_cid for mod in affected_modules)
+            or any(cf in cid or cf in decoded_cid for cf in norm_changed)
+        )
+        if is_hit:
+            item["status"] = "reopened"
+            attempts = list(item.get("attempts", []))
+            attempts.append({
+                "attempt_number": len(attempts) + 1,
+                "action": "reopened_by_delta_diff",
+                "changed_files": norm_changed,
+            })
+            item["attempts"] = attempts
+            reopened_records.append(item)
+        else:
+            preserved_records.append(item)
+
+    return {
+        "changed_files": norm_changed,
+        "affected_target_modules": affected_modules,
+        "reopened_count": len(reopened_records),
+        "preserved_count": len(preserved_records),
+        "reopened_records": reopened_records,
+        "preserved_records": preserved_records,
+    }
+

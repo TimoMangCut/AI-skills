@@ -1,6 +1,7 @@
 ---
 name: phase-1-evidence-auditor
-description: Phase 1.6 — Kiểm toán độc lập từng tuyên bố (claim) đối chiếu trực tiếp với trích đoạn mã nguồn `ev_...` và hạ cấp fail-closed các kết luận vượt quá bằng chứng (`evidence_auditor`).
+description: >-
+  Phase 1.6 — Kiểm toán độc lập từng tuyên bố (claim) đối chiếu trực tiếp với trích đoạn mã nguồn ev_... và hạ cấp fail-closed các kết luận vượt quá bằng chứng (evidence_auditor). Kích hoạt khi người dùng gọi /phase-1-evidence-auditor hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-1-evidence-auditor` (PHASE-1 — Internal Skill ID: `evidence_auditor`)

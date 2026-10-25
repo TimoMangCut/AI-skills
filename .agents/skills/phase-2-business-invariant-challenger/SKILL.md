@@ -1,6 +1,7 @@
 ---
 name: phase-2-business-invariant-challenger
-description: Phase 2.2 — Phản biện đối kháng mô hình ý định nghiệp vụ trong chế độ mù ngữ cảnh (Context-Blinded) để tìm các bất biến bị bỏ sót và trường hợp biên (`business_invariant_challenger`).
+description: >-
+  Phase 2.2 — Phản biện đối kháng mô hình ý định nghiệp vụ trong chế độ mù ngữ cảnh (Context-Blinded) để tìm các bất biến bị bỏ sót và trường hợp biên (business_invariant_challenger). Kích hoạt khi người dùng gọi /phase-2-business-invariant-challenger hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-2-business-invariant-challenger` (PHASE-2 — Internal Skill ID: `business_invariant_challenger`)

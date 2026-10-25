@@ -1,0 +1,9 @@
+# Kế Hoạch Triển Khai LocalSec v3.0 — Kiến Trúc 3 Phase Tối Ưu Usage, Độ Phủ Thực Đọc & Đánh Giá Risk Thực Tế (Chuẩn Vingroup / VinSOC)
+
+> **Trạng thái:** Đã được duyệt khung thiết kế — Đang triển khai thực thi.
+> **Mục tiêu cốt lõi:**
+> 1. **Chuẩn hóa lại thành 3 Phase tinh gọn (16 Skills = 3 Master Orchestrators + 13 Specialists):**
+>    - **Phase 1 — Unified Reconnaissance:** Gộp Recon kỹ thuật + Recon ý định nghiệp vụ/an toàn. Bắt đầu bằng 2 micro-skills ngắn & chuẩn xác (`phase-1-codebase-scout` và `phase-1-extractor-tailor`), gom cụm bằng hiểu biết ngữ nghĩa của AI (`AI Semantic Clustering`), và đo độ phủ thực tế bằng `Visibility Tracker`.
+>    - **Phase 2 — Deep Analysis & Falsification:** Chỉ chạy trên `Candidate Queue` từ Phase 1. Hợp nhất truy vết sâu + đối sánh nghiệp vụ + ghép chuỗi + tìm Root Cause trong 1 pass sâu (`phase-2-deep-trace-chain-analyst`), phản biện mù ngữ cảnh (`phase-2-blinded-counterevidence-challenger`), và khóa sổ bác bỏ (`Empirical Refutations Ledger`).
+>    - **Phase 3 — Contextual Risk & Exploitability Assessment:** Sau khi chứng minh Reachable ở Phase 2, chứng minh rõ **Actor/Role nào** chạm được (`phase-3-actor-and-feasibility-assessor`), **khả năng xảy ra & kiểm soát ngoài code** (`phase-3-beyond-code-control-mapper`), và **chấm Risk thực tế trên 5 trục S-F-O-P-C** (`phase-3-sfop-risk-calibrator`).
+> 2. **Mở rộng Hệ quy chiếu sang Toàn bộ Hệ sinh thái Vingroup / VinSOC:** Bao phủ WebApp/SPA, Mobile Apps (Android/iOS/Flutter/BLE), API Microservices, Multi-Cloud (AWS, GCP, Azure, Cloudflare, On-Premises RFC1918), CI/CD (Azure DevOps, GitHub Actions, ArgoCD), Enterprise (SAP S/4HANA, MuleSoft, B2B/Dealer Portals), Big Data & AI (Kafka, Flink, Doris, Superset, Airflow, VLA/GGUF/ONNX), và Cyber-Physical/IoT/OT (Connected Car, OCPP EV Charging, Robotics C++/ROS2/MQTT, BESS Energy SCADA, Industrial ISA-95).

@@ -1,6 +1,7 @@
 ---
 name: phase-3-attack-chain-constructor
-description: Phase 3.3 — Xây dựng chuỗi tấn công đa bước / xuyên dịch vụ với điều kiện tiên quyết, độ lệch trạng thái (`state_after`) và cạnh kích hoạt (`linked_next_steps`) (`attack_chain_constructor`).
+description: >-
+  Phase 3.3 — Xây dựng chuỗi tấn công đa bước / xuyên dịch vụ với điều kiện tiên quyết, độ lệch trạng thái (state_after) và cạnh kích hoạt (linked_next_steps) (attack_chain_constructor). Kích hoạt khi người dùng gọi /phase-3-attack-chain-constructor hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-3-attack-chain-constructor` (PHASE-3 — Internal Skill ID: `attack_chain_constructor`)

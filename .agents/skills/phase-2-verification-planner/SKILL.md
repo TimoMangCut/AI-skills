@@ -1,6 +1,7 @@
 ---
 name: phase-2-verification-planner
-description: Phase 2.5 — Lập kế hoạch kiểm chứng có giới hạn và đặt câu hỏi trung lập (không dẫn dắt) cho các sai lệch còn nghi ngờ (`verification_planner`).
+description: >-
+  Phase 2.5 — Lập kế hoạch kiểm chứng có giới hạn và đặt câu hỏi trung lập (không dẫn dắt) cho các sai lệch còn nghi ngờ (verification_planner). Kích hoạt khi người dùng gọi /phase-2-verification-planner hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-2-verification-planner` (PHASE-2 — Internal Skill ID: `verification_planner`)

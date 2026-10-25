@@ -1,6 +1,7 @@
 ---
 name: phase-3-counterevidence-challenger
-description: Phase 3.8 — Thử thách đối kháng các chuỗi tấn công ứng viên bằng cách săn tìm kiểm soát bù trừ, cạnh nối đứt gãy, điều kiện vô nghiệm hoặc nhánh thay thế (`counterevidence_challenger`).
+description: >-
+  Phase 3.8 — Thử thách đối kháng các chuỗi tấn công ứng viên bằng cách săn tìm kiểm soát bù trừ, cạnh nối đứt gãy, điều kiện vô nghiệm hoặc nhánh thay thế (counterevidence_challenger). Kích hoạt khi người dùng gọi /phase-3-counterevidence-challenger hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-3-counterevidence-challenger` (PHASE-3 — Internal Skill ID: `counterevidence_challenger`)

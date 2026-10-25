@@ -1,6 +1,7 @@
 ---
 name: phase-1-dataflow
-description: Phase 1.3 — Truy vết thủ công luồng dữ liệu inbound/outbound, lưu trữ DB/Cache, hàng đợi, gọi dịch vụ ngoài và ranh giới tin cậy (`dataflow`).
+description: >-
+  Phase 1.3 — Truy vết thủ công luồng dữ liệu inbound/outbound, lưu trữ DB/Cache, hàng đợi, gọi dịch vụ ngoài và ranh giới tin cậy (dataflow). Kích hoạt khi người dùng gọi /phase-1-dataflow hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-1-dataflow` (PHASE-1 — Internal Skill ID: `dataflow`)

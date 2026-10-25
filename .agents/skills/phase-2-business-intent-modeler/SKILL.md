@@ -1,6 +1,7 @@
 ---
 name: phase-2-business-intent-modeler
-description: Phase 2.1 — Xây dựng mô hình ý định nghiệp vụ, tác nhân, quy trình và bất biến miền từ tài liệu thiết kế/BRD/BRS/SQL mà không suy diễn ngược từ code (`business_intent_modeler`).
+description: >-
+  Phase 2.1 — Xây dựng mô hình ý định nghiệp vụ, tác nhân, quy trình và bất biến miền từ tài liệu thiết kế/BRD/BRS/SQL mà không suy diễn ngược từ code (business_intent_modeler). Kích hoạt khi người dùng gọi /phase-2-business-intent-modeler hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-2-business-intent-modeler` (PHASE-2 — Internal Skill ID: `business_intent_modeler`)

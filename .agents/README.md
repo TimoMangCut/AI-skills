@@ -1,30 +1,27 @@
-# Hướng dẫn Sử dụng Bộ Skills Bảo mật 3 Phase (`.agents/skills/`)
+# Hướng dẫn Sử dụng Bộ Skills Bảo mật 3 Phase — LocalSec v3.0 (`.agents/skills/` & `.claude/skills/`)
 
-Tài liệu này là sổ tay tra cứu nhanh cách vận hành hệ thống **LocalSec AI Security Review Pipeline** qua 3 Phase chuẩn hóa (**Phase 1: Recon**, **Phase 2: BASV**, **Phase 3: Attack Chain & Root-Cause Analysis**). Bạn có thể dùng tài liệu này cho dự án hiện tại hoặc sao chép nguyên bộ sang bất kỳ dự án mới nào.
+Tài liệu này là sổ tay tra cứu nhanh cách vận hành hệ thống **LocalSec v3.0 AI Security Review Pipeline** qua **3 Phase chuẩn hóa** cho hệ sinh thái đa sản phẩm & Cyber-Physical (VinFast Connected Car, V-Green EV Charging OCPP/OCPI, VinEnergo BESS SCADA, VinRobotics `vla.cpp` C++/ZeroMQ/ROS2, WebApps/SPAs, Mobile Super-Apps, Multi-Cloud/Edge Cloudflare/Kong/KrakenD/On-Prem, CI/CD ADO/GitHub/ArgoCD, Data/AI Lakehouse, SAP/MuleSoft).
 
 ---
 
-## 1. Tổng quan Kiến trúc 3 Phase & Cơ chế "Khóa Kép" (Dual-Lock)
+## 1. Tổng quan Kiến trúc 3 Phase (LocalSec v3.0) & Cơ chế Chống "Giả vờ Đủ Coverage"
 
-Hệ thống gồm **28 Skills** trong `.agents/skills/`, chia thành **3 Master Orchestrators** (điều phối trọn gói từng Phase) và **25 Specialist Sub-skills** (chuyên trách từng bước con):
+Hệ thống gồm **41 Skills** đồng bộ 100% giữa `.agents/skills/` (Antigravity) và `.claude/skills/` (Claude Code), chia thành **3 Master Orchestrators** và **38 Specialist Sub-skills** (bao gồm 13 skills tinh gọn v3.0 và 25 skills chi tiết v2.4 tương thích ngược):
 
-| Phase | Master Orchestrator | Số bước bắt buộc | Mục tiêu cốt lõi | Thư mục đầu ra (`./documents/`) |
-|---|---|---|---|---|
-| **Phase 1** | `/phase-1-orchestrator` | **8 bước** (`1.1 -> 1.8`) | Khảo sát mã nguồn thủ công (`ManualWorkspace`), kiểm kê API/AuthZ, Dataflow, STRIDE Threat Model, Architecture Review, kiểm toán bằng chứng (`evidence_auditor`) và tổng hợp liên repo (`cross_repo_review`). | `./documents/<repo_name>/` & `./documents/_system/` |
-| **Phase 2** | `/phase-2-orchestrator` | **9 bước** (`2.1 -> 2.9`) | Đối chiếu Ý định Nghiệp vụ (BRD/BRS/SQL/Specs) với Triển khai Thực tế (BASV), phản biện bất biến ở chế độ mù ngữ cảnh (`prepare_blinded_challenger`), kiểm chứng giới hạn đường dẫn (`targeted_verifier`), ánh xạ hậu quả bảo mật và kiểm toán bằng chứng kép. | `./documents/<repo_name>/basv/` & `./documents/_system/basv/` |
-| **Phase 3** | `/phase-3-orchestrator` | **9 bước** (`3.1 -> 3.9`) | Xây dựng và xác minh chuỗi tấn công đa bước xuyên dịch vụ (ACA), truy vết từng hop thực thi (`code_trace_builder`), kiểm chứng mù từng mắt xích/cạnh nối (`chain_step_verifier`), thiết kế chuỗi request kiểm định, truy nguyên nhân gốc (`root_cause_mapper`) và săn tìm bằng chứng phản bác (`counterevidence_challenger`). | `./documents/_analysis/attack_chains/` & `./documents/_analysis/chains/<chain_id>/` |
+| Phase | Master Orchestrator | Các bước cốt lõi (v3.0) | Mục tiêu cốt lõi |
+|---|---|---|---|
+| **Phase 1: Unified Reconnaissance** | `/phase-1-orchestrator` | **6 bước (`1.1 -> 1.6`)**: `codebase_scout` $\rightarrow$ `extractor_tailor` $\rightarrow$ `intent_invariant_modeler` $\rightarrow$ `unified_surface_mapper` $\rightarrow$ `cross_repo_and_arch_review` $\rightarrow$ `coverage_and_evidence_auditor` | Gộp Technical Recon + Business/Safety Intent Recon (S-F-O-P-C) trong **1 lượt đọc duy nhất (Single-Pass)**. AI khảo sát cấu trúc thư mục trước (`codebase_scout`), tinh chỉnh/kiểm thử Python extractor trên canary files (`extractor_tailor`), tự gom cụm ngữ nghĩa (`AI Semantic Clustering`) và kiểm toán độ phủ vật lý qua `Visibility Tracker` + `Coverage Ledger`. |
+| **Phase 2: Deep Analysis & Falsification** | `/phase-2-orchestrator` | **4 bước (`2.1 -> 2.4`)**: `candidate_intake_planner` $\rightarrow$ `deep_trace_chain_analyst` $\rightarrow$ `blinded_counterevidence_challenger` $\rightarrow$ `analysis_evidence_gate` | Chỉ chạy trên `Candidate Queue` từ Phase 1. Tiêm nguyên văn khối `Attack-Class Companion` (16 mô-đun), truy vết sâu `hops[]`, dựng chuỗi tấn công đa bước, tìm nguyên nhân gốc (`Root-Cause`), và phản biện bác bỏ ở chế độ **Mù Kết luận (`Context-Blinded`)**. |
+| **Phase 3: Contextual Risk & Exploitability** | `/phase-3-orchestrator` | **3 bước (`3.1 -> 3.3`)**: `actor_and_feasibility_assessor` $\rightarrow$ `beyond_code_control_mapper` $\rightarrow$ `sfop_risk_calibrator` | Sau khi chứng minh Reachable trong code: chứng minh **Actor/Role tối thiểu nào** chạm được code path, chi phí chiếm đoạt danh tính, các lớp phòng thủ ngoài code (Cloudflare WAF vs Bare ALB, VPC `10.x`, mTLS, OT Interlock), và hiệu chuẩn rủi ro thực tế trên **5 trục S-F-O-P-C** (`overall_risk <= max_impact`, `Safety Owner != Security Risk Owner`). |
 
-### Tại sao chỉ cần gọi 1 Orchestrator mà không sợ AI bỏ sót bước hoặc suy luận vòng lặp? (Cơ chế Khóa Kép & 4 Cổng Nhận Thức Luận)
-1. **Khóa 1 — Kịch bản Tuần tự Khép kín trong `SKILL.md`**: Mỗi file `.agents/skills/phase-{1,2,3}-orchestrator/SKILL.md` chứa đầy đủ danh sách các bước tuần tự bắt buộc, đường dẫn tới từng sub-skill tương ứng và cấu trúc JSON Schema của từng bước.
-2. **Khóa 2 — Cổng Chặn Trạng thái Tất định trong CLI (`AI-skills/localsec/manual_session.py`)**:
-   - Lệnh `phase_status` kiểm tra chính xác bước nào đã xong (`completed_steps`), bước nào còn thiếu (`remaining_steps`), bước bắt buộc tiếp theo (`next_required_step`) và chẩn đoán độ phủ ngữ nghĩa (`semantic_coverage_diagnostics`).
-   - Lệnh `submit_skill` chặn cứng (`PREREQUISITE_ERROR`) nếu AI cố nộp bước tổng hợp (`business_aware_synthesizer` hoặc `chain_synthesizer`) khi chưa hoàn tất bước kiểm toán độc lập (`evidence_auditor` / `aca_evidence_auditor`).
-   - Các lệnh đóng gói báo cáo (`finalize_repo`, `finalize_basv_repo`, `finalize_aca`) sẽ từ chối xuất báo cáo (`exit code 2`) nếu thiếu bất kỳ bước con nào trong Phase đó.
-3. **Khóa 3 — 4 Cổng Chống Sai Lệch Nhận Thức Luận (Epistemic & Provenance Safeguards)**:
-   - **Cổng Chống Nhiễm Bẩn Nguồn Gốc (`provenance_kind` Gate — Phase 2)**: Mỗi `ev_...` được đóng dấu tự động thành `intent_artifact` (`.md`/`.docx`/`.xlsx`/`.sql`/spec/test), `config_or_manifest` hoặc `implementation_code`. Chặn tự so sánh vòng lặp (`set(intent_evidence_ids) == set(implementation_evidence_ids)`) và chặn gán `authoritative_in_input` / `observed mismatch` khi chỉ trích dẫn file code.
-   - **Cổng Bảo Toàn Giả Thuyết (`Hypothesis Preservation` — Phase 2)**: Các claim bị `evidence_auditor` đánh giá `inconclusive` hoặc `partially_supported` được hạ xuống `hypothesis` (`preserved_hypothesis_lead: true`) thay vì xóa thành `unknown`, giúp giữ lại manh mối cho `verification_planner` và Phase 3.
-   - **Bộ Điều Tốc Chống Phình To Câu Hỏi (`Question-Space Runaway Governor` — Phase 3)**: Trong `check_aca_convergence()`, nếu số câu hỏi mới sinh ra lớn hơn số câu hỏi giải quyết được (`added_questions > resolved_questions`) trong khi `resolved_question_count == 0` và `verified_step_or_edge_delta == 0`, hệ thống bật cờ `question_runaway_detected: true` để dừng mở rộng nhánh vô tận.
-   - **Chẩn Đoán Độ Phủ Ngữ Nghĩa (`semantic_coverage_diagnostics` — Phase 1 & 2)**: Phân biệt rõ độ phủ file/skill trên giấy tờ với độ phủ ngữ nghĩa thực tế.
+### Các Cổng Kiểm Định Tất Định (Deterministic Gates) trong LocalSec v3.0
+1. **AI Scout Before Python (`phase-1-codebase-scout` + `phase-1-extractor-tailor`)**: Không bao giờ chạy mù một Python parser cứng nhắc trước khi AI hiểu cách tổ chức code của team. Mọi Python extractor phải vượt qua kiểm thử trên `canary_files` (`canary_verified = true`) hoặc chuyển sang `SKIP_EXTRACTOR_DIRECT_READ`.
+2. **AI Semantic Clustering (`100% do AI quyết định`)**: AI nhóm các endpoint dùng chung middleware/guard vào `Shared-Control Group` (kèm `representative_deep_read_evidence_ids`) và dồn ngân sách đọc sâu cho `outliers`.
+3. **Physical Visibility Tracker & Anti-Grazing (`audit_visibility`)**: Python chỉ đóng vai trò kế toán viên vật lý: đo tỷ lệ đọc thực tế trên `target_modules` (`unvisited_target_modules == 0`) và chặn hành vi đọc lướt $\le 8$ dòng đầu trên file dài $> 25$ dòng (`shallow_grazing_files == 0`).
+4. **3 Luật Cứng S-F-O-P-C ở Phase 3**:
+   - Kiểm soát ngoài code ở trạng thái `hypothesis` không được phép gán `mitigation_effect = "blocks_exploit"`.
+   - `contextual_risk_rating` (`overall_risk`) $\le$ `max_impact` của 5 trục `Safety · Financial · Operational · Privacy · Compliance` (cấm cộng dồn đa trục).
+   - Khi `safety != "negligible"`, bắt buộc khai báo `safety_owner` khác với `risk_owner`.
 
 ---
 

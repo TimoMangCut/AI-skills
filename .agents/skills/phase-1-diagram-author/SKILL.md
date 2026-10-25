@@ -1,6 +1,7 @@
 ---
 name: phase-1-diagram-author
-description: Phase 1.8 — Xây dựng sơ đồ Mermaid biểu diễn kiến trúc và luồng dữ liệu có phân biệt rõ cạnh đã xác nhận và cạnh giả thuyết (`diagram_author`).
+description: >-
+  Phase 1.8 — Xây dựng sơ đồ Mermaid biểu diễn kiến trúc và luồng dữ liệu có phân biệt rõ cạnh đã xác nhận và cạnh giả thuyết (diagram_author). Kích hoạt khi người dùng gọi /phase-1-diagram-author hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-1-diagram-author` (PHASE-1 — Internal Skill ID: `diagram_author`)

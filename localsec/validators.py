@@ -42,6 +42,21 @@ SKILL_SCHEMA = {
     "chain_synthesizer": "chain_synthesis_report.schema.json",
     "aca_evidence_auditor": "chain_verification.schema.json",
     "analysis_session": "analysis_session.schema.json",
+    # LocalSec v3.0 skills & artifacts
+    "codebase_scout": "__inline_codebase_scout__",
+    "extractor_tailor": "__inline_extractor_tailor__",
+    "coverage_ledger": "__inline_coverage_ledger__",
+    "intent_invariant_modeler": "__inline_intent_invariant_modeler__",
+    "unified_surface_mapper": "__inline_unified_surface_mapper__",
+    "cross_repo_and_arch_review": "__inline_cross_repo_and_arch_review__",
+    "coverage_and_evidence_auditor": "__inline_coverage_and_evidence_auditor__",
+    "candidate_intake_planner": "__inline_candidate_intake_planner__",
+    "deep_trace_chain_analyst": "__inline_deep_trace_chain_analyst__",
+    "blinded_counterevidence_challenger": "__inline_blinded_counterevidence_challenger__",
+    "analysis_evidence_gate": "__inline_analysis_evidence_gate__",
+    "actor_and_feasibility_assessor": "__inline_actor_and_feasibility_assessor__",
+    "beyond_code_control_mapper": "__inline_beyond_code_control_mapper__",
+    "sfop_risk_calibrator": "__inline_sfop_risk_calibrator__",
 }
 ACA_SKILLS = {
     "finding_intake",
@@ -56,9 +71,253 @@ ACA_SKILLS = {
     "aca_evidence_auditor",
     "analysis_session",
 }
-ALLOWED_STATUSES = {"observed", "derived", "hypothesis", "unknown", "not_assessed"}
-EVIDENCE_ID_KEYS = ("evidence_ids", "intent_evidence_ids", "implementation_evidence_ids", "counter_evidence_ids")
+V30_SKILLS = {
+    "codebase_scout",
+    "extractor_tailor",
+    "coverage_ledger",
+    "intent_invariant_modeler",
+    "unified_surface_mapper",
+    "cross_repo_and_arch_review",
+    "coverage_and_evidence_auditor",
+    "candidate_intake_planner",
+    "deep_trace_chain_analyst",
+    "blinded_counterevidence_challenger",
+    "analysis_evidence_gate",
+    "actor_and_feasibility_assessor",
+    "beyond_code_control_mapper",
+    "sfop_risk_calibrator",
+}
+ALLOWED_STATUSES = {"observed", "derived", "hypothesis", "unknown", "not_assessed", "confirmed", "absent", "covered_clean", "covered_finding", "reopened", "deferred_out_of_budget"}
+EVIDENCE_ID_KEYS = ("evidence_ids", "intent_evidence_ids", "implementation_evidence_ids", "counter_evidence_ids", "sample_evidence_ids", "representative_deep_read_evidence_ids")
 EVIDENCE_REF_KEYS = ("evidence_refs", "counterevidence_refs", "existing_evidence_refs")
+
+IMPACT_RANK: dict[str, int] = {
+    "negligible": 0,
+    "informational": 0,
+    "low": 1,
+    "medium": 2,
+    "high": 3,
+    "critical": 4,
+}
+
+V30_INLINE_SCHEMAS: dict[str, dict[str, Any]] = {
+    "__inline_codebase_scout__": {
+        "type": "object",
+        "required": ["repo_tier", "product_archetypes", "target_modules", "ignored_modules", "coding_conventions", "sample_evidence_ids"],
+        "properties": {
+            "repo_tier": {"type": "string", "enum": ["tier_1", "tier_2", "tier_3"]},
+            "product_archetypes": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+            "target_modules": {"type": "array", "minItems": 1},
+            "ignored_modules": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["path", "reason"],
+                    "properties": {
+                        "path": {"type": "string", "minLength": 1},
+                        "reason": {"type": "string", "minLength": 3},
+                    },
+                },
+            },
+            "coding_conventions": {"type": "object"},
+            "sample_evidence_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        },
+    },
+    "__inline_extractor_tailor__": {
+        "type": "object",
+        "required": ["mode", "rationale", "canary_files", "canary_verified"],
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["USE_STANDARD_EXTRACTOR", "TAILOR_CUSTOM_EXTRACTOR", "SKIP_EXTRACTOR_DIRECT_READ"],
+            },
+            "rationale": {"type": "string", "minLength": 5},
+            "canary_files": {"type": "array", "items": {"type": "string"}},
+            "canary_verified": {"type": "boolean"},
+            "script_path": {"type": "string"},
+        },
+    },
+    "__inline_coverage_ledger__": {
+        "type": "object",
+        "required": ["records", "semantic_clusters"],
+        "properties": {
+            "records": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["coverage_id", "status", "evidence_ids", "attempts"],
+                    "properties": {
+                        "coverage_id": {"type": "string", "minLength": 7},
+                        "status": {
+                            "type": "string",
+                            "enum": ["covered_clean", "covered_finding", "reopened", "deferred_out_of_budget"],
+                        },
+                        "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                        "attempts": {"type": "array", "minItems": 1, "items": {"type": "object"}},
+                    },
+                },
+            },
+            "semantic_clusters": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["cluster_id", "shared_control_signature", "representative_deep_read_evidence_ids", "member_endpoints", "outliers"],
+                    "properties": {
+                        "cluster_id": {"type": "string", "minLength": 1},
+                        "shared_control_signature": {"type": "string", "minLength": 3},
+                        "representative_deep_read_evidence_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+                        "member_endpoints": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+                        "outliers": {"type": "array", "items": {"type": "string"}},
+                    },
+                },
+            },
+        },
+    },
+    "__inline_actor_and_feasibility_assessor__": {
+        "type": "object",
+        "required": ["assessments"],
+        "properties": {
+            "assessments": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": [
+                        "finding_id",
+                        "minimum_viable_actor",
+                        "identity_acquisition_cost",
+                        "operational_preconditions",
+                        "blocked_by_environment",
+                        "evidence_ids",
+                    ],
+                    "properties": {
+                        "finding_id": {"type": "string", "minLength": 1},
+                        "minimum_viable_actor": {
+                            "type": "string",
+                            "enum": [
+                                "unauthenticated_external",
+                                "authenticated_consumer_b2c",
+                                "enterprise_partner_dealer",
+                                "internal_employee_operator",
+                                "compromised_edge_device_tbox_charger_robot",
+                                "privileged_admin_devops",
+                            ],
+                        },
+                        "identity_acquisition_cost": {"type": "string", "enum": ["low", "medium", "high"]},
+                        "operational_preconditions": {"type": "array", "items": {"type": "string"}},
+                        "blocked_by_environment": {"type": "boolean"},
+                        "blocker_details": {"type": "string"},
+                        "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                    },
+                },
+            }
+        },
+    },
+    "__inline_beyond_code_control_mapper__": {
+        "type": "object",
+        "required": ["assessments"],
+        "properties": {
+            "assessments": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["finding_id", "exposure_tier", "compensating_controls"],
+                    "properties": {
+                        "finding_id": {"type": "string", "minLength": 1},
+                        "exposure_tier": {
+                            "type": "string",
+                            "enum": [
+                                "internet_public_behind_cloudflare_waf",
+                                "internet_public_bare_alb_direct_ip",
+                                "partner_b2b_mtls_vpn",
+                                "internal_vpc_rfc1918",
+                                "air_gapped_ot_cell_vlan",
+                            ],
+                        },
+                        "compensating_controls": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "required": ["layer", "control", "status", "mitigation_effect", "evidence_ids"],
+                                "properties": {
+                                    "layer": {"type": "string"},
+                                    "control": {"type": "string"},
+                                    "status": {"type": "string", "enum": ["confirmed", "hypothesis", "absent"]},
+                                    "mitigation_effect": {
+                                        "type": "string",
+                                        "enum": ["blocks_exploit", "reduces_likelihood", "limits_blast_radius", "none"],
+                                    },
+                                    "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                                },
+                            },
+                        },
+                    },
+                },
+            }
+        },
+    },
+    "__inline_sfop_risk_calibrator__": {
+        "type": "object",
+        "required": ["calibrated_findings"],
+        "properties": {
+            "calibrated_findings": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": [
+                        "finding_id",
+                        "code_verified_severity",
+                        "exploitability_likelihood",
+                        "impact_axes",
+                        "max_impact",
+                        "contextual_risk_rating",
+                        "risk_owner",
+                    ],
+                    "properties": {
+                        "finding_id": {"type": "string", "minLength": 1},
+                        "code_verified_severity": {
+                            "type": "string",
+                            "enum": ["critical", "high", "medium", "low", "informational"],
+                        },
+                        "exploitability_likelihood": {
+                            "type": "string",
+                            "enum": ["high", "medium", "low", "theoretical"],
+                        },
+                        "impact_axes": {
+                            "type": "object",
+                            "required": ["safety", "financial", "operational", "privacy", "compliance"],
+                            "properties": {
+                                "safety": {"type": "string", "enum": ["critical", "high", "medium", "low", "negligible"]},
+                                "financial": {"type": "string", "enum": ["critical", "high", "medium", "low", "negligible"]},
+                                "operational": {"type": "string", "enum": ["critical", "high", "medium", "low", "negligible"]},
+                                "privacy": {"type": "string", "enum": ["critical", "high", "medium", "low", "negligible"]},
+                                "compliance": {"type": "string", "enum": ["critical", "high", "medium", "low", "negligible"]},
+                            },
+                        },
+                        "max_impact": {"type": "string", "enum": ["critical", "high", "medium", "low", "negligible"]},
+                        "contextual_risk_rating": {
+                            "type": "string",
+                            "enum": ["critical", "high", "medium", "low", "informational", "negligible"],
+                        },
+                        "risk_owner": {"type": "string", "minLength": 2},
+                        "safety_owner": {"type": "string"},
+                        "rationale": {"type": "string"},
+                    },
+                },
+            }
+        },
+    },
+}
+for _generic_v30 in (
+    "__inline_intent_invariant_modeler__",
+    "__inline_unified_surface_mapper__",
+    "__inline_cross_repo_and_arch_review__",
+    "__inline_coverage_and_evidence_auditor__",
+    "__inline_candidate_intake_planner__",
+    "__inline_deep_trace_chain_analyst__",
+    "__inline_blinded_counterevidence_challenger__",
+    "__inline_analysis_evidence_gate__",
+):
+    V30_INLINE_SCHEMAS[_generic_v30] = {"type": "object"}
 
 
 class OutputValidationError(ValueError):
@@ -66,6 +325,8 @@ class OutputValidationError(ValueError):
 
 
 def _load_schema_file(schema_name: str) -> dict[str, Any]:
+    if schema_name in V30_INLINE_SCHEMAS:
+        return V30_INLINE_SCHEMAS[schema_name]
     for d in (SCHEMA_DIR, BASV_SCHEMA_DIR, ACA_SCHEMA_DIR):
         p = d / schema_name
         if p.is_file():
@@ -408,7 +669,7 @@ def validate_agent_output(
                     for eid in ids:
                         if eid not in valid_evidence_ids:
                             issues.append(f"{loc}.{k} references evidence ID not in this job scope: {eid}")
-                    if k in {"evidence_ids", "intent_evidence_ids", "implementation_evidence_ids"}:
+                    if k in {"evidence_ids", "intent_evidence_ids", "implementation_evidence_ids", "sample_evidence_ids", "representative_deep_read_evidence_ids"}:
                         combined_primary_ids.extend(ids)
             for rk in EVIDENCE_REF_KEYS:
                 refs = node.get(rk)
@@ -422,7 +683,7 @@ def validate_agent_output(
                                 combined_primary_ids.append(eid)
             if not is_aca:
                 if present_id_keys:
-                    if status in {"observed", "derived"} and not combined_primary_ids:
+                    if status in {"observed", "derived", "confirmed", "covered_clean", "covered_finding"} and not combined_primary_ids:
                         issues.append(f"{loc} is {status} but has no supporting evidence IDs")
                     if node.get("comparison_result") == "mismatch" and status in {"observed", "derived"}:
                         intent_ids = [x for x in (node.get("intent_evidence_ids") or []) if isinstance(x, str)]
@@ -465,8 +726,108 @@ def validate_agent_output(
     check_evidence(value)
     if is_aca and isinstance(value, dict):
         _validate_aca_epistemic_gates(skill, value, issues)
+    if skill in V30_SKILLS and isinstance(value, dict):
+        _validate_v30_epistemic_gates(skill, value, issues)
     if issues:
         raise OutputValidationError("; ".join(issues[:40]))
+
+
+def _validate_v30_epistemic_gates(skill: str, value: dict[str, Any], issues: list[str]) -> None:
+    """Enforce LocalSec v3.0 epistemic gates across Phase 1 Scouting/Coverage and Phase 3 S-F-O-P-C Risk Calibration."""
+    import re
+
+    if skill == "extractor_tailor":
+        mode = value.get("mode")
+        if mode in {"USE_STANDARD_EXTRACTOR", "TAILOR_CUSTOM_EXTRACTOR"}:
+            if not value.get("canary_verified"):
+                issues.append(
+                    f"$.canary_verified must be True when mode is {mode!r}; unverified Python extractors are forbidden to prevent SAST anchoring bias"
+                )
+            if not value.get("canary_files"):
+                issues.append(f"$.canary_files must be non-empty when mode is {mode!r}")
+
+    if skill == "coverage_ledger":
+        cov_re = re.compile(r"^[A-Za-z0-9._~%-]+(::[A-Za-z0-9._~%-]+){3,4}$")
+        for idx, rec in enumerate(value.get("records", [])):
+            if not isinstance(rec, dict):
+                continue
+            cid = str(rec.get("coverage_id", ""))
+            if not cov_re.match(cid):
+                issues.append(
+                    f"$.records[{idx}].coverage_id {cid!r} violates RFC 3986 4-or-5 segment format 'surface::boundary::subsystem::attack_class[::lifecycle]'"
+                )
+            st = rec.get("status")
+            attempts = rec.get("attempts", [])
+            if st == "reopened" and (not isinstance(attempts, list) or len(attempts) < 2):
+                issues.append(
+                    f"$.records[{idx}] is marked 'reopened' but attempts[] has fewer than 2 entries (append-only history violation)"
+                )
+
+    if skill == "beyond_code_control_mapper":
+        for idx, item in enumerate(value.get("assessments", [])):
+            if not isinstance(item, dict):
+                continue
+            for c_idx, ctrl in enumerate(item.get("compensating_controls", [])):
+                if not isinstance(ctrl, dict):
+                    continue
+                if ctrl.get("status") == "hypothesis" and ctrl.get("mitigation_effect") == "blocks_exploit":
+                    issues.append(
+                        f"$.assessments[{idx}].compensating_controls[{c_idx}] has status='hypothesis' and cannot claim mitigation_effect='blocks_exploit' without confirmed config/IaC evidence"
+                    )
+
+    if skill == "sfop_risk_calibrator":
+        for idx, item in enumerate(value.get("calibrated_findings", [])):
+            if not isinstance(item, dict):
+                continue
+            axes = item.get("impact_axes")
+            if not isinstance(axes, dict):
+                continue
+            axis_vals = [str(axes.get(k, "negligible")) for k in ("safety", "financial", "operational", "privacy", "compliance")]
+            computed_max_rank = max(IMPACT_RANK.get(v, 0) for v in axis_vals)
+            declared_max = str(item.get("max_impact", "negligible"))
+            declared_max_rank = IMPACT_RANK.get(declared_max, -1)
+            if declared_max_rank != computed_max_rank:
+                issues.append(
+                    f"$.calibrated_findings[{idx}].max_impact ({declared_max!r}) does not equal the true maximum across the 5 S-F-O-P-C axes ({axis_vals})"
+                )
+            overall = str(item.get("contextual_risk_rating", "negligible"))
+            overall_rank = IMPACT_RANK.get(overall, 99)
+            if overall_rank > computed_max_rank:
+                issues.append(
+                    f"$.calibrated_findings[{idx}].contextual_risk_rating ({overall!r}) exceeds max_impact ({declared_max!r}); hard rule overall_risk <= max_impact violated"
+                )
+            safety_val = str(axes.get("safety", "negligible"))
+            risk_owner = str(item.get("risk_owner", "")).strip()
+            safety_owner = str(item.get("safety_owner", "")).strip()
+            if safety_val != "negligible":
+                if not safety_owner:
+                    issues.append(
+                        f"$.calibrated_findings[{idx}] has safety impact {safety_val!r} (!= 'negligible') and requires a non-empty $.safety_owner"
+                    )
+                elif safety_owner.lower() == risk_owner.lower():
+                    issues.append(
+                        f"$.calibrated_findings[{idx}] violates Safety Owner != Security Risk Owner separation (both set to {risk_owner!r})"
+                    )
+
+
+def validate_coverage_ledger(
+    ledger: dict[str, Any],
+    valid_evidence_ids: set[str],
+    visibility_report: dict[str, Any] | None = None,
+) -> None:
+    """Validate coverage_ledger schema, RFC 3986 coverage_id, and physical Visibility Tracker gate."""
+    validate_agent_output("coverage_ledger", ledger, valid_evidence_ids)
+    if isinstance(visibility_report, dict):
+        unvisited = visibility_report.get("unvisited_target_modules", [])
+        grazing = visibility_report.get("shallow_grazing_files", [])
+        issues: list[str] = []
+        if unvisited:
+            issues.append(f"Visibility Tracker gate failed: unvisited_target_modules={unvisited!r}")
+        if grazing:
+            grazing_paths = [g.get("path") for g in grazing if isinstance(g, dict)]
+            issues.append(f"Anti-Grazing gate failed: shallow header grazing (<=8 lines) on files={grazing_paths!r}")
+        if issues:
+            raise OutputValidationError("; ".join(issues))
 
 
 def collect_evidence_ids(value: Any) -> set[str]:

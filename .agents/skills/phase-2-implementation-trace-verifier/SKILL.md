@@ -1,6 +1,7 @@
 ---
 name: phase-2-implementation-trace-verifier
-description: Phase 2.3 — Truy vết thủ công luồng thực thi mã nguồn thực tế đối với từng quy trình nghiệp vụ và điểm kiểm soát bất biến (`implementation_trace_verifier`).
+description: >-
+  Phase 2.3 — Truy vết thủ công luồng thực thi mã nguồn thực tế đối với từng quy trình nghiệp vụ và điểm kiểm soát bất biến (implementation_trace_verifier). Kích hoạt khi người dùng gọi /phase-2-implementation-trace-verifier hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-2-implementation-trace-verifier` (PHASE-2 — Internal Skill ID: `implementation_trace_verifier`)

@@ -1,6 +1,7 @@
 ---
 name: phase-3-chain-synthesizer
-description: Phase 3.9 — Tổng hợp toàn bộ các chuỗi tấn công đã qua kiểm toán, phản biện đối kháng và bản đồ nguyên nhân gốc thành báo cáo cấp dự án (`chain_synthesizer`).
+description: >-
+  Phase 3.9 — Tổng hợp toàn bộ các chuỗi tấn công đã qua kiểm toán, phản biện đối kháng và bản đồ nguyên nhân gốc thành báo cáo cấp dự án (chain_synthesizer). Kích hoạt khi người dùng gọi /phase-3-chain-synthesizer hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-3-chain-synthesizer` (PHASE-3 — Internal Skill ID: `chain_synthesizer`)

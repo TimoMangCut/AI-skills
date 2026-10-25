@@ -249,6 +249,61 @@ func main() { println("hello") }
         # Round-robin with cap=2 across 2 repos must pick 1 from repo-a and 1 from repo-b in alternating order
         self.assertEqual(selected_ids, ["ev_a1", "ev_b1"])
 
+    def test_all_skills_valid_for_antigravity_and_claude(self):
+        import re
+
+        repo_root = Path(__file__).resolve().parents[1]
+        ag_skills = sorted((repo_root / ".agents" / "skills").glob("*/SKILL.md"))
+        cl_skills = sorted((repo_root / ".claude" / "skills").glob("*/SKILL.md"))
+        self.assertEqual(len(ag_skills), 41)
+        self.assertEqual(len(cl_skills), 41)
+
+        for ag_p, cl_p in zip(ag_skills, cl_skills):
+            self.assertEqual(ag_p.parent.name, cl_p.parent.name)
+            content = ag_p.read_text(encoding="utf-8")
+            self.assertEqual(content, cl_p.read_text(encoding="utf-8"))
+            self.assertTrue(content.startswith("---\n"), f"Missing frontmatter start in {ag_p}")
+            match = re.match(r"^---\n(.*?)\n---\n+(.*)", content, re.DOTALL)
+            self.assertIsNotNone(match, f"Invalid frontmatter boundary in {ag_p}")
+            fm_text, body = match.group(1), match.group(2)
+            fm_lines = fm_text.splitlines()
+            # Frontmatter must be strictly 3 lines: name, description: >-, and indented description text
+            self.assertEqual(len(fm_lines), 3, f"Unexpected lines in frontmatter of {ag_p}: {fm_lines}")
+            self.assertEqual(fm_lines[0], f"name: {ag_p.parent.name}")
+            self.assertRegex(ag_p.parent.name, r"^[a-z0-9-]+$")
+            self.assertLessEqual(len(ag_p.parent.name), 64)
+            self.assertEqual(fm_lines[1], "description: >-")
+            desc = fm_lines[2].strip()
+            self.assertTrue(len(desc) > 20 and len(desc) <= 1024, f"Invalid description length in {ag_p}")
+            self.assertNotIn("<", desc, f"Angle bracket < forbidden by Claude validator in {ag_p}")
+            self.assertNotIn(">", desc, f"Angle bracket > forbidden by Claude validator in {ag_p}")
+            self.assertTrue(body.startswith("# "), f"Body after frontmatter must start with H1 heading in {ag_p}")
+
+    def test_setup_sh_syncs_and_uninstalls_antigravity_and_claude(self):
+        import os
+        import subprocess
+
+        repo_root = Path(__file__).resolve().parents[1]
+        setup_sh = repo_root / "setup.sh"
+        with tempfile.TemporaryDirectory() as tmp:
+            target_root = Path(tmp)
+            env = dict(os.environ, AI_SKILLS_SKIP_TESTS="1")
+            res = subprocess.run(["sh", str(setup_sh)], cwd=str(target_root), env=env, capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            self.assertEqual(len(list((target_root / ".agents" / "skills").glob("*/SKILL.md"))), 41)
+            self.assertEqual(len(list((target_root / ".claude" / "skills").glob("*/SKILL.md"))), 41)
+            self.assertTrue((target_root / "AGENTS.md").is_file())
+            self.assertTrue((target_root / "SOUL.md").is_file())
+            self.assertTrue((target_root / "CLAUDE.md").is_file())
+
+            res_un = subprocess.run(["sh", str(setup_sh), "--uninstall"], cwd=str(target_root), env=env, capture_output=True, text=True)
+            self.assertEqual(res_un.returncode, 0, res_un.stderr)
+            self.assertFalse((target_root / ".agents").exists())
+            self.assertFalse((target_root / ".claude").exists())
+            self.assertFalse((target_root / "AGENTS.md").exists())
+            self.assertFalse((target_root / "SOUL.md").exists())
+            self.assertFalse((target_root / "CLAUDE.md").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

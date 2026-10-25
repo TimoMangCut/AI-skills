@@ -1,6 +1,7 @@
 ---
 name: phase-3-code-trace-builder
-description: Phase 3.2 — Truy vết thủ công từng bước nhảy thực thi (`hops[]`) xuyên qua controllers, middleware, services, HTTP clients và hàm SQL (`code_trace_builder`).
+description: >-
+  Phase 3.2 — Truy vết thủ công từng bước nhảy thực thi (hops[]) xuyên qua controllers, middleware, services, HTTP clients và hàm SQL (code_trace_builder). Kích hoạt khi người dùng gọi /phase-3-code-trace-builder hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-3-code-trace-builder` (PHASE-3 — Internal Skill ID: `code_trace_builder`)

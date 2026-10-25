@@ -1,6 +1,7 @@
 ---
 name: phase-2-security-consequence-mapper
-description: Phase 2.7 — Đánh giá xem các sai lệch giữa ý định và triển khai có tạo ra hậu quả bảo mật, gian lận tài chính hay vi phạm toàn vẹn thực sự hay không (`security_consequence_mapper`).
+description: >-
+  Phase 2.7 — Đánh giá xem các sai lệch giữa ý định và triển khai có tạo ra hậu quả bảo mật, gian lận tài chính hay vi phạm toàn vẹn thực sự hay không (security_consequence_mapper). Kích hoạt khi người dùng gọi /phase-2-security-consequence-mapper hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-2-security-consequence-mapper` (PHASE-2 — Internal Skill ID: `security_consequence_mapper`)

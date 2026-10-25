@@ -1,6 +1,7 @@
 ---
 name: phase-1-api-authz
-description: Phase 1.2 — Kiểm kê thủ công các inbound HTTP/RPC/Consumer entrypoints và truy vết cơ chế xác thực, phân quyền RBAC/ABAC & BOLA (`api_authz`).
+description: >-
+  Phase 1.2 — Kiểm kê thủ công các inbound HTTP/RPC/Consumer entrypoints và truy vết cơ chế xác thực, phân quyền RBAC/ABAC & BOLA (api_authz). Kích hoạt khi người dùng gọi /phase-1-api-authz hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-1-api-authz` (PHASE-1 — Internal Skill ID: `api_authz`)

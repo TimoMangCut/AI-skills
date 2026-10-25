@@ -1,6 +1,6 @@
-# AI-skills — LocalSec 3-Phase Antigravity Security Review Pipeline
+# AI-skills — LocalSec 3-Phase Security Review Pipeline (Antigravity & Claude Code)
 
-Bộ **28 Antigravity Skills + Always-On Rules (`AGENTS.md`, `SOUL.md`) + Python Epistemic Engine (`localsec`)** dùng để kiểm toán bảo mật mã nguồn thủ công bằng AI qua **3 Phase chuẩn hóa**:
+Bộ **28 Skills (`.agents/skills/` & `.claude/skills/`) + Always-On Rules (`AGENTS.md`, `SOUL.md`, `CLAUDE.md`) + Python Epistemic Engine (`localsec`)** dùng để kiểm toán bảo mật mã nguồn thủ công bằng AI qua **3 Phase chuẩn hóa**:
 - **Phase 1**: Manual Code Reconnaissance (`/phase-1-orchestrator` — 8 bước)
 - **Phase 2**: Business-Aware Security Verification / BASV (`/phase-2-orchestrator` — 9 bước)
 - **Phase 3**: Attack Chain & Root-Cause Analysis / ACA (`/phase-3-orchestrator` — 9 bước)
@@ -9,25 +9,28 @@ Bộ **28 Antigravity Skills + Always-On Rules (`AGENTS.md`, `SOUL.md`) + Python
 
 ## 1. Cấu trúc Khi Clone Vào Một Project Cần Áp Dụng (`<Project-Root>`)
 
-Khi bạn cần áp dụng bộ Skills này vào một dự án thực tế (`<Project-Root>`), bạn **chỉ cần đưa `.agents/`, `AGENTS.md`, `SOUL.md` ra ngoài gốc Project** để Antigravity nhận diện lệnh `/phase-*` và Rules, còn **toàn bộ Engine (`localsec/`), JSON Schemas (`schemas/`), Contracts (`contracts/`) vẫn nằm nguyên gọn gàng trong thư mục `AI-skills/`**:
+Khi bạn cần áp dụng bộ Skills này vào một dự án thực tế (`<Project-Root>`), `setup.sh` **tự động đồng bộ `.agents/`, `.claude/`, `AGENTS.md`, `SOUL.md`, `CLAUDE.md` ra ngoài gốc Project** để cả **Antigravity** lẫn **Claude Code** nhận diện lệnh `/phase-*` và Rules, còn **toàn bộ Engine (`localsec/`), JSON Schemas (`schemas/`), Contracts (`contracts/`) vẫn nằm nguyên gọn gàng trong thư mục `AI-skills/`**:
 
 ```text
-<Project-Root>/                        <-- Mở thư mục này trong Antigravity IDE (Working Directory)
+<Project-Root>/                        <-- Mở thư mục này trong Antigravity IDE hoặc Claude Code
 ├── <service-repo-1>/                  <-- Các repo mã nguồn của dự án cần review
 ├── <service-repo-2>/
 ├── <docs-or-brd>/                     <-- Tài liệu nghiệp vụ BRD/BRS/Specs của dự án (nếu có)
 ├── documents/                         <-- Báo cáo đầu ra (Phase 1, 2, 3) sẽ tự động xuất ra đây
 ├── .localsec/                         <-- Trạng thái phiên làm việc & mã bằng chứng ev_... tự sinh tại đây
 │
-├── AGENTS.md                          <-- [Copy từ AI-skills ra] Rule Refute-first (Antigravity tự động nạp)
-├── SOUL.md                            <-- [Copy từ AI-skills ra] Lớp giá trị cốt lõi
-├── .agents/                           <-- [Copy từ AI-skills ra] 28 Skills đã trỏ sẵn đường dẫn vào AI-skills/...
+├── AGENTS.md                          <-- [Copy/Merge từ AI-skills] Rule Refute-first (Antigravity nạp)
+├── SOUL.md                            <-- [Copy/Merge từ AI-skills] Lớp giá trị cốt lõi
+├── CLAUDE.md                          <-- [Copy/Merge từ AI-skills] Entrypoint cho Claude Code (@SOUL.md, @AGENTS.md)
+├── .agents/                           <-- [Copy từ AI-skills] 28 Skills & Rules chuẩn Antigravity
 │   ├── README.md                      <-- Sổ tay tra cứu nhanh các lệnh & mẫu Prompt
 │   ├── rules/soul.md
 │   └── skills/phase-{1,2,3}-*/SKILL.md
+├── .claude/                           <-- [Copy từ AI-skills] 28 Skills chuẩn Claude Code
+│   └── skills/phase-{1,2,3}-*/SKILL.md
 │
 └── AI-skills/                         <-- Thư mục git clone nằm gọn một chỗ, AI tự ánh xạ vào đây
-    ├── setup.sh                       <-- Script tự động copy .agents, AGENTS.md, SOUL.md ra <Project-Root>
+    ├── setup.sh                       <-- Script tự động đồng bộ .agents, .claude, AGENTS.md, SOUL.md, CLAUDE.md
     ├── localsec/                      <-- Bộ máy Python CLI (manual_session.py, validators.py, workspace.py...)
     ├── skills/                        <-- Prompts & Registry gốc của Phase 1
     ├── schemas/                       <-- JSON Schemas của Phase 1 (AI-skills/schemas/*.schema.json)

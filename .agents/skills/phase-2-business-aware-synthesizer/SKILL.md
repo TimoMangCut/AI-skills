@@ -1,6 +1,7 @@
 ---
 name: phase-2-business-aware-synthesizer
-description: Phase 2.8 — Tổng hợp báo cáo xác minh bảo mật gắn ngữ cảnh nghiệp vụ sau khi đã qua kiểm toán bằng chứng độc lập (`business_aware_synthesizer`).
+description: >-
+  Phase 2.8 — Tổng hợp báo cáo xác minh bảo mật gắn ngữ cảnh nghiệp vụ sau khi đã qua kiểm toán bằng chứng độc lập (business_aware_synthesizer). Kích hoạt khi người dùng gọi /phase-2-business-aware-synthesizer hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-2-business-aware-synthesizer` (PHASE-2 — Internal Skill ID: `business_aware_synthesizer`)

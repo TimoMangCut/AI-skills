@@ -1,0 +1,5 @@
+{
+  "summary": "Báo cáo đánh giá toàn diện và đối chiếu kiến trúc giữa bộ skill cloudflare/security-audit-skill (21 files) và bộ AI-skills / LocalSec v2.4.0-refute-first (28 skills + Python Epistemic Engine). Bao gồm phân tích chi tiết 6 phase của Cloudflare, 10 Domain Companions, các validator Node.js, bảng đối chiếu 10 trục kỹ thuật, điểm vượt trội của AI-skills local, những điểm AI-skills nên học hỏi từ Cloudflare, và lộ trình tích hợp đề xuất.",
+  "updatedAt": "2026-10-25T04:07:56.898893Z",
+  "userFacing": true
+}

@@ -1,6 +1,7 @@
 ---
 name: phase-3-root-cause-mapper
-description: Phase 3.7 — Truy nguyên từ các triệu chứng bề mặt và các chuỗi tấn công về nguyên nhân gốc rễ trong kiến trúc, mô hình phân quyền hoặc máy trạng thái (`root_cause_mapper`).
+description: >-
+  Phase 3.7 — Truy nguyên từ các triệu chứng bề mặt và các chuỗi tấn công về nguyên nhân gốc rễ trong kiến trúc, mô hình phân quyền hoặc máy trạng thái (root_cause_mapper). Kích hoạt khi người dùng gọi /phase-3-root-cause-mapper hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-3-root-cause-mapper` (PHASE-3 — Internal Skill ID: `root_cause_mapper`)

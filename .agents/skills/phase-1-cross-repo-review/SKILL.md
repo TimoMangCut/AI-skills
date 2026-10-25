@@ -1,6 +1,7 @@
 ---
 name: phase-1-cross-repo-review
-description: Phase 1.7 — Tổng hợp rủi ro cấp hệ thống xuyên qua nhiều repositories, phát hiện lệch giả định tin cậy giữa bên gọi và bên nhận (`cross_repo_review`).
+description: >-
+  Phase 1.7 — Tổng hợp rủi ro cấp hệ thống xuyên qua nhiều repositories, phát hiện lệch giả định tin cậy giữa bên gọi và bên nhận (cross_repo_review). Kích hoạt khi người dùng gọi /phase-1-cross-repo-review hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-1-cross-repo-review` (PHASE-1 — Internal Skill ID: `cross_repo_review`)

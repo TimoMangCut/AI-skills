@@ -1,0 +1,495 @@
+{
+  "version": "3.0.0",
+  "ecosystem": "Vingroup_VinSOC_MultiDomain_Production_and_CyberPhysical",
+  "consequence_axes": [
+    "Safety",
+    "Financial",
+    "Operational",
+    "Privacy",
+    "Compliance"
+  ],
+  "companions": {
+    "web-spa-nextjs-ssr": {
+      "file": "web-spa-nextjs-ssr.md",
+      "group": "I. Web, Mobile & API Core",
+      "title": "Web Apps, SPAs (React/Next.js/Angular/Vue), SSR & Low-Code",
+      "triggers": [
+        "react",
+        "nextjs",
+        "next",
+        "angular",
+        "vue",
+        "webpack",
+        "vite",
+        "sourcemap",
+        "ssr",
+        "nocobase",
+        "wordpress",
+        "php",
+        "spa",
+        "cors",
+        "csrf",
+        "xss"
+      ],
+      "archetypes": [
+        "SPA_Web_Frontend",
+        "Fullstack_Web_App",
+        "Ecommerce_Portal",
+        "LowCode_Admin_Portal"
+      ],
+      "blocks": [
+        "nextjs-ssr-and-server-actions",
+        "spa-sourcemap-and-bundle-secrets",
+        "dom-xss-postmessage-and-cors"
+      ]
+    },
+    "mobile-android-ios-flutter": {
+      "file": "mobile-android-ios-flutter.md",
+      "group": "I. Web, Mobile & API Core",
+      "title": "Mobile Super-Apps & Companion Apps (Android/Kotlin/Smali, iOS/Swift, Flutter, BLE)",
+      "triggers": [
+        "android",
+        "ios",
+        "kotlin",
+        "swift",
+        "flutter",
+        "dart",
+        "react-native",
+        "retrofit",
+        "okhttp",
+        "smali",
+        "apk",
+        "deeplink",
+        "bluetooth",
+        "ble",
+        "firebase"
+      ],
+      "archetypes": [
+        "Mobile_Client_Android_iOS",
+        "Connected_Vehicle_Companion_App"
+      ],
+      "blocks": [
+        "mobile-exported-components-and-deeplinks",
+        "dynamic-host-routing-and-client-signing",
+        "ble-phone-as-a-key-and-device-ota"
+      ]
+    },
+    "api-rest-graphql-grpc-websocket": {
+      "file": "api-rest-graphql-grpc-websocket.md",
+      "group": "I. Web, Mobile & API Core",
+      "title": "REST, GraphQL, gRPC/Protobuf & WebSocket API Surfaces",
+      "triggers": [
+        "openapi",
+        "swagger",
+        "rest",
+        "graphql",
+        "grpc",
+        "protobuf",
+        "proto",
+        "websocket",
+        "ws",
+        "wss",
+        "ssrf",
+        "webhook",
+        "fileupload",
+        "multipart"
+      ],
+      "archetypes": [
+        "API_Microservice_Gateway",
+        "Realtime_WebSocket_Service"
+      ],
+      "blocks": [
+        "openapi-shadow-routes-and-debug-sinks",
+        "ssrf-webhooks-and-url-fetchers",
+        "websocket-and-grpc-stream-auth"
+      ]
+    },
+    "authz-bola-bfla-multitenant": {
+      "file": "authz-bola-bfla-multitenant.md",
+      "group": "I. Web, Mobile & API Core",
+      "title": "Authorization, BOLA/IDOR, BFLA & Multi-Tenant / Partner Isolation",
+      "triggers": [
+        "authz",
+        "bola",
+        "idor",
+        "bfla",
+        "rbac",
+        "abac",
+        "preauthorize",
+        "permission",
+        "ownership",
+        "tenant",
+        "vincode",
+        "billid",
+        "orderid",
+        "partnerid"
+      ],
+      "archetypes": [
+        "API_Microservice_Gateway",
+        "B2B_Partner_Portal",
+        "Multi_Tenant_SaaS"
+      ],
+      "blocks": [
+        "object-ownership-bola-idor",
+        "function-level-bfla-and-filter-bypass",
+        "multi-role-lending-and-delegation"
+      ]
+    },
+    "state-race-financial-commerce": {
+      "file": "state-race-financial-commerce.md",
+      "group": "I. Web, Mobile & API Core",
+      "title": "State Machines, Race Conditions (TOCTOU), Payments, Billing & E-Commerce",
+      "triggers": [
+        "payment",
+        "billing",
+        "invoice",
+        "order",
+        "cart",
+        "checkout",
+        "voucher",
+        "coupon",
+        "wallet",
+        "refund",
+        "deposit",
+        "subscription",
+        "idempotency",
+        "lock",
+        "transaction"
+      ],
+      "archetypes": [
+        "Payment_Billing_Service",
+        "Ecommerce_Portal",
+        "Subscription_OTA_Commerce"
+      ],
+      "blocks": [
+        "toctou-race-and-idempotency",
+        "payment-webhook-and-ota-entitlement"
+      ]
+    },
+    "iam-auth0-cognito-azuread-fido2": {
+      "file": "iam-auth0-cognito-azuread-fido2.md",
+      "group": "II. Identity, Gateways & Multi-Cloud / On-Prem",
+      "title": "Identity Fabric: Auth0, AWS Cognito, Azure AD, FIDO2/WebAuthn & Internal JWT",
+      "triggers": [
+        "auth0",
+        "cognito",
+        "azuread",
+        "entra",
+        "oidc",
+        "oauth",
+        "saml",
+        "fido2",
+        "webauthn",
+        "jwt",
+        "jwks",
+        "nimbus",
+        "sts",
+        "refresh_token"
+      ],
+      "archetypes": [
+        "Identity_SSO_Provider",
+        "API_Microservice_Gateway"
+      ],
+      "blocks": [
+        "jwt-issuer-audience-and-token-exchange",
+        "cognito-identity-pools-and-sts-vending",
+        "fido2-webauthn-and-qr-sso"
+      ]
+    },
+    "edge-cloudflare-kong-krakend-nginx": {
+      "file": "edge-cloudflare-kong-krakend-nginx.md",
+      "group": "II. Identity, Gateways & Multi-Cloud / On-Prem",
+      "title": "Edge & API Gateways: Cloudflare WAF, Kong, KrakenD, HAProxy, Nginx & ALB",
+      "triggers": [
+        "cloudflare",
+        "kong",
+        "krakend",
+        "haproxy",
+        "nginx",
+        "envoy",
+        "istio",
+        "alb",
+        "elb",
+        "ingress",
+        "waf",
+        "turnstile",
+        "x-forwarded-for"
+      ],
+      "archetypes": [
+        "Edge_Gateway_Config",
+        "API_Microservice_Gateway"
+      ],
+      "blocks": [
+        "asymmetric-edge-and-direct-origin-bypass",
+        "gateway-header-spoofing-and-contract-shims"
+      ]
+    },
+    "cloud-aws-gcp-azure-iam-storage": {
+      "file": "cloud-aws-gcp-azure-iam-storage.md",
+      "group": "II. Identity, Gateways & Multi-Cloud / On-Prem",
+      "title": "Multi-Cloud Infrastructure: AWS, GCP, Azure Storage, IAM, KMS & DNS",
+      "triggers": [
+        "aws",
+        "s3",
+        "ec2",
+        "eks",
+        "kms",
+        "gcp",
+        "gcs",
+        "cloudrun",
+        "azure",
+        "blob",
+        "appservice",
+        "cname",
+        "dns",
+        "acm",
+        "cloudfront"
+      ],
+      "archetypes": [
+        "Cloud_Infra_IaC",
+        "API_Microservice_Gateway"
+      ],
+      "blocks": [
+        "dangling-dns-and-subdomain-takeover",
+        "cloud-storage-pre-signed-urls-and-iam"
+      ]
+    },
+    "onprem-k8s-network-rfc1918": {
+      "file": "onprem-k8s-network-rfc1918.md",
+      "group": "II. Identity, Gateways & Multi-Cloud / On-Prem",
+      "title": "Kubernetes (EKS/On-Prem), Internal RFC1918 Subnets & Split-Horizon DNS",
+      "triggers": [
+        "kubernetes",
+        "k8s",
+        "helm",
+        "docker",
+        "container",
+        "rfc1918",
+        "10.135",
+        "10.133",
+        "10.228",
+        "10.250",
+        "vpc",
+        "subnet",
+        "onprem"
+      ],
+      "archetypes": [
+        "Cloud_Infra_IaC",
+        "OnPrem_Enterprise_Network"
+      ],
+      "blocks": [
+        "internal-dns-leak-and-vpc-colocation",
+        "k8s-manifests-helm-and-service-mesh"
+      ]
+    },
+    "cicd-ado-github-argocd-supplychain": {
+      "file": "cicd-ado-github-argocd-supplychain.md",
+      "group": "II. Identity, Gateways & Multi-Cloud / On-Prem",
+      "title": "CI/CD & Supply Chain: Azure DevOps (ADO), GitHub Actions, ArgoCD & Binaries",
+      "triggers": [
+        "azure-pipelines",
+        "ado",
+        "github/workflows",
+        "gitlab-ci",
+        "jenkinsfile",
+        "argocd",
+        "gitops",
+        "dockerfile",
+        "sbom",
+        "cosign",
+        "supplychain"
+      ],
+      "archetypes": [
+        "CICD_Supply_Chain",
+        "Cloud_Infra_IaC"
+      ],
+      "blocks": [
+        "ado-and-github-actions-pipeline-injection",
+        "argocd-gitops-and-binary-provenance"
+      ]
+    },
+    "enterprise-sap-mulesoft-b2b": {
+      "file": "enterprise-sap-mulesoft-b2b.md",
+      "group": "III. Enterprise, Data Lake & AI Systems",
+      "title": "Enterprise Core: SAP S/4HANA (ICF/Fiori), MuleSoft Banking Shims & B2B Portals",
+      "triggers": [
+        "sap",
+        "fiori",
+        "s4hana",
+        "icf",
+        "webgui",
+        "bapi",
+        "rfc",
+        "mulesoft",
+        "mule",
+        "erp",
+        "mes",
+        "dealer",
+        "b2b",
+        "immobilizer"
+      ],
+      "archetypes": [
+        "Enterprise_ERP_B2B",
+        "Partner_Integration_Adapter"
+      ],
+      "blocks": [
+        "mulesoft-and-partner-integration-shims",
+        "sap-icf-fiori-and-erp-mes-boundary"
+      ]
+    },
+    "data-kafka-flink-doris-superset-airflow": {
+      "file": "data-kafka-flink-doris-superset-airflow.md",
+      "group": "III. Enterprise, Data Lake & AI Systems",
+      "title": "Data Lakehouse & Streaming: Kafka, Flink, Spark, Doris, Superset, Airflow & Digital Twin",
+      "triggers": [
+        "kafka",
+        "flink",
+        "spark",
+        "doris",
+        "superset",
+        "airflow",
+        "digital-twin",
+        "clickhouse",
+        "elasticsearch",
+        "apm",
+        "redis",
+        "mongodb",
+        "cassandra"
+      ],
+      "archetypes": [
+        "Data_AI_Pipeline",
+        "Telemetry_Streaming_Platform"
+      ],
+      "blocks": [
+        "kafka-and-stream-processor-exposure",
+        "superset-doris-and-analytics-ssrf-sqli"
+      ]
+    },
+    "ai-llm-vla-model-serving-datasets": {
+      "file": "ai-llm-vla-model-serving-datasets.md",
+      "group": "III. Enterprise, Data Lake & AI Systems",
+      "title": "AI/LLM Systems, VLA Model Serving (GGUF/ONNX/Pickle) & Commercial Datasets",
+      "triggers": [
+        "llm",
+        "vla",
+        "vlm",
+        "gguf",
+        "ggml",
+        "onnx",
+        "torch",
+        "pickle",
+        "safetensors",
+        "huggingface",
+        "prompt",
+        "mcp",
+        "dataset",
+        "asr",
+        "nlu",
+        "voice"
+      ],
+      "archetypes": [
+        "AI_Model_Serving_Engine",
+        "Data_AI_Pipeline"
+      ],
+      "blocks": [
+        "model-file-deserialization-and-binary-parsers",
+        "ai-to-actuation-and-prompt-tool-boundaries"
+      ]
+    },
+    "automotive-connected-car-ota-tbox": {
+      "file": "automotive-connected-car-ota-tbox.md",
+      "group": "IV. IoT, Automotive, Robotics & OT",
+      "title": "Connected Car, AWS IoT Core / EMQX Telemetry, T-Box/MHU & FOTA/SOTA (ISO 21434)",
+      "triggers": [
+        "iot",
+        "mqtt",
+        "emqx",
+        "tbox",
+        "mhu",
+        "fota",
+        "sota",
+        "ota",
+        "vin",
+        "telematics",
+        "ecu",
+        "can",
+        "uds",
+        "autosar",
+        "vehicle",
+        "ccar",
+        "ccp"
+      ],
+      "archetypes": [
+        "IoT_Telematics_Broker",
+        "Automotive_Connected_Car",
+        "CyberPhysical_OT_Robotics"
+      ],
+      "blocks": [
+        "mqtt-broker-acl-and-telemetry-surveillance",
+        "fota-sota-signing-and-tbox-pairing"
+      ]
+    },
+    "ev-charging-ocpp-ocpi-battery": {
+      "file": "ev-charging-ocpp-ocpi-battery.md",
+      "group": "IV. IoT, Automotive, Robotics & OT",
+      "title": "EV Charging Stations (OCPP 1.6/2.0.1, OCPI Roaming) & Battery Swapping Cabinets",
+      "triggers": [
+        "ocpp",
+        "ocpi",
+        "charging",
+        "charger",
+        "evse",
+        "csms",
+        "cpola",
+        "vgreen",
+        "battery",
+        "swap",
+        "kwh",
+        "metervalues"
+      ],
+      "archetypes": [
+        "EV_Charging_CSMS_OCPP",
+        "IoT_Telematics_Broker"
+      ],
+      "blocks": [
+        "ocpp-security-profiles-and-billing-integrity",
+        "remote-battery-lock-and-cabinet-actuation"
+      ]
+    },
+    "robotics-cpp-ros2-ot-scada-bess": {
+      "file": "robotics-cpp-ros2-ot-scada-bess.md",
+      "group": "IV. IoT, Automotive, Robotics & OT",
+      "title": "Robotics (C++/ZeroMQ/ROS2/MQTT), Energy BESS SCADA (OneATS) & Industrial OT (ISA-95 / ETCS)",
+      "triggers": [
+        "zeromq",
+        "zmq",
+        "ros2",
+        "dds",
+        "ethercat",
+        "modbus",
+        "opcua",
+        "iec61850",
+        "scada",
+        "bess",
+        "ems",
+        "bms",
+        "plc",
+        "rtu",
+        "isa95",
+        "etcs",
+        "ato",
+        "robot",
+        "agv",
+        "amr"
+      ],
+      "archetypes": [
+        "CyberPhysical_OT_Robotics",
+        "AI_Model_Serving_Engine"
+      ],
+      "blocks": [
+        "unauthenticated-robot-and-ipc-command-bridges",
+        "ot-scada-bess-and-ai-in-control-loop"
+      ]
+    }
+  }
+}

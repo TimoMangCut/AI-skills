@@ -1,6 +1,7 @@
 ---
 name: phase-1-architecture-review
-description: Phase 1.5 — Đánh giá thiết kế kiến trúc bảo mật, phân tách vùng tin cậy, khả năng chống chịu, nhật ký kiểm toán và giả định thiết kế (`architecture_review`).
+description: >-
+  Phase 1.5 — Đánh giá thiết kế kiến trúc bảo mật, phân tách vùng tin cậy, khả năng chống chịu, nhật ký kiểm toán và giả định thiết kế (architecture_review). Kích hoạt khi người dùng gọi /phase-1-architecture-review hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-1-architecture-review` (PHASE-1 — Internal Skill ID: `architecture_review`)

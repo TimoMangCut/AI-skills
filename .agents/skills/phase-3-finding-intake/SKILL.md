@@ -1,6 +1,7 @@
 ---
 name: phase-3-finding-intake
-description: Phase 3.1 — Chuẩn hóa các findings từ Phase 1 (Recon) và Phase 2 (BASV) thành các tuyên bố ứng viên và giả thuyết chuỗi tấn công cần đọc lại code (`finding_intake`).
+description: >-
+  Phase 3.1 — Chuẩn hóa các findings từ Phase 1 (Recon) và Phase 2 (BASV) thành các tuyên bố ứng viên và giả thuyết chuỗi tấn công cần đọc lại code (finding_intake). Kích hoạt khi người dùng gọi /phase-3-finding-intake hoặc thực hiện bước này trong pipeline.
 ---
 
 # `phase-3-finding-intake` (PHASE-3 — Internal Skill ID: `finding_intake`)
