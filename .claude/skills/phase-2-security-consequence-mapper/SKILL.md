@@ -21,5 +21,5 @@ Phase 2.7 — Đánh giá xem các sai lệch giữa ý định và triển khai
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> security_consequence_mapper <json_file>
+python -m localsec.manual_session submit_skill <repo_name> security_consequence_mapper <json_file>
 ```

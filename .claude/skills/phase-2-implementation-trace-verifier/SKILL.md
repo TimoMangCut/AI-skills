@@ -21,6 +21,6 @@ Kiểm tra đủ 5 chiều: xác thực/phân quyền, kiểm tra đầu vào, r
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill implementation_trace_verifier
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> implementation_trace_verifier <json_file>
+python -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill implementation_trace_verifier
+python -m localsec.manual_session submit_skill <repo_name> implementation_trace_verifier <json_file>
 ```

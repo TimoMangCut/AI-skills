@@ -21,6 +21,6 @@ Nếu không có môi trường local/test được phê duyệt tường minh (
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session run_aca_request_plan <request_json> [--target-profile <profile_json>]
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis request_reproduction_operator <json_file> --artifact-id <req_id>
+python -m localsec.manual_session run_aca_request_plan <request_json> [--target-profile <profile_json>]
+python -m localsec.manual_session submit_skill _analysis request_reproduction_operator <json_file> --artifact-id <req_id>
 ```

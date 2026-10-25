@@ -26,8 +26,8 @@ Chỉ những chuỗi tấn công và lỗ hổng đã vượt qua kiểm toán 
 
 ```bash
 # 1. Kiểm tra mâu thuẫn ngữ nghĩa giữa tuyên bố và trích đoạn ev_...
-python3 -m localsec.manual_session verify_semantic_claims _analysis
+python -m localsec.manual_session verify_semantic_claims _analysis
 
 # 2. Lưu kết quả cổng kiểm toán Phase 2
-python3 -m localsec.manual_session submit_skill _analysis analysis_evidence_gate /tmp/analysis_evidence_gate.json
+python -m localsec.manual_session submit_skill _analysis analysis_evidence_gate .localsec/tmp/analysis_evidence_gate.json
 ```

@@ -21,6 +21,6 @@ Bác bỏ giả định 'chắc middleware hoặc gateway đã chặn': nếu kh
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill api_authz
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> api_authz <json_file>
+python -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill api_authz
+python -m localsec.manual_session submit_skill <repo_name> api_authz <json_file>
 ```

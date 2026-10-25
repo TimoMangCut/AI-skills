@@ -21,7 +21,7 @@ Phase 1.1 — Khảo sát thủ công mục đích nghiệp vụ, mức độ tr
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session list_dir <repo_name> . --depth 2 --skill repo_profile
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill repo_profile
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> repo_profile <json_file>
+python -m localsec.manual_session list_dir <repo_name> . --depth 2 --skill repo_profile
+python -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill repo_profile
+python -m localsec.manual_session submit_skill <repo_name> repo_profile <json_file>
 ```

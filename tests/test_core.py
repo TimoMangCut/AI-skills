@@ -282,29 +282,39 @@ func main() { println("hello") }
     def test_setup_sh_syncs_and_uninstalls_antigravity_and_claude(self):
         import os
         import subprocess
+        import sys
+        from localsec.workspace import ManualWorkspace, WorkspaceError
 
         repo_root = Path(__file__).resolve().parents[1]
-        setup_sh = repo_root / "setup.sh"
+        setup_py = repo_root / "setup_bootstrap.py"
         with tempfile.TemporaryDirectory() as tmp:
             target_root = Path(tmp)
             env = dict(os.environ, AI_SKILLS_SKIP_TESTS="1")
-            res = subprocess.run(["sh", str(setup_sh)], cwd=str(target_root), env=env, capture_output=True, text=True)
+            res = subprocess.run([sys.executable, str(setup_py)], cwd=str(target_root), env=env, capture_output=True, text=True)
             self.assertEqual(res.returncode, 0, res.stderr)
             self.assertEqual(len(list((target_root / ".agents" / "skills").glob("*/SKILL.md"))), 41)
             self.assertEqual(len(list((target_root / ".claude" / "skills").glob("*/SKILL.md"))), 41)
             self.assertTrue((target_root / "AGENTS.md").is_file())
             self.assertTrue((target_root / "SOUL.md").is_file())
             self.assertTrue((target_root / "CLAUDE.md").is_file())
+            self.assertTrue((target_root / "localsec" / "__init__.py").is_file())
 
-            res_un = subprocess.run(["sh", str(setup_sh), "--uninstall"], cwd=str(target_root), env=env, capture_output=True, text=True)
+            res_un = subprocess.run([sys.executable, str(setup_py), "--uninstall"], cwd=str(target_root), env=env, capture_output=True, text=True)
             self.assertEqual(res_un.returncode, 0, res_un.stderr)
             self.assertFalse((target_root / ".agents").exists())
             self.assertFalse((target_root / ".claude").exists())
+            self.assertFalse((target_root / "localsec").exists())
             self.assertFalse((target_root / "AGENTS.md").exists())
             self.assertFalse((target_root / "SOUL.md").exists())
             self.assertFalse((target_root / "CLAUDE.md").exists())
 
+            # Verify Windows path security guards (drive letter, UNC path, reserved device names)
+            for bad_win_path in ("C:\\Windows\\System32\\cmd.exe", "\\\\server\\share\\secret.txt", "CON", "src/NUL.txt", "COM1"):
+                with self.assertRaises(WorkspaceError):
+                    ManualWorkspace._clean_relative(bad_win_path)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

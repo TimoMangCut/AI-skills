@@ -21,6 +21,6 @@ Tập trung tìm sự bất đối xứng tin cậy: nơi Service A giả địn
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_system_context
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_system --cross-repo <path> --sys-audit <path> --diagrams <path>
+python -m localsec.manual_session prepare_system_context
+python -m localsec.manual_session finalize_system --cross-repo <path> --sys-audit <path> --diagrams <path>
 ```

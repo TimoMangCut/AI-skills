@@ -21,5 +21,5 @@ Mọi kết nối liên dịch vụ chưa xác minh đủ cả hai đầu phải
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> diagram_author <json_file>
+python -m localsec.manual_session submit_skill <repo_name> diagram_author <json_file>
 ```

@@ -22,6 +22,6 @@ Nguyên tắc tối thượng: Code hiện tại KHÔNG phải là ý định th
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill business_intent_modeler
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> business_intent_modeler <json_file>
+python -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill business_intent_modeler
+python -m localsec.manual_session submit_skill <repo_name> business_intent_modeler <json_file>
 ```

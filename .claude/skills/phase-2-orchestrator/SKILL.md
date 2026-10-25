@@ -15,7 +15,7 @@ Sau khi Phase 1 (Unified Reconnaissance) đã hoàn tất kiểm kê bề mặt,
 
 1. **Bước 2.1 — `/phase-2-candidate-intake-planner` (`candidate_intake_planner`)**:
    - Chuẩn hóa và xếp hạng ưu tiên các mục trong `Candidate Queue` từ Phase 1 (`P0` cho Safety/Financial/BOLA/RCE).
-   - Chạy `python3 -m localsec.manual_session select_attack_companions <repo_name>` để tiêm **nguyên văn** các khối `## [ BLOCK: ... ]` từ `contracts/attack-taxonomy-v1/`.
+   - Chạy `python -m localsec.manual_session select_attack_companions <repo_name>` để tiêm **nguyên văn** các khối `## [ BLOCK: ... ]` từ `contracts/attack-taxonomy-v1/`.
 2. **Bước 2.2 — `/phase-2-deep-trace-chain-analyst` (`deep_trace_chain_analyst`)**:
    - Trong một lượt đọc sâu liền mạch cho mỗi ứng viên:
      - Truy vết từng bước nhảy thực thi (`hops[]`) từ Entrypoint qua Middleware/Guard tới Sink kèm `ev_...`.
@@ -23,10 +23,10 @@ Sau khi Phase 1 (Unified Reconnaissance) đã hoàn tất kiểm kê bề mặt,
      - Truy nguyên nhân gốc rễ (`Root-Cause Mapping`) để sửa lỗi một lần ở kiến trúc/máy trạng thái.
      - Thiết kế chuỗi request kiểm định phân biệt rõ hành vi an toàn và hành vi lỗi (`plan_only` / `not_executed`).
 3. **Bước 2.3 — `/phase-2-blinded-counterevidence-challenger` (`blinded_counterevidence_challenger`)**:
-   - Chạy `python3 -m localsec.manual_session prepare_blinded_chain_verifier _analysis` để cắt bỏ toàn bộ kết luận/verdict của Bước 2.2.
+   - Chạy `python -m localsec.manual_session prepare_blinded_chain_verifier _analysis` để cắt bỏ toàn bộ kết luận/verdict của Bước 2.2.
    - Đọc độc lập trong danh sách `exact_paths` để xác minh từng mắt xích và chủ động săn tìm kiểm soát bù trừ trong code, ghi vào **Sổ cái Phản biện Thực nghiệm (`Empirical Refutations Ledger`)**.
 4. **Bước 2.4 — `/phase-2-analysis-evidence-gate` (`analysis_evidence_gate`)**:
-   - Chạy `python3 -m localsec.manual_session verify_semantic_claims _analysis`.
+   - Chạy `python -m localsec.manual_session verify_semantic_claims _analysis`.
    - Áp dụng luật cứng `request_plan_is_not_execution` và hạ cấp **Fail-Closed** mọi mắt xích thiếu `ev_...` hoặc bị phản bác trước khi bàn giao danh sách lỗ hổng **Reachable** sang Phase 3.
 
 > **Tương thích ngược (Granular BASV/ACA Mode)**: Nếu người vận hành yêu cầu chạy chi tiết từng bước rời của BASV v1.0 hoặc ACA v1.0 và xuất báo cáo qua `finalize_basv_repo` / `finalize_aca`, bạn vẫn có thể gọi trực tiếp các sub-skills tương ứng.

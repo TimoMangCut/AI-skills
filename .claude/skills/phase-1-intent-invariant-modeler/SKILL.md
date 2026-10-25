@@ -31,8 +31,8 @@ Thay vì tách rời Recon kỹ thuật và Recon nghiệp vụ thành 2 phase �
 
 ```bash
 # 1. Đọc tài liệu đặc tả / OpenAPI / Proto / SQL / Manifest
-python3 -m localsec.manual_session read_file <repo_name> README.md 1 180 --skill intent_invariant_modeler
+python -m localsec.manual_session read_file <repo_name> README.md 1 180 --skill intent_invariant_modeler
 
 # 2. Lưu mô hình ý định & bất biến S-F-O-P-C
-python3 -m localsec.manual_session submit_skill <repo_name> intent_invariant_modeler /tmp/intent_invariant_modeler_<repo_name>.json
+python -m localsec.manual_session submit_skill <repo_name> intent_invariant_modeler .localsec/tmp/intent_invariant_modeler_<repo_name>.json
 ```

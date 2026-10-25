@@ -26,13 +26,13 @@ Theo nguyên lý **Refute-First (Bác bỏ trước, khẳng định sau)**: m�
 
 ```bash
 # 1. Tạo ngữ cảnh mù kết luận cho chuỗi tấn công
-python3 -m localsec.manual_session prepare_blinded_chain_verifier _analysis
+python -m localsec.manual_session prepare_blinded_chain_verifier _analysis
 
 # 2. Chỉ đọc trong danh sách exact_paths để tìm bằng chứng xác nhận hoặc bác bỏ
-python3 -m localsec.manual_session read_file <repo_name> <path> <start_line> <end_line> \
+python -m localsec.manual_session read_file <repo_name> <path> <start_line> <end_line> \
   --skill blinded_counterevidence_challenger \
   --allowed-paths <exact_paths>
 
 # 3. Lưu kết quả phản biện đối kháng
-python3 -m localsec.manual_session submit_skill _analysis blinded_counterevidence_challenger /tmp/blinded_counterevidence_challenger.json
+python -m localsec.manual_session submit_skill _analysis blinded_counterevidence_challenger .localsec/tmp/blinded_counterevidence_challenger.json
 ```

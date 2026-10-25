@@ -21,7 +21,7 @@ Nếu phát hiện chốt chặn làm gãy một mắt xích, hãy hạ cấp k�
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_chain_verifier <chain_json>
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file _analysis "<repo_name>:<rel_path>" 1 160 --skill counterevidence_challenger
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis counterevidence_challenger <json_file> --artifact-id <chal_id>
+python -m localsec.manual_session prepare_blinded_chain_verifier <chain_json>
+python -m localsec.manual_session read_file _analysis "<repo_name>:<rel_path>" 1 160 --skill counterevidence_challenger
+python -m localsec.manual_session submit_skill _analysis counterevidence_challenger <json_file> --artifact-id <chal_id>
 ```

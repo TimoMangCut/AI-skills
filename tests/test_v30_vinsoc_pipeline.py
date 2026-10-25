@@ -306,6 +306,43 @@ class LocalSecV30VinSOCPipelineTests(unittest.TestCase):
         }
         validate_agent_output("sfop_risk_calibrator", valid_sfop, {ev})
 
+    def test_windows_bridge_allows_python_m_localsec_without_pythonpath(self) -> None:
+        import json
+        import os
+        import subprocess
+        import sys
+
+        repo_root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp)
+            svc = proj / "win-svc"
+            svc.mkdir()
+            (svc / "main.py").write_text("print('win-ok')\n", encoding="utf-8")
+
+            env_setup = {**os.environ, "AI_SKILLS_SKIP_TESTS": "1"}
+            subprocess.run(
+                [sys.executable, str(repo_root / "setup_bootstrap.py")],
+                cwd=str(proj),
+                env=env_setup,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            # Run `python -m localsec.manual_session list_dir win-svc . --skill codebase_scout` WITHOUT PYTHONPATH
+            env_no_py = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+            res = subprocess.run(
+                [sys.executable, "-m", "localsec.manual_session", "list_dir", "win-svc", ".", "--skill", "codebase_scout"],
+                cwd=str(proj),
+                env=env_no_py,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            out_json = json.loads(res.stdout)
+            self.assertTrue(out_json.get("ok"))
+            self.assertIn("main.py", [e["path"] for e in out_json.get("result", {}).get("entries", [])])
+
 
 if __name__ == "__main__":
     unittest.main()
+

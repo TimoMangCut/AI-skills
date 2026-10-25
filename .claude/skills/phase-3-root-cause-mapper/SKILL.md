@@ -21,6 +21,6 @@ Tìm xem cùng một khiếm khuyết gốc rễ đó đang đồng thời mở 
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file _analysis "<repo_name>:<rel_path>" 1 160 --skill root_cause_mapper
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis root_cause_mapper <json_file> --artifact-id <rc_id>
+python -m localsec.manual_session read_file _analysis "<repo_name>:<rel_path>" 1 160 --skill root_cause_mapper
+python -m localsec.manual_session submit_skill _analysis root_cause_mapper <json_file> --artifact-id <rc_id>
 ```

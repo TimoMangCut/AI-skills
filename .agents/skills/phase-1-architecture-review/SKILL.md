@@ -21,6 +21,6 @@ Tự phản biện: một cơ chế phòng thủ có trong thư viện dùng chu
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill architecture_review
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> architecture_review <json_file>
+python -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill architecture_review
+python -m localsec.manual_session submit_skill <repo_name> architecture_review <json_file>
 ```

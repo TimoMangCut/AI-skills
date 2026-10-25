@@ -43,7 +43,7 @@ Kết hợp kết quả từ Phase 2 (độ nghiêm trọng thuần mã nguồn 
 
 ```bash
 # Lưu và kiểm định kết quả hiệu chuẩn rủi ro S-F-O-P-C
-python3 -m localsec.manual_session submit_skill _analysis sfop_risk_calibrator /tmp/sfop_risk_calibrator.json
+python -m localsec.manual_session submit_skill _analysis sfop_risk_calibrator .localsec/tmp/sfop_risk_calibrator.json
 ```
 
 ```json

@@ -102,70 +102,79 @@ Khi bạn muốn **chạy lại hoặc kiểm tra sâu đúng 1 bước cụ th�
 
 ---
 
-## 4. Bảng Tra cứu Nhanh Các Lệnh CLI (`localsec.manual_session`)
+## 4. Bảng Tra cứu Nhanh Các Lệnh CLI Chuẩn Windows (`python -m localsec.manual_session`)
 
-Tất cả các thao tác đọc file, sinh mã bằng chứng `ev_...`, kiểm tra tiến độ và đóng gói báo cáo đều đi qua `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session`:
+Trên nhánh `wins`, `setup.ps1` / `setup.bat` tự động cài cầu nối package `localsec` và thư mục tạm `.localsec/tmp/` tại `<Project-Root>`, giúp mọi thao tác chạy trực tiếp qua `python -m localsec.manual_session` trên cả **PowerShell**, **CMD**, và **Git Bash** mà không cần khai báo biến môi trường POSIX inline:
 
-```bash
+```powershell
+# 0. Các lệnh v3.0 cốt lõi (AI Scout, Tailored Extractor, Attack Companions, Visibility Tracker)
+python -m localsec.manual_session register_scout_map <repo_name> .localsec/tmp/codebase_scout.json
+python -m localsec.manual_session run_tailored_extractor <repo_name> --mode USE_STANDARD_EXTRACTOR --canary-files <file1> <file2>
+python -m localsec.manual_session select_attack_companions <repo_name> --archetypes connected_car_and_ota ev_charging_and_energy
+python -m localsec.manual_session audit_visibility <repo_name>
+python -m localsec.manual_session diff_prior_run <repo_name> --changed-files <file1>
+
 # 1. Kiểm tra tiến độ hoàn thành các bước của một Phase (1, 2 hoặc 3)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session phase_status <repo_name> --phase 1
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session phase_status <repo_name> --phase 2
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session phase_status _analysis --phase 3
+python -m localsec.manual_session phase_status <repo_name> --phase 1
+python -m localsec.manual_session phase_status <repo_name> --phase 2
+python -m localsec.manual_session phase_status _analysis --phase 3
 
 # 2. Duyệt thư mục và đọc file thủ công để sinh mã bằng chứng ev_...
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session list_dir <repo_name> . --depth 2 --skill repo_profile
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> <start_line> <end_line> --skill <skill_name>
+python -m localsec.manual_session list_dir <repo_name> . --depth 2 --skill codebase_scout
+python -m localsec.manual_session read_file <repo_name> <rel_path> <start_line> <end_line> --skill <skill_name>
 
-# 3. Đọc file liên repo (Federated Cross-Repo Read) cho Phase 2 & Phase 3
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> "<other_repo>:<rel_path>" <start_line> <end_line> --skill business_intent_modeler
+# 3. Đọc file liên repo (Federated Cross-Repo Read) cho Phase 1, 2 & 3
+python -m localsec.manual_session read_file <repo_name> "<other_repo>:<rel_path>" <start_line> <end_line> --skill intent_invariant_modeler
 
 # 4. Đọc file giới hạn phạm vi (Bounded Read) cho targeted_verifier
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> <start_line> <end_line> --skill targeted_verifier --allowed-paths <path1> <path2>
+python -m localsec.manual_session read_file <repo_name> <rel_path> <start_line> <end_line> --skill targeted_verifier --allowed-paths <path1> <path2>
 
 # 5. Liệt kê toàn bộ bằng chứng ev_... đã thu thập của một repo
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session list_evidence <repo_name>
+python -m localsec.manual_session list_evidence <repo_name>
 
 # 6. Tạo gói ngữ cảnh làm mù (Context-Blinding) cho Phase 2 & Phase 3
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_challenger <repo_name>
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_targeted_verifier <repo_name>
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_chain_verifier _analysis
+python -m localsec.manual_session prepare_blinded_challenger <repo_name>
+python -m localsec.manual_session prepare_blinded_targeted_verifier <repo_name>
+python -m localsec.manual_session prepare_blinded_chain_verifier _analysis
 
 # 7. Nộp và kiểm định JSON đầu ra của một skill (Schema + Evidence IDs + Epistemic Gates)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> <skill_name> <json_path>
+python -m localsec.manual_session submit_skill <repo_name> <skill_name> .localsec/tmp/<skill_name>.json
 
 # 8. Trích xuất danh sách claims để kiểm toán độc lập (Evidence Auditor)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session extract_claims <repo_name>          # Phase 1
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session extract_basv_claims <repo_name>     # Phase 2
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session extract_aca_claims _analysis        # Phase 3
+python -m localsec.manual_session extract_claims <repo_name>          # Phase 1
+python -m localsec.manual_session extract_basv_claims <repo_name>     # Phase 2
+python -m localsec.manual_session extract_aca_claims _analysis        # Phase 3
 
 # 9. Đóng gói và xuất báo cáo cuối cùng cho từng Phase (chỉ chạy được khi phase_status báo FINALIZE_READY)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_repo <repo_name>           # Phase 1 (từng repo)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_system                     # Phase 1 (toàn hệ thống)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_basv_repo <repo_name>      # Phase 2 (từng repo)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_basv_system                # Phase 2 (toàn hệ thống)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_aca _analysis              # Phase 3 (toàn dự án)
+python -m localsec.manual_session finalize_repo <repo_name>           # Phase 1 (từng repo)
+python -m localsec.manual_session finalize_system --cross-repo .localsec/tmp/cross_repo.json --sys-audit .localsec/tmp/sys_audit.json --diagrams .localsec/tmp/diagrams.json
+python -m localsec.manual_session finalize_basv_repo <repo_name>      # Phase 2 (từng repo)
+python -m localsec.manual_session finalize_basv_system                # Phase 2 (toàn hệ thống)
+python -m localsec.manual_session finalize_aca _analysis              # Phase 3 (toàn dự án)
 ```
 
 ---
 
-## 5. Hướng dẫn Áp Dụng Bộ Skills Vào Dự Án Mới (`<Project-Root>/AI-skills/`)
+## 5. Hướng dẫn Áp Dụng Bộ Skills Vào Dự Án Mới Trên Windows (`<Project-Root>\AI-skills\`)
 
-Khi bắt đầu kiểm toán bảo mật cho một dự án mới (`<Project-Root>`), bạn **không cần** bung toàn bộ code Python và JSON Schema ra ngoài thư mục gốc của dự án. Thực hiện 3 bước sau tại `<Project-Root>`:
+Khi bắt đầu kiểm toán bảo mật cho một dự án mới (`<Project-Root>`) trên Windows, thực hiện 3 bước sau tại `<Project-Root>`:
 
-1. **Clone `AI-skills` vào trong `<Project-Root>` và chạy `setup.sh`**:
-   ```bash
+1. **Clone nhánh `wins` của `AI-skills` vào trong `<Project-Root>` và chạy `setup.ps1` (hoặc `setup.bat`)**:
+   ```powershell
    cd <Project-Root>
-   git clone https://github.com/TimoMangCut/AI-skills.git
-   sh AI-skills/setup.sh
+   git clone -b wins https://github.com/TimoMangCut/AI-skills.git
+   .\AI-skills\setup.ps1
+   # Hoặc trên CMD:      AI-skills\setup.bat
+   # Hoặc trên Git Bash: sh AI-skills/setup.sh
    ```
-   - `setup.sh` đồng bộ 28 skills vào `<Project-Root>/.agents/skills/` và `.agents/rules/soul.md` (giữ nguyên các skill riêng sẵn có của dự án), gộp an toàn `AGENTS.md` / `SOUL.md` bằng thẻ `<!-- BEGIN AI-SKILLS:... -->` mà không làm mất nội dung cũ, và tự động cấu hình `.git/info/exclude` để giữ sạch `git status` cho `<Project-Root>`.
-   - Toàn bộ bộ máy `localsec/`, `schemas/`, `contracts/`, `skills/`, `localsec.toml` vẫn nằm gọn trong `<Project-Root>/AI-skills/` và được các `SKILL.md` ánh xạ trực tiếp qua đường dẫn `AI-skills/...` cùng `PYTHONPATH=AI-skills:.`.
-   - Khi muốn gỡ bộ skills khỏi `<Project-Root>` (khôi phục nguyên trạng `AGENTS.md`, `SOUL.md` và `.git/info/exclude`): chạy `sh AI-skills/setup.sh --uninstall`.
+   - `setup.ps1` / `setup.bat` đồng bộ **41 skills** vào `<Project-Root>\.agents\skills\` và `<Project-Root>\.claude\skills\` (giữ nguyên các skill riêng sẵn có của dự án), tạo cầu nối `<Project-Root>\localsec\__init__.py` cùng `<Project-Root>\.localsec\tmp\`, gộp an toàn `AGENTS.md` / `SOUL.md` / `CLAUDE.md` bằng thẻ `<!-- BEGIN AI-SKILLS:... -->`, và tự động cấu hình `.git/info/exclude` để giữ sạch `git status` cho `<Project-Root>`.
+   - Khi muốn gỡ bộ skills khỏi `<Project-Root>`: chạy `.\AI-skills\setup.ps1 --uninstall` (hoặc `AI-skills\setup.bat --uninstall`).
 2. **Kiểm tra bộ cổng kiểm định (Unit Tests)**:
-   ```bash
-   PYTHONPATH=AI-skills:. python3 -m unittest discover -s AI-skills/tests
+   ```powershell
+   python -m unittest discover -s AI-skills/tests
    ```
    Đảm bảo toàn bộ unit tests đều `OK`.
 3. **Khởi chạy tuần tự**:
-   Mở `<Project-Root>` trong Antigravity IDE và gọi lần lượt `/phase-1-orchestrator` $\rightarrow$ `/phase-2-orchestrator` $\rightarrow$ `/phase-3-orchestrator` theo đúng các mẫu Prompt ở **Mục 2**.
+   Mở `<Project-Root>` trong Antigravity IDE hoặc Claude Code trên Windows và gọi lần lượt `/phase-1-orchestrator` $\rightarrow$ `/phase-2-orchestrator` $\rightarrow$ `/phase-3-orchestrator`.
+
 

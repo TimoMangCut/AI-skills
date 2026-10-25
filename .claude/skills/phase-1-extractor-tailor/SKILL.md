@@ -30,16 +30,16 @@ Dựa vào kết quả `codebase_scout.json` từ Bước 1.1, bạn sẽ đánh
 
 ```bash
 # Trường hợp 1: Kiểm thử và chạy extractor trên canary files đã biết từ Bước 1.1
-python3 -m localsec.manual_session run_tailored_extractor <repo_name> \
+python -m localsec.manual_session run_tailored_extractor <repo_name> \
   --mode USE_STANDARD_EXTRACTOR \
   --canary-files src/controllers/charging.controller.ts
 
 # Trường hợp 2: Bỏ qua extractor để đọc trực tiếp (khi code động hoặc C++ macro phức tạp)
-python3 -m localsec.manual_session run_tailored_extractor <repo_name> \
+python -m localsec.manual_session run_tailored_extractor <repo_name> \
   --mode SKIP_EXTRACTOR_DIRECT_READ
 
 # Hoặc lưu kết quả tùy chỉnh qua submit_skill
-python3 -m localsec.manual_session submit_skill <repo_name> extractor_tailor /tmp/extractor_tailor_<repo_name>.json
+python -m localsec.manual_session submit_skill <repo_name> extractor_tailor .localsec/tmp/extractor_tailor_<repo_name>.json
 ```
 
 ---

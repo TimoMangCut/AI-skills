@@ -21,6 +21,6 @@ Phase 2.2 — Phản biện đối kháng mô hình ý định nghiệp vụ tro
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_challenger <repo_name>
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> business_invariant_challenger <json_file>
+python -m localsec.manual_session prepare_blinded_challenger <repo_name>
+python -m localsec.manual_session submit_skill <repo_name> business_invariant_challenger <json_file>
 ```

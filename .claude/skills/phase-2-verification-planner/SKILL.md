@@ -21,5 +21,5 @@ Tuyệt đối không cài kết luận mỏ neo vào câu hỏi: hãy hỏi 'H�
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> verification_planner <json_file>
+python -m localsec.manual_session submit_skill <repo_name> verification_planner <json_file>
 ```

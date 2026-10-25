@@ -85,7 +85,17 @@ def _load_workspace(
         safe_name = _safe_name(repo_name)
     analysis_cfg = dict(cfg.get("analysis", {}))
     ignored = list(analysis_cfg.get("ignored_dirs", []))
-    for extra_ignore in (_toolkit_root().name, ".agents", ".localsec", str(analysis_cfg.get("output_dir", "documents"))):
+    extra_ignores = [
+        _toolkit_root().name,
+        ".agents",
+        ".claude",
+        ".localsec",
+        str(analysis_cfg.get("output_dir", "documents")),
+    ]
+    bridge_init = root / "localsec" / "__init__.py"
+    if bridge_init.is_file() and "AI-SKILLS-BRIDGE" in bridge_init.read_text(encoding="utf-8", errors="ignore"):
+        extra_ignores.append("localsec")
+    for extra_ignore in extra_ignores:
         if extra_ignore and extra_ignore not in ignored:
             ignored.append(extra_ignore)
     analysis_cfg["ignored_dirs"] = ignored
@@ -147,8 +157,23 @@ def _save_workspace(ws: ManualWorkspace, run_dir: Path) -> None:
     )
 
 
+def _resolve_json_arg(raw_path: str, root: Path) -> Path:
+    cand = Path(raw_path)
+    if cand.is_file():
+        return cand
+    rel_cand = root / raw_path
+    if rel_cand.is_file():
+        return rel_cand
+    norm = raw_path.replace("\\", "/")
+    if norm.startswith("/tmp/"):
+        fallback = root / ".localsec" / "tmp" / norm[5:]
+        if fallback.is_file():
+            return fallback
+    return cand
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python3 -m localsec.manual_session")
+    parser = argparse.ArgumentParser(prog="python -m localsec.manual_session")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_ls = sub.add_parser("list_dir", help="List directory via ManualWorkspace")
@@ -264,6 +289,7 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     root = _project_root()
+    (root / ".localsec" / "tmp").mkdir(parents=True, exist_ok=True)
     cfg = load_config(_resolve_config_path(root))
 
     if args.cmd == "select_attack_companions":
@@ -292,7 +318,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "register_scout_map":
         ws, run_dir = _load_workspace(args.repo_name, cfg)
-        payload = json.loads(Path(args.json_file).read_text(encoding="utf-8"))
+        payload = json.loads(_resolve_json_arg(args.json_file, root).read_text(encoding="utf-8"))
         valid_eids = set(ws.evidence.keys()) | set(_all_project_evidence_ids(root).keys())
         validate_agent_output("codebase_scout", payload, valid_eids, evidence_catalog=ws.evidence)
         env = {"skill": "codebase_scout", "version": "3.0.0", "status": "ok", "result": payload}
@@ -338,7 +364,7 @@ def main(argv: list[str] | None = None) -> int:
         if (run_dir / "codebase_scout.json").is_file():
             raw_s = json.loads((run_dir / "codebase_scout.json").read_text(encoding="utf-8"))
             scout_map = raw_s.get("result") if isinstance(raw_s.get("result"), dict) else raw_s
-        ledger_path = Path(args.prior_ledger) if args.prior_ledger else (run_dir / "coverage_ledger.json")
+        ledger_path = _resolve_json_arg(args.prior_ledger, root) if args.prior_ledger else (run_dir / "coverage_ledger.json")
         prior_ledger = json.loads(ledger_path.read_text(encoding="utf-8")) if ledger_path.is_file() else {"records": [], "semantic_clusters": []}
         if isinstance(prior_ledger.get("result"), dict):
             prior_ledger = prior_ledger["result"]
@@ -650,7 +676,7 @@ def main(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                 )
                 return 1
-        payload = json.loads(Path(args.json_file).read_text(encoding="utf-8"))
+        payload = json.loads(_resolve_json_arg(args.json_file, root).read_text(encoding="utf-8"))
         project_ev_map = _all_project_evidence_ids(root)
         merged_catalog = dict(project_ev_map)
         merged_catalog.update(ws.evidence)
@@ -769,7 +795,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "prepare_blinded_chain_verifier":
-        cand_path = Path(args.chain_json)
+        cand_path = _resolve_json_arg(args.chain_json, root)
         if cand_path.is_file():
             chain_data = json.loads(cand_path.read_text(encoding="utf-8"))
             if isinstance(chain_data.get("result"), dict):
@@ -814,10 +840,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "run_aca_request_plan":
-        req_data = json.loads(Path(args.request_json).read_text(encoding="utf-8"))
+        req_data = json.loads(_resolve_json_arg(args.request_json, root).read_text(encoding="utf-8"))
         if isinstance(req_data.get("result"), dict):
             req_data = req_data["result"]
-        prof = json.loads(Path(args.target_profile).read_text(encoding="utf-8")) if args.target_profile else None
+        prof = json.loads(_resolve_json_arg(args.target_profile, root).read_text(encoding="utf-8")) if args.target_profile else None
         res = execute_constrained_local_request(request_plan=req_data, target_profile=prof)
         print(json.dumps(res, ensure_ascii=False, indent=2))
         return 0
@@ -1242,8 +1268,8 @@ def main(argv: list[str] | None = None) -> int:
             return raw["result"] if isinstance(raw, dict) and isinstance(raw.get("result"), dict) else raw
 
         interconnections = []
-        if getattr(args, "interconnections", None) and Path(args.interconnections).is_file():
-            ic_raw = json.loads(Path(args.interconnections).read_text(encoding="utf-8"))
+        if getattr(args, "interconnections", None) and _resolve_json_arg(args.interconnections, root).is_file():
+            ic_raw = json.loads(_resolve_json_arg(args.interconnections, root).read_text(encoding="utf-8"))
             interconnections = ic_raw.get("inter_service_connections", ic_raw) if isinstance(ic_raw, dict) else ic_raw
         elif (basv_sys_dir / "01_service_interconnection_matrix.json").is_file():
             interconnections = json.loads(
@@ -1251,16 +1277,16 @@ def main(argv: list[str] | None = None) -> int:
             ).get("inter_service_connections", [])
 
         sys_syn = {}
-        if getattr(args, "synthesis", None) and Path(args.synthesis).is_file():
-            sys_syn = _load_json_unwrapped(Path(args.synthesis))
+        if getattr(args, "synthesis", None) and _resolve_json_arg(args.synthesis, root).is_file():
+            sys_syn = _load_json_unwrapped(_resolve_json_arg(args.synthesis, root))
         elif (sys_run_dir / "business_aware_synthesizer.json").is_file():
             sys_syn = _load_json_unwrapped(sys_run_dir / "business_aware_synthesizer.json")
         elif (basv_sys_dir / "03_system_business_aware_synthesis.json").is_file():
             sys_syn = _load_json_unwrapped(basv_sys_dir / "03_system_business_aware_synthesis.json")
 
         sys_aud = {}
-        if getattr(args, "sys_audit", None) and Path(args.sys_audit).is_file():
-            sys_aud = _load_json_unwrapped(Path(args.sys_audit))
+        if getattr(args, "sys_audit", None) and _resolve_json_arg(args.sys_audit, root).is_file():
+            sys_aud = _load_json_unwrapped(_resolve_json_arg(args.sys_audit, root))
         elif (sys_run_dir / "basv_evidence_auditor.json").is_file():
             sys_aud = _load_json_unwrapped(sys_run_dir / "basv_evidence_auditor.json")
         elif (sys_run_dir / "evidence_auditor.json").is_file():
@@ -1340,9 +1366,9 @@ def main(argv: list[str] | None = None) -> int:
                 for rec in rr.get("evidence", []):
                     sys_evidence[rec["evidence_id"]] = rec
         valid_eids = set(sys_evidence.keys())
-        cross_payload = json.loads(Path(args.cross_repo).read_text(encoding="utf-8"))
-        audit_payload = json.loads(Path(args.sys_audit).read_text(encoding="utf-8"))
-        diag_payload = json.loads(Path(args.diagrams).read_text(encoding="utf-8"))
+        cross_payload = json.loads(_resolve_json_arg(args.cross_repo, root).read_text(encoding="utf-8"))
+        audit_payload = json.loads(_resolve_json_arg(args.sys_audit, root).read_text(encoding="utf-8"))
+        diag_payload = json.loads(_resolve_json_arg(args.diagrams, root).read_text(encoding="utf-8"))
         if not diag_payload.get("repo_diagrams"):
             merged_repo_diags = []
             for rr in repo_results:

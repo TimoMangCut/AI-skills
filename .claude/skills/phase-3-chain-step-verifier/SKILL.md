@@ -21,7 +21,7 @@ Phase 3.4 — Xác minh độc lập từng mắt xích (`step_results`) và t�
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_chain_verifier <chain_json>
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file _analysis "<repo_name>:<rel_path>" 1 160 --skill chain_step_verifier
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis chain_step_verifier <json_file> --artifact-id <verification_id>
+python -m localsec.manual_session prepare_blinded_chain_verifier <chain_json>
+python -m localsec.manual_session read_file _analysis "<repo_name>:<rel_path>" 1 160 --skill chain_step_verifier
+python -m localsec.manual_session submit_skill _analysis chain_step_verifier <json_file> --artifact-id <verification_id>
 ```

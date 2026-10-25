@@ -21,5 +21,5 @@ Mỗi bước request phải định nghĩa rõ tiêu chí phân biệt: phản 
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis request_sequence_designer <json_file> --artifact-id <req_id>
+python -m localsec.manual_session submit_skill _analysis request_sequence_designer <json_file> --artifact-id <req_id>
 ```

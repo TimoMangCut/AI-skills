@@ -26,14 +26,14 @@ Bạn đang thực thi **Bước 1.4 (`unified_surface_mapper`)** trong **Phase 
 
 ```bash
 # 1. Lấy các khối Attack-Class Companion nguyên văn phù hợp với techstack/archetype của repo
-python3 -m localsec.manual_session select_attack_companions <repo_name>
+python -m localsec.manual_session select_attack_companions <repo_name>
 
 # 2. Đọc mã nguồn thực chất trên từng target_module (tránh đọc <=8 dòng gây lỗi Anti-Grazing)
-python3 -m localsec.manual_session read_file <repo_name> <path> 1 160 --skill unified_surface_mapper
+python -m localsec.manual_session read_file <repo_name> <path> 1 160 --skill unified_surface_mapper
 
 # 3. Lưu kết quả unified_surface_mapper và coverage_ledger
-python3 -m localsec.manual_session submit_skill <repo_name> unified_surface_mapper /tmp/unified_surface_mapper_<repo_name>.json
-python3 -m localsec.manual_session submit_skill <repo_name> coverage_ledger /tmp/coverage_ledger_<repo_name>.json
+python -m localsec.manual_session submit_skill <repo_name> unified_surface_mapper .localsec/tmp/unified_surface_mapper_<repo_name>.json
+python -m localsec.manual_session submit_skill <repo_name> coverage_ledger .localsec/tmp/coverage_ledger_<repo_name>.json
 ```
 
 ---

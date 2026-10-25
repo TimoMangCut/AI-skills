@@ -21,5 +21,5 @@ Chứng minh tính bắc cầu của từng cạnh nối: đầu ra, trạng th�
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis attack_chain_constructor <json_file> --artifact-id <chain_id>
+python -m localsec.manual_session submit_skill _analysis attack_chain_constructor <json_file> --artifact-id <chain_id>
 ```

@@ -21,8 +21,8 @@ Không một sai lệch nào được đưa vào nhóm Confirmed nếu chưa vư
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session extract_basv_claims <repo_name>
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> evidence_auditor <audit_json>
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> business_aware_synthesizer <synth_json>
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_basv_repo <repo_name>
+python -m localsec.manual_session extract_basv_claims <repo_name>
+python -m localsec.manual_session submit_skill <repo_name> evidence_auditor <audit_json>
+python -m localsec.manual_session submit_skill <repo_name> business_aware_synthesizer <synth_json>
+python -m localsec.manual_session finalize_basv_repo <repo_name>
 ```

@@ -21,5 +21,5 @@ Xác định rõ cho mỗi ứng viên: điều kiện tiên quyết nào còn t
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis finding_intake <json_file>
+python -m localsec.manual_session submit_skill _analysis finding_intake <json_file>
 ```

@@ -40,10 +40,10 @@ Với mỗi lỗ hổng đã qua Phase 2, bạn phải xác định **Tác nhân
 
 ```bash
 # Đọc thêm file cấu hình RBAC/IAM/Role mapping nếu cần xác minh quyền của Actor
-python3 -m localsec.manual_session read_file <repo_name> <path> 1 120 --skill actor_and_feasibility_assessor
+python -m localsec.manual_session read_file <repo_name> <path> 1 120 --skill actor_and_feasibility_assessor
 
 # Lưu kết quả đánh giá Actor & Feasibility
-python3 -m localsec.manual_session submit_skill _analysis actor_and_feasibility_assessor /tmp/actor_and_feasibility_assessor.json
+python -m localsec.manual_session submit_skill _analysis actor_and_feasibility_assessor .localsec/tmp/actor_and_feasibility_assessor.json
 ```
 
 ```json

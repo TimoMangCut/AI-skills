@@ -25,8 +25,8 @@ Bạn đang thực thi **Bước 2.2 (`deep_trace_chain_analyst`)** trong **Phas
 
 ```bash
 # 1. Đọc sâu các dòng code dọc theo đường đi của chuỗi tấn công
-python3 -m localsec.manual_session read_file <repo_name> <path> <start_line> <end_line> --skill deep_trace_chain_analyst
+python -m localsec.manual_session read_file <repo_name> <path> <start_line> <end_line> --skill deep_trace_chain_analyst
 
 # 2. Lưu kết quả phân tích sâu
-python3 -m localsec.manual_session submit_skill _analysis deep_trace_chain_analyst /tmp/deep_trace_chain_analyst.json
+python -m localsec.manual_session submit_skill _analysis deep_trace_chain_analyst .localsec/tmp/deep_trace_chain_analyst.json
 ```

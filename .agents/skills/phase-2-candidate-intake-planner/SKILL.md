@@ -26,8 +26,8 @@ Thay vì quét lại toàn bộ mã nguồn từ đầu, Phase 2 **chỉ tập t
 
 ```bash
 # 1. Chọn các khối Attack-Class Companion nguyên văn cho từng repo liên quan
-python3 -m localsec.manual_session select_attack_companions <repo_name>
+python -m localsec.manual_session select_attack_companions <repo_name>
 
 # 2. Lưu danh sách Candidate Queue đã chuẩn hóa
-python3 -m localsec.manual_session submit_skill _analysis candidate_intake_planner /tmp/candidate_intake_planner.json
+python -m localsec.manual_session submit_skill _analysis candidate_intake_planner .localsec/tmp/candidate_intake_planner.json
 ```

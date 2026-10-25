@@ -21,6 +21,6 @@ Không nhảy cóc qua các lớp trung gian: mỗi hop đánh dấu `directly_r
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file _analysis "<repo_name>:<rel_path>" 1 160 --skill code_trace_builder
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis code_trace_builder <json_file> --artifact-id <trace_id>
+python -m localsec.manual_session read_file _analysis "<repo_name>:<rel_path>" 1 160 --skill code_trace_builder
+python -m localsec.manual_session submit_skill _analysis code_trace_builder <json_file> --artifact-id <trace_id>
 ```

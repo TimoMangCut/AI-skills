@@ -21,6 +21,6 @@ Không liệt kê lý thuyết chung chung: mỗi kịch bản đe dọa phải 
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill threat_model
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> threat_model <json_file>
+python -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill threat_model
+python -m localsec.manual_session submit_skill <repo_name> threat_model <json_file>
 ```

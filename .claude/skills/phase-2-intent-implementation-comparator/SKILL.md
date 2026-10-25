@@ -22,5 +22,5 @@ Tuân thủ cổng bằng chứng kép: chỉ được kết luận `mismatch` �
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> intent_implementation_comparator <json_file>
+python -m localsec.manual_session submit_skill <repo_name> intent_implementation_comparator <json_file>
 ```

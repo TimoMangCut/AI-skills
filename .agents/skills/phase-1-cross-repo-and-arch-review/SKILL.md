@@ -29,5 +29,5 @@ Bước này tổng hợp rủi ro cấp kiến trúc và xuyên qua nhiều rep
 
 ```bash
 # Lưu kết quả đánh giá kiến trúc & liên repo
-python3 -m localsec.manual_session submit_skill <repo_name> cross_repo_and_arch_review /tmp/cross_repo_and_arch_review_<repo_name>.json
+python -m localsec.manual_session submit_skill <repo_name> cross_repo_and_arch_review .localsec/tmp/cross_repo_and_arch_review_<repo_name>.json
 ```

@@ -21,6 +21,6 @@ Kiểm tra критически tại mỗi ranh giới tin cậy (Trust Boundar
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill dataflow
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> dataflow <json_file>
+python -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill dataflow
+python -m localsec.manual_session submit_skill <repo_name> dataflow <json_file>
 ```

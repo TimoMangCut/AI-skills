@@ -22,9 +22,9 @@ Bắt buộc tìm kiếm cả bằng chứng ủng hộ (`evidence_ids`) lẫn b
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_targeted_verifier <repo_name>
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill targeted_verifier --allowed-paths "<path1>,<path2>"
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session verify_semantic_claims <repo_name>
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> targeted_verifier <json_file>
+python -m localsec.manual_session prepare_blinded_targeted_verifier <repo_name>
+python -m localsec.manual_session read_file <repo_name> <rel_path> 1 160 --skill targeted_verifier --allowed-paths "<path1>,<path2>"
+python -m localsec.manual_session verify_semantic_claims <repo_name>
+python -m localsec.manual_session submit_skill <repo_name> targeted_verifier <json_file>
 ```
 

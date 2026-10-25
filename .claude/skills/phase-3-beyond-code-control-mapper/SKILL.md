@@ -37,10 +37,10 @@ Một lỗ hổng tồn tại trong mã nguồn ứng dụng không đồng ngh�
 
 ```bash
 # Đọc các file cấu hình Ingress, Helm, Terraform, Kong, Docker Compose nếu có trong repo
-python3 -m localsec.manual_session read_file <repo_name> <path> 1 140 --skill beyond_code_control_mapper
+python -m localsec.manual_session read_file <repo_name> <path> 1 140 --skill beyond_code_control_mapper
 
 # Lưu kết quả đánh giá Beyond-Code Controls
-python3 -m localsec.manual_session submit_skill _analysis beyond_code_control_mapper /tmp/beyond_code_control_mapper.json
+python -m localsec.manual_session submit_skill _analysis beyond_code_control_mapper .localsec/tmp/beyond_code_control_mapper.json
 ```
 
 ```json

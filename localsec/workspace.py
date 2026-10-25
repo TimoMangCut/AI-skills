@@ -52,8 +52,13 @@ def sanitize_untrusted_source_text(text: str) -> tuple[str, list[str]]:
 
 
 def _safe_read_utf8_file(target: Path, max_bytes: int) -> str:
-    """Open regular file with O_NOFOLLOW | O_NONBLOCK and verify descriptor is a regular file."""
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    """Open regular file with O_RDONLY | O_BINARY | O_NOFOLLOW | O_NONBLOCK and verify descriptor is a regular file."""
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_BINARY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
     fd: int | None = None
     try:
         fd = os.open(str(target), flags)
@@ -488,17 +493,41 @@ class ManualWorkspace:
             else (self.root.parent if self.root.parent.is_dir() else None)
         )
 
-    @staticmethod
-    def _clean_relative(raw: Any) -> str:
+    WINDOWS_RESERVED_NAMES = {
+        "con", "prn", "aux", "nul",
+        "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+        "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+    }
+
+    @classmethod
+    def _clean_relative(cls, raw: Any) -> str:
         if not isinstance(raw, str) or not raw.strip():
             raise WorkspaceError("path must be a non-empty relative path")
         raw = raw.replace("\\", "/")
+        if raw.startswith("//") or re.match(r"^[A-Za-z]:", raw):
+            raise WorkspaceError("absolute paths and Windows drive/UNC paths are forbidden")
         p = PurePosixPath(raw)
         if p.is_absolute() or any(part in {"..", ""} for part in p.parts):
             if raw == ".":
                 return "."
             raise WorkspaceError("absolute paths and parent-directory traversal are forbidden")
+        for part in p.parts:
+            stem = part.split(".", 1)[0].lower()
+            if stem in cls.WINDOWS_RESERVED_NAMES:
+                raise WorkspaceError("Windows reserved device names are forbidden")
         return "." if raw in {".", ""} else p.as_posix()
+
+    @staticmethod
+    def _is_symlink_or_junction(path: Path) -> bool:
+        if path.is_symlink():
+            return True
+        is_junc = getattr(path, "is_junction", None)
+        if callable(is_junc):
+            try:
+                return bool(is_junc())
+            except OSError:
+                return False
+        return False
 
     def _resolve_with_repo(self, raw_path: Any, allow_root: bool = True) -> tuple[str, str, Path]:
         if not isinstance(raw_path, str) or not raw_path.strip():
@@ -526,7 +555,7 @@ class ManualWorkspace:
         if clean != ".":
             for part in PurePosixPath(clean).parts:
                 current = current / part
-                if current.is_symlink():
+                if self._is_symlink_or_junction(current):
                     raise WorkspaceError("symlink/reparse paths are not readable")
         try:
             target.resolve(strict=True).relative_to(base_root)
@@ -539,7 +568,7 @@ class ManualWorkspace:
         return clean, target
 
     def _visible(self, path: Path) -> bool:
-        if path.is_symlink():
+        if self._is_symlink_or_junction(path):
             return False
         if path.is_dir() and path.name in self.ignored_dirs:
             return False

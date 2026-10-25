@@ -53,13 +53,13 @@ Mục tiêu của bước này là **tiết kiệm chi phí (usage) nhưng đị
 
 ```bash
 # 1. Xem cấu trúc thư mục gốc (depth 2)
-python3 -m localsec.manual_session list_dir <repo_name> . --depth 2 --skill codebase_scout
+python -m localsec.manual_session list_dir <repo_name> . --depth 2 --skill codebase_scout
 
 # 2. Đọc 3-5 file mẫu để xác định quy ước code (routing, auth decorator, ORM/IPC)
-python3 -m localsec.manual_session read_file <repo_name> <path_to_sample_file> 1 120 --skill codebase_scout
+python -m localsec.manual_session read_file <repo_name> <path_to_sample_file> 1 120 --skill codebase_scout
 
 # 3. Lưu và xác thực kết quả codebase_scout.json
-python3 -m localsec.manual_session register_scout_map <repo_name> /tmp/codebase_scout_<repo_name>.json
+python -m localsec.manual_session register_scout_map <repo_name> .localsec/tmp/codebase_scout_<repo_name>.json
 ```
 
 ---

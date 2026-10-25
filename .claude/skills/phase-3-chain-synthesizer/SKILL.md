@@ -21,8 +21,8 @@ Phân tầng trung thực giữa chuỗi đã xác nhận động (`confirmed`),
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session extract_aca_claims _analysis
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis aca_evidence_auditor <audit_json>
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill _analysis chain_synthesizer <synth_json>
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_aca _analysis
+python -m localsec.manual_session extract_aca_claims _analysis
+python -m localsec.manual_session submit_skill _analysis aca_evidence_auditor <audit_json>
+python -m localsec.manual_session submit_skill _analysis chain_synthesizer <synth_json>
+python -m localsec.manual_session finalize_aca _analysis
 ```

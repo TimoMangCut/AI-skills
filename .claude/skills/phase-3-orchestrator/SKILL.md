@@ -25,7 +25,7 @@ Sau khi Phase 2 đã chứng minh một lỗ hổng/chuỗi tấn công là **Re
      - `compromised_edge_device_tbox_charger_robot` (T-Box xe, trụ sạc OCPP, Robot, PLC)
      - `privileged_admin_devops`
    - Đánh giá **Chi phí chiếm đoạt danh tính (`identity_acquisition_cost`: `low` | `medium` | `high`)**, điều kiện vận hành tiên quyết (`operational_preconditions`) và ghi nhận trung thực nếu việc kiểm chứng thực tế đang bị chặn bởi môi trường (`blocked_by_environment: true`, ví dụ thiếu tài khoản test role Dealer hoặc thiết bị phần cứng).
-   - Lưu qua CLI: `python3 -m localsec.manual_session submit_skill _analysis actor_and_feasibility_assessor /tmp/actor_and_feasibility_assessor.json`.
+   - Lưu qua CLI: `python -m localsec.manual_session submit_skill _analysis actor_and_feasibility_assessor .localsec/tmp/actor_and_feasibility_assessor.json`.
 
 2. **Bước 3.2 — `/phase-3-beyond-code-control-mapper` (`beyond_code_control_mapper`)**:
    - Đánh giá **Mức độ Phơi nhiễm Hạ tầng (`exposure_tier`)**:
@@ -33,7 +33,7 @@ Sau khi Phase 2 đã chứng minh một lỗ hổng/chuỗi tấn công là **Re
      - `partner_b2b_mtls_vpn` vs `internal_vpc_rfc1918` (`10.x`) vs `air_gapped_ot_cell_vlan`
    - Đánh giá các **Kiểm soát Bù trừ Ngoài Mã nguồn (`compensating_controls`)**: Cloudflare WAF, Kong/KrakenD Gateway plugin, K8s NetworkPolicy, AWS IoT Core Policy, mTLS pinning, Hardware BMS Cutoff / PLC Safety Interlock.
    - **Luật Cứng**: Một kiểm soát ngoài code đang ở trạng thái `status: "hypothesis"` (chưa có bằng chứng cấu hình/IaC xác nhận) **TUYỆT ĐỐI KHÔNG ĐƯỢC GÁN `mitigation_effect: "blocks_exploit"`**.
-   - Lưu qua CLI: `python3 -m localsec.manual_session submit_skill _analysis beyond_code_control_mapper /tmp/beyond_code_control_mapper.json`.
+   - Lưu qua CLI: `python -m localsec.manual_session submit_skill _analysis beyond_code_control_mapper .localsec/tmp/beyond_code_control_mapper.json`.
 
 3. **Bước 3.3 — `/phase-3-sfop-risk-calibrator` (`sfop_risk_calibrator`)**:
    - Đánh giá tác động độc lập trên **5 trục S-F-O-P-C**:
@@ -46,4 +46,4 @@ Sau khi Phase 2 đã chứng minh một lỗ hổng/chuỗi tấn công là **Re
      1. **`overall_risk <= max_impact`**: `contextual_risk_rating` không bao giờ vượt quá `max_impact` của 5 trục (cấm cộng dồn đa trục).
      2. **`Safety Owner != Security Risk Owner`**: Khi `safety != "negligible"`, bắt buộc khai báo `safety_owner` (HSE / Functional Safety) tách biệt với `risk_owner`.
      3. **Giữ song song `code_verified_severity` (từ Phase 2) và `contextual_risk_rating` (từ Phase 3)**.
-   - Lưu qua CLI: `python3 -m localsec.manual_session submit_skill _analysis sfop_risk_calibrator /tmp/sfop_risk_calibrator.json`.
+   - Lưu qua CLI: `python -m localsec.manual_session submit_skill _analysis sfop_risk_calibrator .localsec/tmp/sfop_risk_calibrator.json`.

@@ -22,8 +22,8 @@ Không chấp nhận suy diễn hợp lý bề ngoài: nếu trích đoạn ev_.
 
 ## Lệnh Thực thi Chuẩn (Portable CLI)
 ```bash
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session extract_claims <repo_name>
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session verify_semantic_claims <repo_name>
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> evidence_auditor <json_file>
+python -m localsec.manual_session extract_claims <repo_name>
+python -m localsec.manual_session verify_semantic_claims <repo_name>
+python -m localsec.manual_session submit_skill <repo_name> evidence_auditor <json_file>
 ```
 
