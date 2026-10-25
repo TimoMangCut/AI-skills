@@ -36,7 +36,17 @@
             ]
           },
           "minimum_viable_actor": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "external_unauthenticated",
+              "authenticated_user",
+              "b2b_partner_cross_scope",
+              "rogue_insider_or_operator",
+              "compromised_internal_component",
+              "physical_or_local_bus_attacker",
+              "authenticated_ev_driver",
+              "compromised_edge_device_tbox_charger_robot"
+            ]
           },
           "identity_acquisition_cost": {
             "type": "string",
@@ -48,7 +58,46 @@
               "type": [
                 "string",
                 "object"
-              ]
+              ],
+              "properties": {
+                "precondition": {
+                  "type": "string"
+                },
+                "condition": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "yes",
+                    "no",
+                    "unknown"
+                  ]
+                },
+                "precondition_status": {
+                  "type": "string",
+                  "enum": [
+                    "yes",
+                    "no",
+                    "unknown"
+                  ]
+                },
+                "evidence_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "searched_paths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
             }
           },
           "operational_preconditions": {
@@ -57,7 +106,46 @@
               "type": [
                 "string",
                 "object"
-              ]
+              ],
+              "properties": {
+                "precondition": {
+                  "type": "string"
+                },
+                "condition": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "yes",
+                    "no",
+                    "unknown"
+                  ]
+                },
+                "precondition_status": {
+                  "type": "string",
+                  "enum": [
+                    "yes",
+                    "no",
+                    "unknown"
+                  ]
+                },
+                "evidence_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "searched_paths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
             }
           },
           "attack_feasibility": {
@@ -104,15 +192,30 @@
           "chain_id": {
             "type": "string"
           },
+          "minimum_actor": {
+            "type": "string",
+            "enum": [
+              "external_unauthenticated",
+              "authenticated_user",
+              "b2b_partner_cross_scope",
+              "rogue_insider_or_operator",
+              "compromised_internal_component",
+              "physical_or_local_bus_attacker",
+              "authenticated_ev_driver",
+              "compromised_edge_device_tbox_charger_robot"
+            ]
+          },
           "minimum_viable_actor": {
             "type": "string",
             "enum": [
-              "unauthenticated_external",
-              "authenticated_consumer_b2c",
-              "enterprise_partner_dealer",
-              "internal_employee_operator",
-              "compromised_edge_device_tbox_charger_robot",
-              "privileged_admin_devops"
+              "external_unauthenticated",
+              "authenticated_user",
+              "b2b_partner_cross_scope",
+              "rogue_insider_or_operator",
+              "compromised_internal_component",
+              "physical_or_local_bus_attacker",
+              "authenticated_ev_driver",
+              "compromised_edge_device_tbox_charger_robot"
             ]
           },
           "identity_acquisition_cost": {
@@ -124,10 +227,100 @@
               "none"
             ]
           },
+          "preconditions": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "object"
+              ],
+              "properties": {
+                "precondition": {
+                  "type": "string"
+                },
+                "condition": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "yes",
+                    "no",
+                    "unknown"
+                  ]
+                },
+                "precondition_status": {
+                  "type": "string",
+                  "enum": [
+                    "yes",
+                    "no",
+                    "unknown"
+                  ]
+                },
+                "evidence_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "searched_paths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
+            }
+          },
           "operational_preconditions": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": [
+                "string",
+                "object"
+              ],
+              "properties": {
+                "precondition": {
+                  "type": "string"
+                },
+                "condition": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "yes",
+                    "no",
+                    "unknown"
+                  ]
+                },
+                "precondition_status": {
+                  "type": "string",
+                  "enum": [
+                    "yes",
+                    "no",
+                    "unknown"
+                  ]
+                },
+                "evidence_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "searched_paths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "notes": {
+                  "type": "string"
+                }
+              }
             }
           },
           "blocked_by_environment": {

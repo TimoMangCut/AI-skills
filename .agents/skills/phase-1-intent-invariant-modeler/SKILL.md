@@ -41,7 +41,7 @@ Theo kiến trúc **Intent Before Code (`ARCH-3K`)**, Bước 1.3 bắt buộc c
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> docs/spec.md 1 180 --skill intent_invariant_modeler
 
 # 2. Lưu mô hình ý định & bất biến S-F-O-P-C (đối chiếu AI-skills/schemas/v3/intent_invariant_modeler.schema.json)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> intent_invariant_modeler /tmp/intent_invariant_modeler_<repo_name>.json
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> intent_invariant_modeler .localsec/tmp/intent_invariant_modeler_<repo_name>.json
 ```
 
 ---
@@ -67,7 +67,6 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_nam
     "self_challenged_gaps": [
       {
         "gap_id": "GAP-SAFE-01",
-        "candidate_id": "cand_111122223333",
         "axis": "safety",
         "title": "Contactor state transition on abrupt telemetry disconnect is unspecified",
         "target_module": "src",

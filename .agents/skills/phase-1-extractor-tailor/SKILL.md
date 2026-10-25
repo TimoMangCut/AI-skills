@@ -21,11 +21,11 @@ Mục tiêu của bước này là giải quyết triệt để bài toán: **Py
    - Tuyệt đối không dùng Python để phán đoán lỗ hổng hay tự động gom cụm tương đương (việc gom cụm do AI thực hiện ở Bước 1.4).
 2. **Ba chế độ quyết định (`mode` & `extractor_decision`)**:
    - `USE_STANDARD_EXTRACTOR`: Dùng bộ regex/AST chuẩn khi repo viết theo chuẩn phổ thông (`@GetMapping`, `@Controller`, `router.POST`, `@app.route`, `@on(Action.*)`) VÀ bắt buộc kiểm thử trên `canary_files` đạt số điểm khớp tối thiểu `--expected-canary-hits`.
-   - `TAILOR_CUSTOM_EXTRACTOR`: Khi team dùng DSL riêng, bảng đăng ký hàm trong C++ (`vla.cpp` ZMQ dispatch table), custom wrapper hoặc file cấu hình định tuyến riêng → AI ghi biểu thức trích xuất riêng vào `/tmp/patterns.json` và truyền qua `--patterns-file /tmp/patterns.json --expected-canary-hits <N>`.
+   - `TAILOR_CUSTOM_EXTRACTOR`: Khi team dùng DSL riêng, bảng đăng ký hàm trong C++ (`vla.cpp` ZMQ dispatch table), custom wrapper hoặc file cấu hình định tuyến riêng → AI ghi biểu thức trích xuất riêng vào `.localsec/tmp/patterns.json` và truyền qua `--patterns-file .localsec/tmp/patterns.json --expected-canary-hits <N>`.
    - `SKIP_EXTRACTOR_DIRECT_READ`: Khi code quá động (reflection, dynamic metaprogramming, Smali bytecode, macro C++ phức tạp) hoặc repo nhỏ (`tier_3`) → Bỏ qua Python extractor hoàn toàn để không làm nhiễu ngữ cảnh; AI đọc thủ công trực tiếp theo `target_modules`.
 3. **Cổng kiểm định Canary & Tự động Quét `target_modules` (`canary_verified = true` bắt buộc)**:
    - Khi chạy `run_tailored_extractor`, nếu số điểm khớp trên `canary_files` đạt `>= --expected-canary-hits` (`canary_verified: true`), **engine sẽ tự động quét toàn bộ các thư mục trong `target_modules`** và lưu danh sách gợi ý cấu trúc để hỗ trợ Bước 1.4.
-   - Nếu số điểm khớp trên `canary_files` nhỏ hơn `--expected-canary-hits`, hệ thống tự động **TỪ CHỐI** (`canary_verified: false`). Bạn bắt buộc phải sửa lại `/tmp/patterns.json` hoặc chuyển sang `SKIP_EXTRACTOR_DIRECT_READ`.
+   - Nếu số điểm khớp trên `canary_files` nhỏ hơn `--expected-canary-hits`, hệ thống tự động **TỪ CHỐI** (`canary_verified: false`). Bạn bắt buộc phải sửa lại `.localsec/tmp/patterns.json` hoặc chuyển sang `SKIP_EXTRACTOR_DIRECT_READ`.
 
 ---
 
@@ -36,13 +36,13 @@ Mục tiêu của bước này là giải quyết triệt để bài toán: **Py
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session run_tailored_extractor <repo_name> --mode USE_STANDARD_EXTRACTOR --canary-files src/ocpp_controller.py --expected-canary-hits 1
 
 # Trường hợp 2: Tinh chỉnh pattern riêng qua --patterns-file và kiểm định --expected-canary-hits
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session run_tailored_extractor <repo_name> --mode TAILOR_CUSTOM_EXTRACTOR --canary-files src/ocpp_controller.py --patterns-file /tmp/patterns.json --expected-canary-hits 1
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session run_tailored_extractor <repo_name> --mode TAILOR_CUSTOM_EXTRACTOR --canary-files src/ocpp_controller.py --patterns-file .localsec/tmp/patterns.json --expected-canary-hits 1
 
 # Trường hợp 3: Bỏ qua extractor để đọc trực tiếp (khi code động hoặc C++ macro phức tạp)
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session run_tailored_extractor <repo_name> --mode SKIP_EXTRACTOR_DIRECT_READ
 
 # Hoặc lưu kết quả tùy chỉnh qua submit_skill (đối chiếu AI-skills/schemas/v3/extractor_tailor.schema.json)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> extractor_tailor /tmp/extractor_tailor_<repo_name>.json
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> extractor_tailor .localsec/tmp/extractor_tailor_<repo_name>.json
 ```
 
 ---

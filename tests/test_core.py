@@ -261,17 +261,22 @@ func main() { println("hello") }
         for ag_p, cl_p in zip(ag_skills, cl_skills):
             self.assertEqual(ag_p.parent.name, cl_p.parent.name)
             content = ag_p.read_text(encoding="utf-8")
-            self.assertEqual(content, cl_p.read_text(encoding="utf-8"))
+            cl_content = cl_p.read_text(encoding="utf-8")
             self.assertIsNone(
                 re.search(r"[\u0400-\u04ff\uac00-\ud7af\u4e00-\u9fff]", content),
                 f"Foreign script typo (Cyrillic/Hangul/CJK) found in {ag_p}",
             )
             self.assertTrue(content.startswith("---\n"), f"Missing frontmatter start in {ag_p}")
             match = re.match(r"^---\n(.*?)\n---\n+(.*)", content, re.DOTALL)
+            cl_match = re.match(r"^---\n(.*?)\n---\n+(.*)", cl_content, re.DOTALL)
             self.assertIsNotNone(match, f"Invalid frontmatter boundary in {ag_p}")
+            self.assertIsNotNone(cl_match, f"Invalid frontmatter boundary in {cl_p}")
             fm_text, body = match.group(1), match.group(2)
+            cl_fm_text, cl_body = cl_match.group(1), cl_match.group(2)
+            self.assertEqual(body, cl_body, f"Body mismatch between {ag_p} and {cl_p}")
             fm_lines = fm_text.splitlines()
-            # Frontmatter must be strictly 3 lines: name, description: >-, and indented description text
+            cl_fm_lines = cl_fm_text.splitlines()
+            # Antigravity frontmatter must be strictly 3 lines: name, description: >-, and indented description text
             self.assertEqual(len(fm_lines), 3, f"Unexpected lines in frontmatter of {ag_p}: {fm_lines}")
             self.assertEqual(fm_lines[0], f"name: {ag_p.parent.name}")
             self.assertRegex(ag_p.parent.name, r"^[a-z0-9-]+$")
@@ -282,10 +287,19 @@ func main() { println("hello") }
             self.assertNotIn("<", desc, f"Angle bracket < forbidden by Claude validator in {ag_p}")
             self.assertNotIn(">", desc, f"Angle bracket > forbidden by Claude validator in {ag_p}")
             self.assertTrue(body.startswith("# "), f"Body after frontmatter must start with H1 heading in {ag_p}")
+            # Claude Code frontmatter matches first 3 lines and includes context: fork for blinded challenger (R3-A7)
+            self.assertEqual(cl_fm_lines[:3], fm_lines)
+            if cl_p.parent.name == "phase-2-blinded-counterevidence-challenger":
+                self.assertEqual(len(cl_fm_lines), 4, f"Expected context: fork in {cl_p}")
+                self.assertEqual(cl_fm_lines[3], "context: fork")
+            else:
+                self.assertIn(len(cl_fm_lines), (3, 4))
 
     def test_setup_sh_syncs_and_uninstalls_antigravity_and_claude(self):
         import os
         import subprocess
+        import sys
+        from localsec.workspace import ManualWorkspace, WorkspaceError
 
         repo_root = Path(__file__).resolve().parents[1]
         setup_sh = repo_root / "setup.sh"
@@ -299,16 +313,23 @@ func main() { println("hello") }
             self.assertTrue((target_root / "AGENTS.md").is_file())
             self.assertTrue((target_root / "SOUL.md").is_file())
             self.assertTrue((target_root / "CLAUDE.md").is_file())
-
+            
             res_un = subprocess.run(["sh", str(setup_sh), "--uninstall"], cwd=str(target_root), env=env, capture_output=True, text=True)
             self.assertEqual(res_un.returncode, 0, res_un.stderr)
             self.assertFalse((target_root / ".agents").exists())
             self.assertFalse((target_root / ".claude").exists())
+            self.assertFalse((target_root / "localsec").exists())
             self.assertFalse((target_root / "AGENTS.md").exists())
             self.assertFalse((target_root / "SOUL.md").exists())
             self.assertFalse((target_root / "CLAUDE.md").exists())
 
+            # Verify Windows path security guards (drive letter, UNC path, reserved device names)
+            for bad_win_path in ("C:\\Windows\\System32\\cmd.exe", "\\\\server\\share\\secret.txt", "CON", "src/NUL.txt", "COM1"):
+                with self.assertRaises(WorkspaceError):
+                    ManualWorkspace._clean_relative(bad_win_path)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

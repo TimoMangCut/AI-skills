@@ -35,7 +35,7 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session audit_visibility <repo
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session verify_semantic_claims <repo_name>
 
 # 3. (Tùy chọn) Lưu kết quả kiểm toán Phase 1 thủ công trước khi khóa sổ
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> coverage_and_evidence_auditor /tmp/coverage_and_evidence_auditor_<repo_name>.json
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> coverage_and_evidence_auditor .localsec/tmp/coverage_and_evidence_auditor_<repo_name>.json
 
 # 4. Chạy cổng khóa sổ tất định Phase 1 (tự động xuất coverage_matrix.json, candidate_queue.json, coverage_and_evidence_auditor.json và phase1_gate_receipt.json)
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_v3_phase1 <repo_name>

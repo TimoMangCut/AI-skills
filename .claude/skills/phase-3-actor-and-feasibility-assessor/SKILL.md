@@ -28,16 +28,17 @@ Với mỗi `chain_id` sống sót từ Phase 2, bắt buộc khai báo trườn
 
 ---
 
-## 2. Đánh giá Chi phí Danh tính & Điều kiện Tiên quyết (`preconditions[]` — `ARCH-3H`, `R2-P0-01`)
+## 2. Đánh giá Chi phí Danh tính & Điều kiện Tiên quyết (`preconditions[]` — `ARCH-3H`, `R2-P0-01`, `R3-A1`, `R3-A5`)
 
 1. **`identity_acquisition_cost` (`"low" | "medium" | "high" | "none"`)**:
    - `none`: Không cần bất kỳ danh tính hay tài khoản nào (`external_unauthenticated`).
    - `low`: Tự đăng ký tài khoản miễn phí hoặc dễ dàng có được.
    - `medium`: Cần phê duyệt tài khoản B2B/Dealer, cần eKYC hoặc tiếp cận vật lý thiết bị biên.
    - `high`: Cần chiếm quyền tài khoản nội bộ có MFA phần cứng (FIDO2), chứng chỉ mTLS lưu trong HSM/TPM, hoặc VPN nội bộ có kiểm soát thiết bị.
-2. **Đánh giá từng điều kiện tiên quyết (`preconditions[]` — `ARCH-3H`)**:
-   - Mỗi phần tử trong `preconditions[]` phải khai báo rõ `precondition_id`, `description` (hoặc `precondition`), `precondition_status` (`"yes"` | `"no"` | `"unknown"`), `evidence_ids` và `searched_paths` (không dùng khóa `"status": "yes"` vì khóa `"status"` dành riêng cho epistemic status chuẩn).
-   - Mọi điều kiện tiên quyết có `precondition_status: "unknown"` sẽ được `finalize_v3_phase3` tự động chuyển thành câu hỏi hai chiều (`outcome_if_yes` / `outcome_if_no`) trong `key_questions.json`.
+2. **Đánh giá từng điều kiện tiên quyết (`preconditions[]` — `ARCH-3H`, `R3-A1`, `R3-A5`)**:
+   - Mỗi phần tử trong `preconditions[]` phải khai báo rõ `precondition_id`, `description` (hoặc `condition` / `precondition`), **`status`** (`"yes"` | `"no"` | `"unknown"` — engine cũng chấp nhận alias `"precondition_status"`), `searched_paths` và `evidence_ids`.
+   - **Luật Fail-Closed khi bác bỏ tính khả thi (`R3-A5`)**: Nếu đánh dấu một điều kiện tiên quyết là **`"status": "no"`** (không thỏa mãn $\rightarrow$ làm chuỗi tấn công trở nên `infeasible`), bắt buộc phải cung cấp **cả `"evidence_ids"` khác rỗng (`["ev_..."]`) lẫn `"searched_paths"` khác rỗng** chứng minh điều kiện đó không thể xảy ra trong thực tế. Nếu thiếu bằng chứng, validator sẽ từ chối ngay lập tức.
+   - Mọi điều kiện tiên quyết có `"status": "unknown"` sẽ được `finalize_v3_phase3` tự động chuyển thành câu hỏi hai chiều (`outcome_if_yes` / `outcome_if_no`) trong `key_questions.json` và gán `feasibility_derived = "provisional_unknown"`.
 
 ---
 
@@ -48,7 +49,7 @@ Với mỗi `chain_id` sống sót từ Phase 2, bắt buộc khai báo trườn
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> src/ocpp_controller.py 1 120 --skill actor_and_feasibility_assessor
 
 # 2. Lưu kết quả đánh giá Actor & Feasibility (đối chiếu AI-skills/schemas/v3/actor_and_feasibility_assessor.schema.json)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> actor_and_feasibility_assessor /tmp/actor_and_feasibility_assessor_<repo_name>.json
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> actor_and_feasibility_assessor .localsec/tmp/actor_and_feasibility_assessor_<repo_name>.json
 ```
 
 ```json
@@ -63,14 +64,23 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_nam
         "preconditions": [
           {
             "precondition_id": "PRE-01",
-            "description": "Know target station_id",
-            "precondition_status": "yes",
+            "description": "Attacker knows target station_id and active transaction_id",
+            "status": "yes",
+            "searched_paths": [
+              "src/ocpp/session_handler.py"
+            ],
             "evidence_ids": [
               "ev_001"
-            ],
-            "searched_paths": [
-              "src/ocpp_controller.py"
             ]
+          },
+          {
+            "precondition_id": "PRE-02",
+            "description": "CSMS WebSocket ingress allows unpinned station_id frame routing",
+            "status": "unknown",
+            "searched_paths": [
+              "src/ocpp/charging_router.py"
+            ],
+            "evidence_ids": []
           }
         ],
         "attack_feasibility": "high",
@@ -79,7 +89,7 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_nam
         ]
       }
     ],
-    "summary": "Assessed CHAIN-OCPP-01 as reachable by any authenticated_user with low identity acquisition cost."
+    "summary": "Assessed CHAIN-OCPP-01 as reachable by any authenticated_user with low identity acquisition cost; PRE-02 requires runtime ingress verification."
   }
 }
 ```

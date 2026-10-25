@@ -11,8 +11,8 @@ Hệ thống gồm **16 Skills thuần v3.0** đồng bộ 100% giữa `.agents/
 | Phase | Master Orchestrator | Các bước cốt lõi (13 Sub-skills v3.0) | Mục tiêu cốt lõi |
 |---|---|---|---|
 | **Phase 1: Unified Reconnaissance** | `/phase-1-orchestrator` | **6 bước theo thứ tự `Intent Before Code` (`1.1 -> 1.3 -> 1.2 -> 1.4 -> 1.5 -> 1.6`)**: `inventory_repo` + `codebase_scout` $\rightarrow$ `intent_invariant_modeler` $\rightarrow$ `extractor_tailor` $\rightarrow$ `unified_surface_mapper` $\rightarrow$ `match_cross_repo_boundaries` + `cross_repo_and_arch_review` $\rightarrow$ `coverage_and_evidence_auditor` + `finalize_v3_phase1` | Chạy kiểm kê tất định `inventory_repo` trước, dựng mô hình Ý định & Bất biến S-F-O-P-C trước khi đọc code thực thi (`ARCH-3K`), tinh chỉnh Python extractor trên canary files (`--patterns-file`, `--expected-canary-hits`), đọc code 1 lượt kèm gom cụm ngữ nghĩa an toàn (`ARCH-3F`), ghép cặp ranh giới liên repo và khóa sổ qua `finalize_v3_phase1` để xuất `coverage_matrix.json` & `candidate_queue.json`. |
-| **Phase 2: Deep Analysis & Falsification** | `/phase-2-orchestrator` | **4 bước (`2.1 -> 2.4`)**: `candidate_intake_planner` $\rightarrow$ `deep_trace_chain_analyst` $\rightarrow$ `blinded_counterevidence_challenger` (Subagent cô lập) $\rightarrow$ `analysis_evidence_gate` + `finalize_v3_phase2` | Đọc `candidate_queue.json` từ Phase 1, tiêm nguyên văn khối `Attack-Class Companion` vào `selected_attack_companions.json`, truy vết sâu `hops[]` kèm `hop_kind` cho 100% ứng viên (`ARCH-3G`), phản biện bác bỏ trong Subagent cô lập (`ARCH-3E`) trên 6 vị trí `control_search_checklist`, và khóa sổ qua `finalize_v3_phase2`. |
-| **Phase 3: Contextual Risk & Exploitability** | `/phase-3-orchestrator` | **3 bước (`3.1 -> 3.3` + Report)**: `actor_and_feasibility_assessor` $\rightarrow$ `beyond_code_control_mapper` $\rightarrow$ `sfop_risk_calibrator` + `finalize_v3_phase3` + `render_v3_report` | Đánh giá 100% `chain_id` sống sót từ Phase 2: chứng minh Actor/Role tối thiểu và điều kiện tiên quyết `yes`/`no`/`unknown`, nạp `ingest_runtime_facts` và đối chiếu kiểm soát ngoài code (Cloudflare WAF, Bare ALB, VPC `10.x`, mTLS, OT Interlock), hiệu chuẩn rủi ro định lượng 5 trục **S-F-O-P-C**, chạy `finalize_v3_phase3` và kết xuất báo cáo qua `render_v3_report`. |
+| **Phase 2: Deep Analysis & Falsification** | `/phase-2-orchestrator` | **4 bước (`2.1 -> 2.4`)**: `candidate_intake_planner` $\rightarrow$ `deep_trace_chain_analyst` $\rightarrow$ `blinded_counterevidence_challenger` (Subagent cô lập) $\rightarrow$ `analysis_evidence_gate` + `finalize_v3_phase2` | Đọc `candidate_queue.json` từ Phase 1, tiêm nguyên văn khối `Attack-Class Companion` vào `selected_attack_companions.json`, truy vết sâu `hops[]` kèm `hop_kind` cho 100% ứng viên (`ARCH-3G`, `R3-A4`), phản biện bác bỏ trong Subagent cô lập (`ARCH-3E`, `context: fork`, `localsec/claude_subagent_guard.py` — `R3-A7`) trên 6 vị trí `control_search_checklist`, và khóa sổ qua `finalize_v3_phase2`. |
+| **Phase 3: Contextual Risk & Exploitability** | `/phase-3-orchestrator` | **3 bước (`3.1 -> 3.3` + Report)**: `actor_and_feasibility_assessor` $\rightarrow$ `beyond_code_control_mapper` $\rightarrow$ `sfop_risk_calibrator` + `finalize_v3_phase3` + `render_v3_report` | Đánh giá 100% `chain_id` sống sót từ Phase 2: chứng minh Actor/Role tối thiểu và điều kiện tiên quyết `preconditions[].status`: `yes`/`no`/`unknown` (`R3-A1`, `R3-A5`), nạp `ingest_runtime_facts` và đối chiếu kiểm soát ngoài code (Cloudflare WAF, Bare ALB, VPC `10.x`, mTLS, OT Interlock), hiệu chuẩn rủi ro định lượng 5 trục **S-F-O-P-C** (bắt buộc `owner_role`, tất định `contextual_risk_rating = derived_risk_rating` — `R3-A5`), chạy `finalize_v3_phase3` và kết xuất báo cáo qua `render_v3_report`. |
 
 ---
 
@@ -29,7 +29,7 @@ Hệ thống gồm **16 Skills thuần v3.0** đồng bộ 100% giữa `.agents/
 ### Bước B — Chạy Toàn bộ Phase 2 (Deep Analysis & Falsification v3.0 — Mở Phiên Mới)
 ```text
 /phase-2-orchestrator Thực hiện Phase 2 (Deep Analysis & Falsification v3.0) nối tiếp candidate_queue.json từ Phase 1.
-Chạy tuần tự 4 bước (2.1 -> 2.4): nạp nguyên văn các khối Attack-Class Companion, truy vết sâu hops[] (kèm hop_kind) + dựng chuỗi tấn công + tìm Root-Cause cho 100% candidate_id, chạy prepare_blinded_chain_verifier và khởi chạy Subagent cô lập (chỉ truyền duy nhất file /tmp/blinded_chains_<repo_name>.json) để phản biện đối kháng ở chế độ Mù Kết luận trên 6 vị trí control_search_checklist, và khóa sổ qua analysis_evidence_gate cùng cổng tất định finalize_v3_phase2.
+Chạy tuần tự 4 bước (2.1 -> 2.4): nạp nguyên văn các khối Attack-Class Companion, truy vết sâu hops[] (kèm hop_kind) + dựng chuỗi tấn công + tìm Root-Cause cho 100% candidate_id, chạy prepare_blinded_chain_verifier và khởi chạy Subagent cô lập (chỉ truyền duy nhất file .localsec/tmp/blinded_chains_<repo_name>.json) để phản biện đối kháng ở chế độ Mù Kết luận trên 6 vị trí control_search_checklist, và khóa sổ qua analysis_evidence_gate cùng cổng tất định finalize_v3_phase2.
 ```
 
 ### Bước C — Chạy Toàn bộ Phase 3 (Contextual Risk & Exploitability Assessment v3.0 — Mở Phiên Mới)
@@ -59,9 +59,9 @@ Chạy tuần tự 3 bước (3.1 -> 3.3): chứng minh minimum_actor và điề
 | Thứ tự | Lệnh Skill | Schema Mục tiêu & Cổng kiểm định cốt lõi |
 |---|---|---|
 | **2.0** | `/phase-2-orchestrator` | Điều phối trọn bộ 4 bước Phase 2 Deep Analysis & Falsification v3.0 trên `candidate_queue.json`, kết thúc bằng `finalize_v3_phase2` và in lệnh chuyển sang Phase 3. |
-| **2.1** | `/phase-2-candidate-intake-planner` | Đọc `candidate_queue.json`, chạy `select_attack_companions` xuất `selected_attack_companions.json` (`AI-skills/schemas/v3/candidate_intake_planner.schema.json`). |
-| **2.2** | `/phase-2-deep-trace-chain-analyst` | Hạch toán 100% `candidate_id` vào `chains[]` hoặc `unexploitable_candidates[]`, truy vết `hops[]` kèm `hop_kind` và bằng chứng hai đầu (`AI-skills/schemas/v3/deep_trace_chain_analyst.schema.json`). |
-| **2.3** | `/phase-2-blinded-counterevidence-challenger` | Chạy trong **Subagent cô lập / Fresh Context (`ARCH-3E`)** chỉ nhận duy nhất file Whitelist `/tmp/blinded_chains_<repo_name>.json` (gồm `control_search_paths`), kiểm tra đủ 6 vị trí `control_search_checklist` (`AI-skills/schemas/v3/blinded_counterevidence_challenger.schema.json`). |
+| **2.1** | `/phase-2-candidate-intake-planner` | Đọc `candidate_queue.json`, chạy `select_attack_companions` xuất `selected_attack_companions.json`, mọi `dismissed_candidates[]` phải là object có `reason` $\ge 10$ ký tự + `evidence_ids` (`R3-A4`) (`AI-skills/schemas/v3/candidate_intake_planner.schema.json`). |
+| **2.2** | `/phase-2-deep-trace-chain-analyst` | Hạch toán 100% `candidate_id` vào `chains[]` hoặc `unexploitable_candidates[]` (object bắt buộc có `reason` $\ge 10$ ký tự + `evidence_ids` — `R3-A4`), truy vết `hops[]` kèm `hop_kind` và bằng chứng hai đầu (`AI-skills/schemas/v3/deep_trace_chain_analyst.schema.json`). |
+| **2.3** | `/phase-2-blinded-counterevidence-challenger` | Chạy trong **Subagent cô lập / Fresh Context (`ARCH-3E`, `context: fork`, `localsec/claude_subagent_guard.py` — `R3-A7`)** chỉ nhận duy nhất file Whitelist `.localsec/tmp/blinded_chains_<repo_name>.json` (đã loại bỏ `preconditions` và `hops[].action`), kiểm tra đủ 6 vị trí `control_search_checklist` (`not_applicable` cần `reason` $\ge 20$ ký tự, bác bỏ cần `counter_evidence_ids` — `R3-A4`) (`AI-skills/schemas/v3/blinded_counterevidence_challenger.schema.json`). |
 | **2.4** | `/phase-2-analysis-evidence-gate` | Cổng kiểm toán bằng chứng và chạy cổng khóa sổ tất định `finalize_v3_phase2` để bàn giao các chuỗi sống sót sang Phase 3 (`AI-skills/schemas/v3/analysis_evidence_gate.schema.json`). |
 
 ### PHASE 3 — Contextual Risk & Exploitability Assessment (`/phase-3-*` — 4 Skills)
@@ -69,21 +69,21 @@ Chạy tuần tự 3 bước (3.1 -> 3.3): chứng minh minimum_actor và điề
 | Thứ tự | Lệnh Skill | Schema Mục tiêu & Cổng kiểm định cốt lõi |
 |---|---|---|
 | **3.0** | `/phase-3-orchestrator` | Điều phối trọn bộ Phase 3, cổng khóa sổ tất định `finalize_v3_phase3` và `render_v3_report`. |
-| **3.1** | `/phase-3-actor-and-feasibility-assessor` | Giữ nguyên `chain_id` từ Phase 2, chứng minh `minimum_actor` và lượng hóa `preconditions[]` với `precondition_status`: `yes`/`no`/`unknown` (`AI-skills/schemas/v3/actor_and_feasibility_assessor.schema.json`). |
+| **3.1** | `/phase-3-actor-and-feasibility-assessor` | Giữ nguyên `chain_id` từ Phase 2, chứng minh `minimum_actor` và lượng hóa `preconditions[]` với `"status"`: `yes`/`no`/`unknown` (hỗ trợ cả `precondition_status`, và `status: "no"` bắt buộc có `evidence_ids` + `searched_paths` — `R3-A1`, `R3-A5`) (`AI-skills/schemas/v3/actor_and_feasibility_assessor.schema.json`). |
 | **3.2** | `/phase-3-beyond-code-control-mapper` | Nạp `ingest_runtime_facts` (nếu có) và đánh giá kiểm soát ngoài mã nguồn với `present`: `yes`/`no`/`unknown`, `status`: `confirmed`/`hypothesis`/`absent` (`AI-skills/schemas/v3/beyond_code_control_mapper.schema.json`). |
-| **3.3** | `/phase-3-sfop-risk-calibrator` | Hiệu chuẩn rủi ro 5 trục `impact_axes` (**S-F-O-P-C**) theo rubric định lượng (`basis` + `blast_radius`, chỉ báo an toàn `actuator_command_path_without_interlock`, `risk_owner`/`safety_owner` với `owner_role`), chạy `finalize_v3_phase3` và `render_v3_report` (`AI-skills/schemas/v3/sfop_risk_calibrator.schema.json`). |
+| **3.3** | `/phase-3-sfop-risk-calibrator` | Hiệu chuẩn rủi ro 5 trục `impact_axes` (**S-F-O-P-C**) theo rubric định lượng (`basis` + `blast_radius`, chỉ báo an toàn `actuator_command_path_without_interlock`, bắt buộc `owner_role` trên mọi finding, mặc định `contextual_risk_rating = derived_risk_rating` trừ khi có override 1 bậc hợp lệ — `R3-A5`), chạy `finalize_v3_phase3` và `render_v3_report` (`AI-skills/schemas/v3/sfop_risk_calibrator.schema.json`). |
 
 ---
 
 ## 4. Bảng Tra cứu Nhanh Các Lệnh CLI Chuẩn Windows (`PYTHONPATH=AI-skills:. python3 -m localsec.manual_session`)
 
-Trên nhánh `wins`, `setup.ps1` / `setup.bat` tự động cài cầu nối package `localsec` và thư mục tạm `/tmp/` tại `<Project-Root>`, giúp mọi thao tác chạy trực tiếp qua `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session` trên cả **PowerShell**, **CMD**, và **Git Bash**:
+Trên nhánh `wins`, `setup.ps1` / `setup.bat` tự động cài cầu nối package `localsec` và thư mục tạm `.localsec/tmp/` tại `<Project-Root>`, giúp mọi thao tác chạy trực tiếp qua `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session` trên cả **PowerShell**, **CMD**, và **Git Bash**:
 
 ```powershell
 # 1. Các lệnh v3.0 Phase 1 (Inventory, AI Scout, Tailored Extractor, Attack Companions, Cross-Repo Match, Finalize Phase 1)
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session inventory_repo <repo_name> --tier 1
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session register_scout_map <repo_name> /tmp/codebase_scout_<repo_name>.json
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session run_tailored_extractor <repo_name> --mode TAILOR_CUSTOM_EXTRACTOR --canary-files <file1> --patterns-file /tmp/patterns.json --expected-canary-hits 1
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session register_scout_map <repo_name> .localsec/tmp/codebase_scout_<repo_name>.json
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session run_tailored_extractor <repo_name> --mode TAILOR_CUSTOM_EXTRACTOR --canary-files <file1> --patterns-file .localsec/tmp/patterns.json --expected-canary-hits 1
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session select_attack_companions <repo_name> --archetypes connected_car_and_ota ev_charging_and_energy
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session match_cross_repo_boundaries
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session audit_visibility <repo_name>
@@ -96,7 +96,7 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session show_evidence <repo_na
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session list_evidence <repo_name>
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_chain_verifier <repo_name>
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_v3_phase2 <repo_name>
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session ingest_runtime_facts <repo_name> /tmp/runtime_facts.json
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session ingest_runtime_facts <repo_name> .localsec/tmp/runtime_facts.json
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_v3_phase3 <repo_name>
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session render_v3_report <repo_name>
 
@@ -109,7 +109,7 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session phase_status <repo_nam
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session list_dir <repo_name> . --depth 2 --skill codebase_scout
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <rel_path> <start_line> <end_line> --skill <skill_name>
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> "<other_repo>:<rel_path>" <start_line> <end_line> --skill intent_invariant_modeler
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> <skill_name> /tmp/<skill_name>_<repo_name>.json
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> <skill_name> .localsec/tmp/<skill_name>_<repo_name>.json
 ```
 
 ---

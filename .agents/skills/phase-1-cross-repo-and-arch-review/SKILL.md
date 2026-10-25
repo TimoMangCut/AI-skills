@@ -47,7 +47,7 @@ Bước này bắt đầu bằng việc chạy công cụ ghép cặp ranh giớ
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session match_cross_repo_boundaries
 
 # 2. Lưu kết quả đánh giá kiến trúc & liên repo (đối chiếu AI-skills/schemas/v3/cross_repo_and_arch_review.schema.json)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> cross_repo_and_arch_review /tmp/cross_repo_and_arch_review_<repo_name>.json
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> cross_repo_and_arch_review .localsec/tmp/cross_repo_and_arch_review_<repo_name>.json
 ```
 
 ---
@@ -61,7 +61,6 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_nam
     "trust_boundary_mismatches": [
       {
         "mismatch_id": "XREPO-HDR-01",
-        "candidate_id": "cand_111122223333",
         "title": "Consumer trusts unsigned X-Tenant-Id header from gateway",
         "producer_repo": "api-gateway",
         "consumer_repo": "csms-service",

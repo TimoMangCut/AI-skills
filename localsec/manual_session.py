@@ -154,29 +154,24 @@ def _load_workspace(
 
 def _all_project_evidence_ids(root: Path, run_id: str | None = None) -> dict[str, dict[str, Any]]:
     effective_run_id = _resolve_run_id(root, explicit_run_id=run_id)
-    candidate_roots = [root / ".localsec" / "runs" / effective_run_id]
-    for alt_id in ("default", "manual-v0.2"):
-        alt_root = root / ".localsec" / "runs" / alt_id
-        if alt_root not in candidate_roots:
-            candidate_roots.append(alt_root)
+    run_root = root / ".localsec" / "runs" / effective_run_id
     out: dict[str, dict[str, Any]] = {}
-    for run_root in candidate_roots:
-        if not run_root.is_dir():
+    if not run_root.is_dir():
+        return out
+    for child in sorted(run_root.iterdir()):
+        if not child.is_dir():
             continue
-        for child in sorted(run_root.iterdir()):
-            if not child.is_dir():
-                continue
-            sf = child / "workspace_state.json"
-            if sf.is_file():
-                try:
-                    st = json.loads(sf.read_text(encoding="utf-8"))
-                    rname = st.get("repo_name", child.name)
-                    for eid, rec in st.get("evidence", {}).items():
-                        if isinstance(rec, dict) and "repo_name" not in rec:
-                            rec = {**rec, "repo_name": rname}
-                        out.setdefault(eid, rec)
-                except Exception:
-                    pass
+        sf = child / "workspace_state.json"
+        if sf.is_file():
+            try:
+                st = json.loads(sf.read_text(encoding="utf-8"))
+                rname = st.get("repo_name", child.name)
+                for eid, rec in st.get("evidence", {}).items():
+                    if isinstance(rec, dict) and "repo_name" not in rec:
+                        rec = {**rec, "repo_name": rname}
+                    out.setdefault(eid, rec)
+            except Exception:
+                pass
     return out
 
 
@@ -1148,7 +1143,6 @@ def main(argv: list[str] | None = None) -> int:
             "candidate_ids",
             "entrypoint",
             "actor",
-            "preconditions",
         }
         allowed_hop_keys = {
             "hop_id",
@@ -1159,7 +1153,6 @@ def main(argv: list[str] | None = None) -> int:
             "function_or_symbol",
             "line_start",
             "line_end",
-            "action",
         }
 
         def _blind_v3_deep_trace(

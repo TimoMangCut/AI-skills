@@ -15,10 +15,11 @@ Bước này hợp nhất 5 yêu cầu kỹ thuật liên hoàn trong **một ph
 
 ---
 
-## 1. Năm Yêu cầu Kỹ thuật Bắt buộc (`ARCH-3G`, `DEPTH-4.2b`, `R2-P0-01`)
+## 1. Năm Yêu cầu Kỹ thuật Bắt buộc (`ARCH-3G`, `DEPTH-4.2b`, `R2-P0-01`, `R3-A4`)
 
-1. **Hạch toán 100% Ứng viên từ `candidate_queue.json` (`ARCH-3G`, `R2-P0-01`)**:
-   - **Mọi `candidate_id`** trong `.localsec/runs/default/<repo_name>/candidate_queue.json` bắt buộc phải xuất hiện trong ít nhất một chuỗi thuộc **`chains[].candidate_ids`** (TUYỆT ĐỐI KHÔNG dùng tên cũ `source_candidate_ids`) **HOẶC** được giải trình trong **`unexploitable_candidates[]`** (kèm `candidate_id`, `reason`, và `evidence_ids` chứng minh kiểm soát ngăn chặn). Nghiêm cấm làm rơi ứng viên.
+1. **Hạch toán 100% Ứng viên từ `candidate_queue.json` & Luật Fail-Closed cho `unexploitable_candidates[]` (`ARCH-3G`, `R2-P0-01`, `R3-A4`)**:
+   - **Mọi `candidate_id`** trong `.localsec/runs/default/<repo_name>/candidate_queue.json` bắt buộc phải xuất hiện trong ít nhất một chuỗi thuộc **`chains[].candidate_ids`** (TUYỆT ĐỐI KHÔNG dùng tên cũ `source_candidate_ids`) **HOẶC** được giải trình trong **`unexploitable_candidates[]`**. Nghiêm cấm làm rơi ứng viên.
+   - **Cấu trúc bắt buộc của `unexploitable_candidates[]` (`R3-A4`)**: Mỗi phần tử trong `unexploitable_candidates[]` **BẮT BUỘC** phải là một object `{"candidate_id": "...", "reason": "...", "evidence_ids": ["ev_..."]}` có `reason` ($\ge 10$ ký tự) và `evidence_ids` khác rỗng chứng minh kiểm soát ngăn chặn. Truyền chuỗi trần (`"cand_..."`) hoặc thiếu `evidence_ids` sẽ bị validator từ chối ngay lập tức.
 2. **Phán quyết Chuỗi `chain_verdict` (`R2-P0-01`)**:
    - Sử dụng trường **`"chain_verdict"`** thuộc enum `"confirmed" | "code_supported" | "partially_confirmed" | "hypothesized" | "refuted"` (TUYỆT ĐỐI KHÔNG dùng tên cũ `"verification_status"`).
    - Khi `request_plan.execution_status` là `"not_executed"` hoặc `"request_plan_only"`, giá trị tối đa của `chain_verdict` là **`"code_supported"`** (`request_plan_is_not_execution`).
@@ -40,7 +41,7 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session show_evidence <repo_na
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> src/ocpp_controller.py 1 120 --skill deep_trace_chain_analyst
 
 # 2. Lưu kết quả phân tích sâu (đối chiếu AI-skills/schemas/v3/deep_trace_chain_analyst.schema.json)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> deep_trace_chain_analyst /tmp/deep_trace_chain_analyst_<repo_name>.json
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> deep_trace_chain_analyst .localsec/tmp/deep_trace_chain_analyst_<repo_name>.json
 ```
 
 ---
@@ -55,7 +56,17 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_nam
       {
         "chain_id": "CHAIN-OCPP-01",
         "candidate_ids": [
-          "cand_111122223333"
+          "cand_111122223333",
+          "cand_8cd467be41f0",
+          "cand_d432d621c21e",
+          "cand_74ef70e3b401",
+          "cand_563ca97c8fcc",
+          "cand_39f27929e8c3",
+          "cand_8629bd86b767",
+          "cand_2cbb767b759c",
+          "cand_214cf9681c33",
+          "cand_5a9af194a4df",
+          "cand_0140b9ecdd23"
         ],
         "title": "Cross-Session RemoteStartTransaction via Unchecked sessionId",
         "chain_verdict": "code_supported",
@@ -133,7 +144,7 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_nam
       }
     ],
     "unexploitable_candidates": [],
-    "summary": "Verified 1 code-supported exploit chain CHAIN-OCPP-01 covering candidate cand_111122223333."
+    "summary": "Verified 1 code-supported exploit chain CHAIN-OCPP-01 covering all 11 Phase 1 candidates."
   }
 }
 ```

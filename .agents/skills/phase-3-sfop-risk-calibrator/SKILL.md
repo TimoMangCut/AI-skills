@@ -30,7 +30,7 @@ Kết hợp kết quả từ Phase 2 (`code_verified_severity`), Bước 3.1 (`a
 
 ---
 
-## 2. Năm Luật Cứng Bắt buộc (`ARCH-3H`, `DEPTH-4.4b`, `DEPTH-4.4d`, `R2-P0-03`)
+## 2. Năm Luật Cứng Bắt buộc (`ARCH-3H`, `DEPTH-4.4b`, `DEPTH-4.4d`, `R2-P0-03`, `R3-A5`)
 
 1. **Luật Cứng 1 — Không Cộng dồn Đa trục (`overall_risk <= max_impact`)**:
    - `max_impact` phải bằng đúng mức cao nhất trong 5 trục `(safety, financial, operational, privacy, compliance)`.
@@ -38,12 +38,14 @@ Kết hợp kết quả từ Phase 2 (`code_verified_severity`), Bước 3.1 (`a
 2. **Luật Cứng 2 — Tách biệt `Safety Owner != Security Risk Owner`**:
    - Khi mức độ của trục `safety` khác `"negligible"`, trường `safety_owner` **BẮT BUỘC phải khác rỗng** và **phải khác** với `risk_owner`.
    - Khai báo thêm chỉ báo kỹ thuật `actuator_command_path_without_interlock`: `"yes" | "no" | "unknown"`.
-3. **Luật Cứng 3 — Gán `owner_role` Chuẩn & Không Bịa Chức danh Cá nhân (`DEPTH-4.4d`, `R2-P0-03`)**:
-   - Trường `owner_role` **BẮT BUỘC** chọn từ đúng 6 giá trị chuẩn:
+3. **Luật Cứng 3 — Bắt buộc Gán `owner_role` Chuẩn & Không Bịa Chức danh Cá nhân (`DEPTH-4.4d`, `R2-P0-03`, `R3-A5`)**:
+   - Trường `"owner_role"` **BẮT BUỘC có mặt trên mọi finding** trong `calibrated_findings[]` và chọn từ đúng 6 giá trị chuẩn:
      `["dev_team", "infra_cloud_sec", "iam_platform", "ot_safety_engineering", "data_privacy_dpo", "unassigned_pending_roster"]`.
    - Khi dự án chưa cung cấp file `owners.json`, **TUYỆT ĐỐI KHÔNG tự bịa chức danh cá nhân chưa kiểm chứng** trong `risk_owner` / `safety_owner`; hãy dùng định danh theo vai trò như `"dev_team (pending project roster)"` và `"ot_safety_engineering (pending project roster)"`.
-4. **Luật Cứng 4 — Công thức Rủi ro Tất định & Câu hỏi Hai Chiều trong `finalize_v3_phase3` (`R2-P0-03`)**:
-   - Khi chạy `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_v3_phase3 <repo_name>`, engine sẽ tính toán tất định `feasibility_derived` và `derived_risk_rating` từ kết quả Bước 3.1 (`actor_assessments`) + Bước 3.2 (`beyond_code_controls`) + `max_impact`, đồng thời tự động sinh các câu hỏi hai chiều có đầy đủ **`outcome_if_yes`** và **`outcome_if_no`** trong `.localsec/runs/default/<repo_name>/key_questions.json` cho mọi kiểm soát hoặc điều kiện tiên quyết đang ở trạng thái giả thuyết/chưa xác nhận.
+4. **Luật Cứng 4 — Công thức Rủi ro Tất định Hai Chiều (Ceiling & Floor) trong `finalize_v3_phase3` (`R2-P0-03`, `R3-A5`)**:
+   - Khi chạy `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_v3_phase3 <repo_name>`, engine sẽ tính toán tất định `feasibility_derived` và `derived_risk_rating` từ kết quả Bước 3.1 (`actor_assessments`) + Bước 3.2 (`beyond_code_controls`) + `max_impact`, và **mặc định gán `contextual_risk_rating = derived_risk_rating`** (áp dụng cả trần lẫn sàn, chống tự ý hạ thấp rủi ro — `R3-A5`).
+   - Nếu muốn đề xuất điều chỉnh `contextual_risk_rating` lệch tối đa **1 bậc** so với `derived_risk_rating` (và vẫn `<= max_impact`), finding **BẮT BUỘC** phải cung cấp `"risk_override_rationale"` (tối thiểu **80 ký tự**) và mảng `"risk_override_evidence_ids"` khác rỗng (`["ev_..."]`).
+   - Đồng thời, `finalize_v3_phase3` tự động sinh các câu hỏi hai chiều có đầy đủ **`outcome_if_yes`** và **`outcome_if_no`** trong `.localsec/runs/default/<repo_name>/key_questions.json` cho mọi kiểm soát hoặc điều kiện tiên quyết đang ở trạng thái giả thuyết/chưa xác nhận.
 
 ---
 
@@ -51,7 +53,7 @@ Kết hợp kết quả từ Phase 2 (`code_verified_severity`), Bước 3.1 (`a
 
 ```powershell
 # 1. Lưu và kiểm định kết quả hiệu chuẩn rủi ro S-F-O-P-C (đối chiếu AI-skills/schemas/v3/sfop_risk_calibrator.schema.json)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> sfop_risk_calibrator /tmp/sfop_risk_calibrator_<repo_name>.json
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> sfop_risk_calibrator .localsec/tmp/sfop_risk_calibrator_<repo_name>.json
 
 # 2. Khóa sổ Phase 3 tất định (tính feasibility_derived, derived_risk_rating, xuất key_questions.json hai chiều và phase3_gate_receipt.json)
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session finalize_v3_phase3 <repo_name>

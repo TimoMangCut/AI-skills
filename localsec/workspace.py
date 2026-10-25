@@ -568,12 +568,20 @@ class ManualWorkspace:
     def _resolve_with_repo(self, raw_path: Any, allow_root: bool = True) -> tuple[str, str, Path]:
         if not isinstance(raw_path, str) or not raw_path.strip():
             raise WorkspaceError("path must be a non-empty relative path")
+        cfg_output_dir = str(self.cfg.get("output_dir", "documents")).strip().strip("/").lower()
+        cfg_work_dir = str(self.cfg.get("work_dir", ".localsec")).strip().strip("/").lower()
+        toolkit_dir_name = Path(__file__).resolve().parents[1].name.lower()
+        forbidden_top_dirs = set(self.FORBIDDEN_READ_TOP_DIRS)
+        for dyn_dir in (cfg_output_dir, cfg_work_dir, toolkit_dir_name):
+            if dyn_dir:
+                forbidden_top_dirs.add(dyn_dir.split("/", 1)[0])
+                forbidden_top_dirs.add(dyn_dir)
         target_repo = self.repo_name
         base_root = self.root
         rel_part = raw_path
         if ":" in raw_path and not raw_path.startswith("/") and not re.match(r"^[A-Za-z]:[\\/]", raw_path):
             maybe_repo, maybe_rel = raw_path.split(":", 1)
-            if maybe_repo.strip().lower() in self.FORBIDDEN_READ_TOP_DIRS:
+            if maybe_repo.strip().lower() in forbidden_top_dirs:
                 raise WorkspaceError(
                     "Reading toolkit, state, or report directories (documents/, .localsec/, .agents/, .claude/, AI-skills/) is forbidden"
                 )
@@ -588,13 +596,19 @@ class ManualWorkspace:
                     base_root = candidate_repo_dir
                     rel_part = maybe_rel or "."
         clean = self._clean_relative(rel_part)
-        if target_repo.strip().lower() in self.FORBIDDEN_READ_TOP_DIRS:
+        if target_repo.strip().lower() in forbidden_top_dirs:
             raise WorkspaceError(
                 "Reading toolkit, state, or report directories (documents/, .localsec/, .agents/, .claude/, AI-skills/) is forbidden"
             )
         if clean != ".":
             first_seg = PurePosixPath(clean).parts[0].lower()
-            if first_seg in self.FORBIDDEN_READ_TOP_DIRS or any(seg.lower() in {".localsec", ".agents", ".claude", "ai-skills", ".git"} for seg in PurePosixPath(clean).parts):
+            clean_low = clean.lower()
+            if (
+                first_seg in forbidden_top_dirs
+                or clean_low in forbidden_top_dirs
+                or any(clean_low.startswith(fd + "/") for fd in forbidden_top_dirs if "/" in fd)
+                or any(seg.lower() in {".localsec", ".agents", ".claude", "ai-skills", ".git"} for seg in PurePosixPath(clean).parts)
+            ):
                 raise WorkspaceError(
                     "Reading toolkit, state, or report directories (documents/, .localsec/, .agents/, .claude/, AI-skills/) is forbidden"
                 )
@@ -781,9 +795,9 @@ class ManualWorkspace:
             chunk = excerpt[:max_chars]
             chunk_lines = chunk.splitlines()
             if chunk and not chunk.endswith("\n") and len(excerpt) > max_chars and excerpt[max_chars] != "\n":
-                complete_line_count = max(1, len(chunk_lines) - 1)
+                complete_line_count = max(0, len(chunk_lines) - 1)
             else:
-                complete_line_count = max(1, len(chunk_lines))
+                complete_line_count = len(chunk_lines)
             fully_returned_through_line = min(actual_end, start_line + complete_line_count - 1)
             excerpt = chunk + "\n[READ_TRUNCATED_BY_CHARACTER_BUDGET]"
         else:
@@ -830,7 +844,8 @@ class ManualWorkspace:
         if skill not in self.evidence[evidence_id]["read_by"]:
             self.evidence[evidence_id]["read_by"].append(skill)
         range_key = rel if target_repo == self.repo_name else f"{target_repo}:{rel}"
-        self.read_ranges.setdefault(range_key, []).append((start_line, fully_returned_through_line))
+        if fully_returned_through_line >= start_line:
+            self.read_ranges.setdefault(range_key, []).append((start_line, fully_returned_through_line))
         prior_skill_reads = sum(
             1
             for entry in self.tool_log

@@ -71,7 +71,7 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session list_dir <repo_name> .
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> <path_to_manifest_or_wiring> 1 120 --skill codebase_scout
 
 # 4. Lưu và xác thực kết quả codebase_scout.json (đối chiếu AI-skills/schemas/v3/codebase_scout.schema.json)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session register_scout_map <repo_name> /tmp/codebase_scout_<repo_name>.json
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session register_scout_map <repo_name> .localsec/tmp/codebase_scout_<repo_name>.json
 ```
 
 ---

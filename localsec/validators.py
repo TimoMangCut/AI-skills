@@ -124,6 +124,12 @@ ALLOWED_STATUSES = {
     "uncovered_gap",
     "yes",
     "no",
+    "true",
+    "false",
+    "satisfied",
+    "unsatisfied",
+    "impossible",
+    "unverified",
     "unassessed",
     "covered_safe",
     "flagged_for_phase_2",
@@ -134,11 +140,13 @@ EVIDENCE_ID_KEYS = (
     "intent_evidence_ids",
     "implementation_evidence_ids",
     "counter_evidence_ids",
+    "counterevidence_ids",
     "sample_evidence_ids",
     "representative_deep_read_evidence_ids",
     "caller_evidence_ids",
     "callee_evidence_ids",
     "ownership_evidence_ids",
+    "risk_override_evidence_ids",
 )
 EVIDENCE_REF_KEYS = ("evidence_refs", "counterevidence_refs", "existing_evidence_refs")
 
@@ -866,18 +874,101 @@ def _normalize_v30_aliases(skill: str, value: dict[str, Any]) -> None:
     """Normalize documented v3 field aliases in-place without relaxing required schema constraints."""
     if not isinstance(value, dict):
         return
-    if skill == "sfop_risk_calibrator":
+    if skill == "actor_and_feasibility_assessor":
+        if "actor_assessments" not in value and isinstance(value.get("assessments"), list):
+            value["actor_assessments"] = value["assessments"]
+        for list_key in ("actor_assessments", "assessments"):
+            items = value.get(list_key)
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                if "chain_id" not in item and isinstance(item.get("finding_id"), str):
+                    item["chain_id"] = item["finding_id"]
+                if "finding_id" not in item and isinstance(item.get("chain_id"), str):
+                    item["finding_id"] = item["chain_id"]
+                if "minimum_actor" not in item and isinstance(item.get("minimum_viable_actor"), str):
+                    item["minimum_actor"] = item["minimum_viable_actor"]
+                if "minimum_viable_actor" not in item and isinstance(item.get("minimum_actor"), str):
+                    item["minimum_viable_actor"] = item["minimum_actor"]
+                if "preconditions" not in item and isinstance(item.get("operational_preconditions"), list):
+                    item["preconditions"] = [
+                        p if isinstance(p, dict) else {"condition": str(p), "precondition": str(p), "status": "unknown", "precondition_status": "unknown"}
+                        for p in item["operational_preconditions"]
+                    ]
+                pre_list = item.get("preconditions")
+                if isinstance(pre_list, list):
+                    for pre in pre_list:
+                        if not isinstance(pre, dict):
+                            continue
+                        if "condition" not in pre and isinstance(pre.get("precondition"), str):
+                            pre["condition"] = pre["precondition"]
+                        if "precondition" not in pre and isinstance(pre.get("condition"), str):
+                            pre["precondition"] = pre["condition"]
+                        raw_st = (
+                            pre.get("status")
+                            if pre.get("status") is not None
+                            else (pre.get("precondition_status") if pre.get("precondition_status") is not None else pre.get("satisfied"))
+                        )
+                        if raw_st is not None:
+                            s_low = str(raw_st).strip().lower()
+                            if s_low in {"no", "false", "unsatisfied", "impossible"}:
+                                norm_st = "no"
+                            elif s_low in {"yes", "true", "satisfied", "confirmed", "observed"}:
+                                norm_st = "yes"
+                            elif s_low in {"unknown", "unverified", "hypothesis"}:
+                                norm_st = "unknown"
+                            else:
+                                norm_st = str(raw_st)
+                            if "status" not in pre or str(pre.get("status")).strip().lower() == s_low:
+                                pre["status"] = norm_st
+                            if "precondition_status" not in pre or str(pre.get("precondition_status")).strip().lower() == s_low:
+                                pre["precondition_status"] = norm_st
+    elif skill == "sfop_risk_calibrator":
         findings = value.get("calibrated_findings")
         if isinstance(findings, list):
             for item in findings:
-                if isinstance(item, dict) and "impact_axes" not in item and isinstance(item.get("sfop_impacts"), dict):
+                if not isinstance(item, dict):
+                    continue
+                if "impact_axes" not in item and isinstance(item.get("sfop_impacts"), dict):
                     item["impact_axes"] = item["sfop_impacts"]
+                if "owner_role" not in item:
+                    ro_str = str(item.get("risk_owner") or "").strip().lower()
+                    matched_role = next((r for r in VALID_OWNER_ROLES if r in ro_str), None)
+                    item["owner_role"] = matched_role or "dev_team"
     elif skill == "blinded_counterevidence_challenger":
         if "challenged_chains" not in value:
             for alias in ("challenges", "chain_challenges"):
                 if isinstance(value.get(alias), list):
                     value["challenged_chains"] = value[alias]
                     break
+        for ch_item in value.get("challenged_chains", []):
+            if not isinstance(ch_item, dict):
+                continue
+            if "challenge_verdict" not in ch_item and isinstance(ch_item.get("challenger_verdict"), str):
+                ch_item["challenge_verdict"] = ch_item["challenger_verdict"]
+            if "challenger_verdict" not in ch_item and isinstance(ch_item.get("challenge_verdict"), str):
+                ch_item["challenger_verdict"] = ch_item["challenge_verdict"]
+            if "counter_evidence_ids" not in ch_item and isinstance(ch_item.get("counterevidence_ids"), list):
+                ch_item["counter_evidence_ids"] = ch_item["counterevidence_ids"]
+            if not ch_item.get("counter_evidence_ids"):
+                chk = ch_item.get("control_search_checklist")
+                found_eids: list[str] = []
+                if isinstance(chk, list):
+                    for ce in chk:
+                        if isinstance(ce, dict) and ce.get("status") == "checked_found":
+                            for e in (ce.get("evidence_ids") or ce.get("counter_evidence_ids") or []):
+                                if isinstance(e, str) and e.startswith("ev_") and e not in found_eids:
+                                    found_eids.append(e)
+                elif isinstance(chk, dict):
+                    for ce in chk.values():
+                        if isinstance(ce, dict) and ce.get("status") == "checked_found":
+                            for e in (ce.get("evidence_ids") or ce.get("counter_evidence_ids") or []):
+                                if isinstance(e, str) and e.startswith("ev_") and e not in found_eids:
+                                    found_eids.append(e)
+                if found_eids:
+                    ch_item["counter_evidence_ids"] = found_eids
     elif skill == "intent_invariant_modeler":
         if "invariants" not in value and isinstance(value.get("sfop_invariants"), list):
             norm_invs: list[dict[str, Any]] = []
@@ -1131,8 +1222,26 @@ def _validate_v30_epistemic_gates(
                                 f"$.entrypoints[{ep_idx}] has object_id_params={obj_params!r} and cannot be listed as an unverified member of a cluster unless ownership_check=='present' with non-empty ownership_evidence_ids/evidence_ids, or placed in outliers/candidate_queue (ARCH-3F)"
                             )
 
-    # DEPTH-4.2b: Cross-Service Hop Gate in deep_trace_chain_analyst
+    # DEPTH-4.2b & R3-A4 Path 2: Cross-Service Hop Gate & Evidenced unexploitable_candidates in deep_trace_chain_analyst
     if skill == "deep_trace_chain_analyst":
+        for u_idx, unexp in enumerate(value.get("unexploitable_candidates", [])):
+            if not isinstance(unexp, dict):
+                issues.append(
+                    f"$.unexploitable_candidates[{u_idx}]: unexploitable_candidates items must be objects with candidate_id, reason (>=10 chars), and non-empty evidence_ids"
+                )
+                continue
+            u_cid = str(unexp.get("candidate_id") or "").strip()
+            u_reason = str(unexp.get("reason") or unexp.get("rationale") or "").strip()
+            raw_u_eids = [
+                str(e).strip()
+                for e in (unexp.get("evidence_ids") or [])
+                if isinstance(e, str) and str(e).strip().startswith("ev_")
+            ]
+            valid_u_eids = [e for e in raw_u_eids if valid_evidence_ids is None or e in valid_evidence_ids]
+            if not u_cid or len(u_reason) < 10 or not valid_u_eids:
+                issues.append(
+                    f"$.unexploitable_candidates[{u_idx}]: unexploitable_candidates items must be objects with candidate_id, reason (>=10 chars), and non-empty evidence_ids"
+                )
         chains = value.get("chains")
         if not isinstance(chains, list):
             chains = [value] if ("hops" in value or "chain_verdict" in value) else []
@@ -1166,7 +1275,7 @@ def _validate_v30_epistemic_gates(
                                 f"$.chains[{c_idx}].hops[{h_idx}] has cross-service hop_kind={h_kind!r} lacking caller_evidence_ids + callee_evidence_ids; chain_verdict={verdict!r} is forbidden unless downgraded to 'partially_confirmed' or 'hypothesized' (DEPTH-4.2b)"
                             )
 
-    # DEPTH-4.2d: 6-Location Control Search Gate in blinded_counterevidence_challenger
+    # DEPTH-4.2d & R3-A4 Paths 1 & 4: 6-Location Control Search Gate & Refutation Evidence Gate in blinded_counterevidence_challenger
     if skill == "blinded_counterevidence_challenger":
         def _resolve_checklist_eids(entry: dict[str, Any], sp_clean: list[str]) -> list[str]:
             explicit = [
@@ -1217,18 +1326,39 @@ def _validate_v30_epistemic_gates(
                     issues.append(
                         f"{item_loc} has status='checked_found' and requires non-empty evidence_ids (DEPTH-4.2d)"
                     )
+            elif st == "not_applicable":
+                reason_str = str(entry.get("reason") or entry.get("notes") or "").strip()
+                if len(reason_str) < 20:
+                    issues.append(
+                        f"{item_loc}: status='not_applicable' requires a reason/notes of at least 20 characters explaining why this control layer does not exist"
+                    )
 
         def _check_control_checklist(chk: Any, loc_prefix: str) -> None:
             if isinstance(chk, list):
+                na_count = 0
                 for idx, entry in enumerate(chk):
                     if isinstance(entry, dict):
+                        if entry.get("status") == "not_applicable":
+                            na_count += 1
                         _check_entry_dict(entry, f"{loc_prefix}[{idx}]")
+                if (len(chk) >= 6 and na_count == len(chk)) or na_count >= 6:
+                    issues.append(
+                        f"{loc_prefix}: control_search_checklist cannot mark all 6 control locations as 'not_applicable'; at least one location must be actively searched with evidence_ids"
+                    )
             elif isinstance(chk, dict):
+                na_count = 0
                 for k, entry in chk.items():
                     if isinstance(entry, dict):
+                        if entry.get("status") == "not_applicable":
+                            na_count += 1
                         _check_entry_dict(entry, f"{loc_prefix}.{k}")
                     elif isinstance(entry, str):
-                        if entry not in VALID_CONTROL_SEARCH_STATUSES:
+                        if entry == "not_applicable":
+                            na_count += 1
+                            issues.append(
+                                f"{loc_prefix}.{k}: status='not_applicable' requires a reason/notes of at least 20 characters explaining why this control layer does not exist"
+                            )
+                        elif entry not in VALID_CONTROL_SEARCH_STATUSES:
                             issues.append(
                                 f"{loc_prefix}.{k} {entry!r} must be one of {sorted(VALID_CONTROL_SEARCH_STATUSES)!r} (DEPTH-4.2d)"
                             )
@@ -1236,16 +1366,86 @@ def _validate_v30_epistemic_gates(
                             issues.append(
                                 f"{loc_prefix}.{k} has status={entry!r} and requires an object with non-empty searched_paths and evidence_ids (DEPTH-4.2d)"
                             )
+                if (len(chk) >= 6 and na_count == len(chk)) or na_count >= 6:
+                    issues.append(
+                        f"{loc_prefix}: control_search_checklist cannot mark all 6 control locations as 'not_applicable'; at least one location must be actively searched with evidence_ids"
+                    )
 
         if "control_search_checklist" in value:
             _check_control_checklist(value["control_search_checklist"], "$.control_search_checklist")
+        seen_challenge_objs: set[int] = set()
         for list_key in ("challenged_chains", "step_challenges", "challenges", "chain_challenges", "verifications"):
             for c_idx, ch_item in enumerate(value.get(list_key, [])):
-                if isinstance(ch_item, dict) and "control_search_checklist" in ch_item:
+                if not isinstance(ch_item, dict) or id(ch_item) in seen_challenge_objs:
+                    continue
+                seen_challenge_objs.add(id(ch_item))
+                if "control_search_checklist" in ch_item:
                     _check_control_checklist(
                         ch_item["control_search_checklist"],
                         f"$.{list_key}[{c_idx}].control_search_checklist",
                     )
+                c_verdict = str(
+                    ch_item.get("challenge_verdict")
+                    or ch_item.get("challenger_verdict")
+                    or ch_item.get("verdict")
+                    or ""
+                ).strip()
+                if c_verdict in {"refuted", "mitigated_by_existing_control", "broken_link"}:
+                    raw_ceids = [
+                        str(e).strip()
+                        for e in (ch_item.get("counter_evidence_ids") or ch_item.get("counterevidence_ids") or ch_item.get("evidence_ids") or [])
+                        if isinstance(e, str) and str(e).strip().startswith("ev_")
+                    ]
+                    valid_ceids = [e for e in raw_ceids if valid_evidence_ids is None or e in valid_evidence_ids]
+                    has_checked_found_ev = False
+                    chk_obj = ch_item.get("control_search_checklist")
+                    chk_entries = chk_obj if isinstance(chk_obj, list) else (list(chk_obj.values()) if isinstance(chk_obj, dict) else [])
+                    for ce in chk_entries:
+                        if isinstance(ce, dict) and ce.get("status") == "checked_found":
+                            ce_eids = [
+                                str(e).strip()
+                                for e in (ce.get("evidence_ids") or ce.get("counter_evidence_ids") or [])
+                                if isinstance(e, str) and str(e).strip().startswith("ev_") and (valid_evidence_ids is None or str(e).strip() in valid_evidence_ids)
+                            ]
+                            if ce_eids:
+                                has_checked_found_ev = True
+                                break
+                    if not valid_ceids and not has_checked_found_ev:
+                        issues.append(
+                            f"$.{list_key}[{c_idx}]: challenge_verdict in {{'refuted', 'mitigated_by_existing_control', 'broken_link'}} requires non-empty counter_evidence_ids proving the refutation or mitigating control"
+                        )
+
+    if skill == "actor_and_feasibility_assessor":
+        seen_a_objs: set[int] = set()
+        for list_key in ("actor_assessments", "assessments"):
+            for a_idx, a_item in enumerate(value.get(list_key, [])):
+                if not isinstance(a_item, dict) or id(a_item) in seen_a_objs:
+                    continue
+                seen_a_objs.add(id(a_item))
+                for p_idx, pre in enumerate(a_item.get("preconditions", [])):
+                    if not isinstance(pre, dict):
+                        continue
+                    p_stat = str(
+                        pre.get("status")
+                        if pre.get("status") is not None
+                        else (pre.get("precondition_status") if pre.get("precondition_status") is not None else pre.get("satisfied", ""))
+                    ).strip().lower()
+                    if p_stat in {"no", "false", "unsatisfied", "impossible"}:
+                        raw_eids = [
+                            str(e).strip()
+                            for e in (pre.get("evidence_ids") or [])
+                            if isinstance(e, str) and str(e).strip().startswith("ev_")
+                        ]
+                        valid_eids = [e for e in raw_eids if valid_evidence_ids is None or e in valid_evidence_ids]
+                        raw_sp = [
+                            str(p).strip()
+                            for p in (pre.get("searched_paths") or [])
+                            if isinstance(p, str) and str(p).strip()
+                        ]
+                        if not valid_eids or not raw_sp:
+                            issues.append(
+                                f"$.{list_key}[{a_idx}].preconditions[{p_idx}]: precondition with status='no' (unsatisfied) requires non-empty evidence_ids and searched_paths proving the precondition cannot hold"
+                            )
 
     if skill == "beyond_code_control_mapper":
         for idx, ctrl in enumerate(value.get("beyond_code_controls", [])):
@@ -1273,6 +1473,8 @@ def _validate_v30_epistemic_gates(
                     issues.append(
                         f"$.calibrated_findings[{idx}].owner_role {item['owner_role']!r} must be one of {sorted(VALID_OWNER_ROLES)!r} (DEPTH-4.4b)"
                     )
+            if "risk_owner" in item and not str(item.get("risk_owner") or "").strip():
+                issues.append(f"$.calibrated_findings[{idx}].risk_owner must be non-empty")
             if "blast_radius" in item and item["blast_radius"] is not None:
                 if item["blast_radius"] not in VALID_BLAST_RADIUS:
                     issues.append(
@@ -1363,6 +1565,8 @@ def validate_v30_epistemic_gates(
 ) -> list[str]:
     """Public entry point for v3.0 epistemic gates; raises OutputValidationError if called standalone and issues are found."""
     target_issues = issues if issues is not None else []
+    if isinstance(payload, dict):
+        _normalize_v30_aliases(skill_name, payload)
     _validate_v30_epistemic_gates(
         skill_name,
         payload,

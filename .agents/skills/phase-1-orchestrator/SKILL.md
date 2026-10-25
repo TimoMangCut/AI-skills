@@ -20,12 +20,12 @@ Với mỗi repository trong dự án (hoặc chạy tăng dần `--changed-file
 1. **Bước 1.1 — Inventory & Codebase Scout (`inventory_repo` + `/phase-1-codebase-scout` / `codebase_scout`)**:
    - Chạy kiểm kê tất định trước tiên: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session inventory_repo <repo_name> --tier 1` (`ARCH-3C`, `DEPTH-4.1e`, `DEPTH-4.3d`, `DEPTH-4.7`) để sinh `.localsec/runs/default/<repo_name>/inventory_repo.json` (gồm danh sách `mandatory_files` phân nhóm `entrypoint`, `security`, `wiring_config`, `outbound`, `data_access`, `control_search_paths` và `scan_repo_leads`).
    - AI dùng `list_dir` (depth 2) và chỉ đọc các file manifest/config/wiring để xác định **Product Archetypes** (`product_archetypes` & `detected_archetypes`), phân hạng **Repo Tier (`tier_1` / `tier_2` / `tier_3`)**, nắm quy ước tổ chức repo và lập **`Target Modules Map`** (`target_modules` phải bao phủ 100% thư mục chứa `entrypoint` hoặc `security` files, hoặc khai báo `ignored_modules` kèm enum `reason` hợp lệ).
-   - Đăng ký qua CLI: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session register_scout_map <repo_name> /tmp/codebase_scout_<repo_name>.json` (tuân thủ `AI-skills/schemas/v3/codebase_scout.schema.json`).
+   - Đăng ký qua CLI: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session register_scout_map <repo_name> .localsec/tmp/codebase_scout_<repo_name>.json` (tuân thủ `AI-skills/schemas/v3/codebase_scout.schema.json`).
 
 2. **Bước 1.3 (Chạy TRƯỚC khi đọc code thực thi) — `/phase-1-intent-invariant-modeler` (`intent_invariant_modeler` — `ARCH-3K`)**:
    - Thực thi **TRƯỚC khi đọc mã nguồn thực thi** (engine tự động chặn các đuôi file code `.go`, `.py`, `.ts`, `.cs`, `.java`, `.cpp` khi dùng `--skill intent_invariant_modeler`).
    - Chỉ đọc tài liệu thiết kế/README/OpenAPI/Proto/SQL/Manifest để lập mô hình **Ý định Nghiệp vụ & Bất biến An toàn Vật lý** trên 5 trục chữ thường đầy đủ (`"safety" | "financial" | "operational" | "privacy" | "compliance"`) và thực hiện **Tự rà soát phản biện bất biến (`self_challenged_gaps` — `ARCH-3E`)**.
-   - Nộp qua CLI: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> intent_invariant_modeler /tmp/intent_invariant_modeler_<repo_name>.json` (tuân thủ `AI-skills/schemas/v3/intent_invariant_modeler.schema.json`).
+   - Nộp qua CLI: `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> intent_invariant_modeler .localsec/tmp/intent_invariant_modeler_<repo_name>.json` (tuân thủ `AI-skills/schemas/v3/intent_invariant_modeler.schema.json`).
 
 3. **Bước 1.2 — `/phase-1-extractor-tailor` (`extractor_tailor` Micro-Skill)**:
    - AI đánh giá xem quy ước code của repo có dùng được Python structural extractor hay không (`USE_STANDARD_EXTRACTOR`, `TAILOR_CUSTOM_EXTRACTOR`, hoặc `SKIP_EXTRACTOR_DIRECT_READ`).

@@ -58,8 +58,8 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session select_attack_companio
 PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> src/ocpp_controller.py 1 160 --skill unified_surface_mapper
 
 # 3. Lưu kết quả unified_surface_mapper và coverage_ledger
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> unified_surface_mapper /tmp/unified_surface_mapper_<repo_name>.json
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> coverage_ledger /tmp/coverage_ledger_<repo_name>.json
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> unified_surface_mapper .localsec/tmp/unified_surface_mapper_<repo_name>.json
+PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> coverage_ledger .localsec/tmp/coverage_ledger_<repo_name>.json
 ```
 
 ---
@@ -129,7 +129,6 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_nam
       },
       {
         "surface_type": "ble_or_hardware_bus",
-        "candidate_id": "cand_111122223333",
         "status": "unknown",
         "searched_paths": [
           "src"
@@ -156,7 +155,6 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_nam
       },
       {
         "id": "EP-REMOTE-START",
-        "candidate_id": "cand_111122223333",
         "method": "POST",
         "path": "/api/v1/sessions/{sessionId}/remote-start",
         "file": "src/ocpp_controller.py",
@@ -193,7 +191,6 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_nam
         ],
         "outliers": [
           {
-            "candidate_id": "cand_111122223333",
             "id": "EP-REMOTE-START",
             "method": "POST",
             "path": "/api/v1/sessions/{sessionId}/remote-start",
@@ -208,7 +205,6 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_nam
     "invariant_checks": [
       {
         "invariant_id": "INV-SAFE-01",
-        "candidate_id": "cand_111122223333",
         "enforcement_status": "missing",
         "status": "observed",
         "intent_evidence_ids": [
