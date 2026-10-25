@@ -188,6 +188,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "remediation": {
+            "type": "string"
+          },
+          "root_cause_cluster_id": {
+            "type": "string"
           }
         }
       }
@@ -195,10 +201,30 @@
     "unexploitable_candidates": {
       "type": "array",
       "items": {
-        "type": [
-          "object",
-          "string"
-        ]
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "reason",
+          "evidence_ids"
+        ],
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 10
+          },
+          "evidence_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 3
+            }
+          }
+        }
       }
     },
     "root_causes": {

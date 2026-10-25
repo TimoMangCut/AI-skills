@@ -67,7 +67,6 @@ python -m localsec.manual_session submit_skill <repo_name> intent_invariant_mode
     "self_challenged_gaps": [
       {
         "gap_id": "GAP-SAFE-01",
-        "candidate_id": "cand_111122223333",
         "axis": "safety",
         "title": "Contactor state transition on abrupt telemetry disconnect is unspecified",
         "target_module": "src",

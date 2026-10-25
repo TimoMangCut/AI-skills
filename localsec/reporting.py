@@ -1822,18 +1822,14 @@ def render_v3_reports(
     docs_dir = project_root / "documents"
     docs_dir.mkdir(parents=True, exist_ok=True)
 
-    repo_dirs: list[Path] = []
+    all_repo_dirs: list[Path] = []
     if repo_name:
         cand = runs_root / repo_name
-        if cand.is_dir():
-            repo_dirs.append(cand)
-        else:
-            cand.mkdir(parents=True, exist_ok=True)
-            repo_dirs.append(cand)
-    elif runs_root.is_dir():
+        cand.mkdir(parents=True, exist_ok=True)
+    if runs_root.is_dir():
         for d in sorted(runs_root.iterdir(), key=lambda p: p.name):
             if d.is_dir() and not d.name.startswith("_"):
-                repo_dirs.append(d)
+                all_repo_dirs.append(d)
 
     def _load_repo_json(rdir: Path, fname: str) -> dict[str, Any]:
         fp = rdir / fname
@@ -1870,8 +1866,9 @@ def render_v3_reports(
     repos_with_gate0: list[str] = []
     repo_files_written: list[str] = []
 
-    for rdir in repo_dirs:
+    for rdir in all_repo_dirs:
         rname = rdir.name
+        is_target_repo = (repo_name is None) or (rname == repo_name)
         repo_gate0_triggered = False
 
         r_dev_lines: list[str] = [
@@ -1908,23 +1905,44 @@ def render_v3_reports(
         kq_file = _load_repo_json(rdir, "key_questions.json")
         ws_state = _load_repo_json(rdir, "workspace_state.json")
 
+        p1_gate = _load_repo_json(rdir, "phase1_gate_receipt.json")
+        p2_gate = _load_repo_json(rdir, "phase2_gate_receipt.json")
+        p3_gate = _load_repo_json(rdir, "phase3_gate_receipt.json")
+        inv = _load_repo_json(rdir, "inventory_repo.json")
+
+        gate_failed = any(
+            isinstance(g, dict) and "gate_passed" in g and g.get("gate_passed") is False
+            for g in (p1_gate, p2_gate, p3_gate)
+        )
+        gate_warn_lines: list[str] = (
+            [
+                "> [!WARNING]",
+                "> **[UNFINALIZED / GATE FAILED]**: One or more phase gates did not pass for this repository (`gate_passed=false`). Treat findings below as unfinalized.",
+                "",
+            ]
+            if gate_failed
+            else []
+        )
+
         clusters_by_id: dict[str, dict[str, Any]] = {}
         for cl in surf.get("semantic_clusters", []) or surf.get("equivalence_clusters", []):
             if isinstance(cl, dict) and cl.get("cluster_id"):
                 clusters_by_id[str(cl["cluster_id"])] = cl
 
-        # Collect refuted IDs so REFUTED_FALSE_POSITIVE chains are never rendered as vulnerabilities
+        # R3-A2: Collect refuted IDs strictly from current p3_queue reconciliation_log (or current challenger verdicts if p3_queue is absent)
         refuted_ids: set[str] = set()
-        for r_entry in list(p3_queue.get("empirical_refutations_ledger", [])) + list(ev_gate.get("empirical_refutations_ledger", [])):
-            if isinstance(r_entry, dict):
-                for rk in ("chain_id", "candidate_id", "finding_id"):
-                    if r_entry.get(rk):
-                        refuted_ids.add(str(r_entry[rk]))
-        for sc in list(challenger.get("challenged_chains", [])) + list(challenger.get("step_challenges", [])):
-            if isinstance(sc, dict) and str(sc.get("challenge_verdict") or sc.get("challenger_verdict") or sc.get("verdict") or "") in {"mitigated_by_existing_control", "broken_link", "refuted"}:
-                for rk in ("chain_id", "candidate_id", "finding_id"):
-                    if sc.get(rk):
-                        refuted_ids.add(str(sc[rk]))
+        if (rdir / "phase3_verified_queue.json").is_file() and isinstance(p3_queue.get("reconciliation_log"), list):
+            for r_entry in p3_queue.get("reconciliation_log", []):
+                if isinstance(r_entry, dict) and str(r_entry.get("reconciled_status") or "") == "REFUTED_FALSE_POSITIVE":
+                    for rk in ("chain_id", "candidate_id", "finding_id"):
+                        if r_entry.get(rk):
+                            refuted_ids.add(str(r_entry[rk]))
+        else:
+            for sc in list(challenger.get("challenged_chains", [])) + list(challenger.get("step_challenges", [])):
+                if isinstance(sc, dict) and str(sc.get("challenge_verdict") or sc.get("challenger_verdict") or sc.get("verdict") or "") in {"mitigated_by_existing_control", "broken_link", "refuted"}:
+                    for rk in ("chain_id", "candidate_id", "finding_id"):
+                        if sc.get(rk):
+                            refuted_ids.add(str(sc[rk]))
 
         raw_dt_chains = list(deep_trace.get("chains") or deep_trace.get("verified_chains") or [])
         dt_by_id: dict[str, dict[str, Any]] = {}
@@ -1989,7 +2007,7 @@ def render_v3_reports(
         if repo_gate0_triggered and rname not in repos_with_gate0:
             repos_with_gate0.append(rname)
 
-        repo_dev_sec: list[str] = [f"## Repository: `{_md(rname)}`", ""]
+        repo_dev_sec: list[str] = [f"## Repository: `{_md(rname)}`", ""] + list(gate_warn_lines)
         if not chains:
             repo_dev_sec.append("_No verified reachable vulnerability chains recorded for this repository._")
             repo_dev_sec.append("")
@@ -1997,7 +2015,8 @@ def render_v3_reports(
         for idx, ch in enumerate(chains, 1):
             if not isinstance(ch, dict):
                 continue
-            total_findings += 1
+            if is_target_repo:
+                total_findings += 1
             fid = str(ch.get("chain_id") or ch.get("finding_id") or ch.get("candidate_id") or f"FINDING-{idx}")
             rc_cluster_id = str(ch.get("root_cause_cluster_id") or ch.get("cluster_id") or "[UNSPECIFIED — REQUIRES UPDATE]")
             rc_obj = ch.get("root_cause")
@@ -2065,7 +2084,7 @@ def render_v3_reports(
         r_dev_lines.extend(repo_dev_sec)
 
         # Executive section for repo
-        repo_exec_sec: list[str] = [f"## Repository: `{_md(rname)}`", ""]
+        repo_exec_sec: list[str] = [f"## Repository: `{_md(rname)}`", ""] + list(gate_warn_lines)
         if repo_gate0_triggered:
             repo_exec_sec += [
                 "> [!CAUTION]",
@@ -2097,7 +2116,7 @@ def render_v3_reports(
             o_val = _axis_lvl(sfop_blk, "operational", "operational_impact", "[UNSPECIFIED — REQUIRES UPDATE]")
             p_val = _axis_lvl(sfop_blk, "privacy", "privacy_impact", "[UNSPECIFIED — REQUIRES UPDATE]")
             c_val = _axis_lvl(sfop_blk, "compliance", "compliance_impact", "[UNSPECIFIED — REQUIRES UPDATE]")
-            ov_raw = cf.get("contextual_risk_rating") or cf.get("derived_risk_rating") or cf.get("overall_risk")
+            ov_raw = cf.get("derived_risk_rating") or cf.get("contextual_risk_rating") or cf.get("overall_risk")
             ov_val = str(ov_raw).upper() if ov_raw else "[UNSPECIFIED — REQUIRES UPDATE]"
             feas_val = str(cf.get("feasibility_derived") or cf.get("exploitability_likelihood") or "[UNSPECIFIED — REQUIRES UPDATE]")
             br_val = str(cf.get("blast_radius") or "[UNSPECIFIED — REQUIRES UPDATE]")
@@ -2151,6 +2170,9 @@ def render_v3_reports(
                     st_k = str(rec.get("status") or "unassessed")
                     status_counts[st_k] = status_counts.get(st_k, 0) + 1
         unexp_cands = deep_trace.get("unexploitable_candidates", [])
+        hyp_findings = [h for h in p3_queue.get("hypothesis_only_findings", []) if isinstance(h, dict)]
+        unchallenged_list = list(p2_gate.get("unchallenged_chains") or ev_gate.get("unchallenged_chains") or [])
+        deferred_ext_count = int(inv.get("deferred_external_tool_findings_count", len(inv.get("deferred_external_tool_findings", []))) or 0)
 
         repo_exec_sec.append(
             f"- **Coverage Matrix Summary**: `{cov_matrix.get('record_count', len(cov_matrix.get('records', [])))}` surface × attack-class cells "
@@ -2165,6 +2187,24 @@ def render_v3_reports(
         )
         repo_exec_sec.append(
             f"- **Unexploitable Candidates Filtered in Phase 2 (`unexploitable_candidates`)**: `{len(unexp_cands)}`."
+        )
+        hyp_summary = (
+            ", ".join(
+                f"`{_md(h.get('chain_id') or h.get('candidate_id') or 'chain')}` (`{_md(h.get('challenger_verdict') or h.get('challenge_verdict') or 'needs_runtime_verification')}`)"
+                for h in hyp_findings
+            )
+            if hyp_findings
+            else "none"
+        )
+        repo_exec_sec.append(
+            f"- **Hypothesis-Only Chains Requiring Runtime Verification (HYPOTHESIS_ONLY_UNVERIFIED)**: `{len(hyp_findings)}` ({hyp_summary})."
+        )
+        unch_summary = ", ".join(f"`{_md(u)}`" for u in unchallenged_list) if unchallenged_list else "none"
+        repo_exec_sec.append(
+            f"- **Unchallenged / Blocked Chains (UNCHALLENGED_BLOCKED)**: `{len(unchallenged_list)}` ({unch_summary})."
+        )
+        repo_exec_sec.append(
+            f"- **Deferred Lower-Severity External Scanner Findings**: `{deferred_ext_count}`."
         )
         repo_exec_sec.append(
             f"- **Pending Operator / Safety Key Questions**: `{pending_kq_count}`."
@@ -2182,15 +2222,22 @@ def render_v3_reports(
         r_exec_lines.extend(repo_exec_sec)
 
         # QA / Pentest Playbook section for repo
-        repo_qa_sec: list[str] = [
-            f"## Repository: `{_md(rname)}`",
-            "",
-            "### Verification Request Sequences (`request_plan_is_not_execution: true`)",
-            "",
-        ]
+        repo_qa_sec: list[str] = (
+            [f"## Repository: `{_md(rname)}`", ""]
+            + list(gate_warn_lines)
+            + [
+                "### Verification Request Sequences (`request_plan_is_not_execution: true`)",
+                "",
+            ]
+        )
         if not chains:
             repo_qa_sec.append("_No verified reachable vulnerability chains to generate request sequences for._")
             repo_qa_sec.append("")
+
+        def _fmt_step(step_item: Any) -> str:
+            if isinstance(step_item, dict):
+                return str(step_item.get("description") or step_item.get("request") or step_item.get("action") or json.dumps(step_item, ensure_ascii=False))
+            return str(step_item)
 
         for idx, ch in enumerate(chains, 1):
             if not isinstance(ch, dict):
@@ -2204,11 +2251,6 @@ def render_v3_reports(
                 steps = list(rplan)
             if not steps and isinstance(ch.get("discriminating_requests"), list):
                 steps = list(ch.get("discriminating_requests", []))
-
-            def _fmt_step(step_item: Any) -> str:
-                if isinstance(step_item, dict):
-                    return str(step_item.get("description") or step_item.get("request") or step_item.get("action") or json.dumps(step_item, ensure_ascii=False))
-                return str(step_item)
 
             vuln_ind = (
                 (rplan.get("expected_vulnerable_indicator") or rplan.get("expected_vulnerable_behavior") if isinstance(rplan, dict) else None)
@@ -2233,31 +2275,78 @@ def render_v3_reports(
                 "",
             ]
 
+        repo_qa_sec.append("### Runtime Verification Playbook for Hypothesis-Only & Unchallenged Chains")
+        repo_qa_sec.append("")
+        if not hyp_findings and not unchallenged_list:
+            repo_qa_sec.append("_No hypothesis-only or unchallenged chains requiring separate runtime verification._")
+            repo_qa_sec.append("")
+        else:
+            for idx, hch in enumerate(hyp_findings, 1):
+                hfid = str(hch.get("chain_id") or hch.get("candidate_id") or f"HYP-CHAIN-{idx}")
+                hverdict = str(hch.get("challenger_verdict") or hch.get("challenge_verdict") or "needs_runtime_verification")
+                rplan = hch.get("request_plan") or hch.get("request_sequence_plan") or hch.get("reproduction_plan") or {}
+                steps = []
+                if isinstance(rplan, dict):
+                    steps = list(rplan.get("steps") or rplan.get("discriminating_requests") or [])
+                elif isinstance(rplan, list):
+                    steps = list(rplan)
+                if not steps and isinstance(hch.get("discriminating_requests"), list):
+                    steps = list(hch.get("discriminating_requests", []))
+                vuln_ind = (
+                    (rplan.get("expected_vulnerable_indicator") or rplan.get("expected_vulnerable_behavior") if isinstance(rplan, dict) else None)
+                    or hch.get("expected_vulnerable_indicator")
+                    or hch.get("expected_vulnerable_behavior")
+                    or "[UNSPECIFIED — REQUIRES UPDATE]"
+                )
+                safe_ind = (
+                    (rplan.get("expected_fixed_indicator") or rplan.get("expected_safe_behavior") if isinstance(rplan, dict) else None)
+                    or hch.get("expected_fixed_indicator")
+                    or hch.get("expected_safe_behavior")
+                    or "[UNSPECIFIED — REQUIRES UPDATE]"
+                )
+                repo_qa_sec += [
+                    f"#### Hypothesis-Only Playbook for `{_md(hfid)}` (`{_md(hverdict)}`)",
+                    f"- **Step 1: Setup**: {_md(_fmt_step(steps[0]) if len(steps) > 0 else '[UNSPECIFIED — REQUIRES UPDATE]')}",
+                    f"- **Step 2: Mutate**: {_md(_fmt_step(steps[1]) if len(steps) > 1 else (_fmt_step(steps[0]) if len(steps) == 1 else '[UNSPECIFIED — REQUIRES UPDATE]'))}",
+                    f"- **Step 3: Observe**: {_md(_fmt_step(steps[2]) if len(steps) > 2 else '[UNSPECIFIED — REQUIRES UPDATE]')}",
+                    f"- **Expected Vulnerable Indicator**: {_md(vuln_ind)}",
+                    f"- **Expected Fixed Indicator**: {_md(safe_ind)}",
+                    "",
+                ]
+            for u_id in unchallenged_list:
+                repo_qa_sec.append(
+                    f"- **Unchallenged / Blocked Chain `{_md(u_id)}`**: Requires `blinded_counterevidence_challenger` verification before promotion."
+                )
+            if unchallenged_list:
+                repo_qa_sec.append("")
+
         repo_qa_sec.append("### Empirical Refutations Ledger Summary")
         repo_qa_sec.append("")
-        refutations = list(p3_queue.get("empirical_refutations_ledger") or ev_gate.get("empirical_refutations_ledger") or [])
+        refutations = list(p3_queue.get("empirical_refutations_ledger", [])) if (rdir / "phase3_verified_queue.json").is_file() else []
         seen_ref_ids = {
             str(r.get("candidate_id") or r.get("chain_id") or "")
             for r in refutations
             if isinstance(r, dict)
         }
-        for sc in list(challenger.get("challenged_chains", [])) + list(challenger.get("step_challenges", [])):
-            if isinstance(sc, dict) and str(sc.get("challenger_verdict") or sc.get("challenge_verdict") or sc.get("verdict") or "") in {"mitigated_by_existing_control", "broken_link", "refuted"}:
-                sc_id = str(sc.get("chain_id") or sc.get("candidate_id") or "")
-                if sc_id not in seen_ref_ids:
-                    refutations.append({
-                        "candidate_id": sc_id,
-                        "refutation_reason": sc.get("rationale") or sc.get("notes") or sc.get("challenger_verdict") or sc.get("challenge_verdict"),
-                        "counterevidence_ids": sc.get("counter_evidence_ids") or sc.get("counterevidence_ids") or sc.get("evidence_ids") or [],
-                    })
-                    seen_ref_ids.add(sc_id)
+        if not (rdir / "phase3_verified_queue.json").is_file():
+            for sc in list(challenger.get("challenged_chains", [])) + list(challenger.get("step_challenges", [])):
+                if isinstance(sc, dict) and str(sc.get("challenger_verdict") or sc.get("challenge_verdict") or sc.get("verdict") or "") in {"mitigated_by_existing_control", "broken_link", "refuted"}:
+                    sc_id = str(sc.get("chain_id") or sc.get("candidate_id") or "")
+                    if sc_id not in seen_ref_ids:
+                        refutations.append({
+                            "candidate_id": sc_id,
+                            "refutation_reason": sc.get("rationale") or sc.get("notes") or sc.get("challenger_verdict") or sc.get("challenge_verdict"),
+                            "counterevidence_ids": sc.get("counter_evidence_ids") or sc.get("counterevidence_ids") or sc.get("evidence_ids") or [],
+                        })
+                        seen_ref_ids.add(sc_id)
         if not refutations:
             repo_qa_sec.append("_No refuted candidates recorded in the Empirical Refutations Ledger._")
             repo_qa_sec.append("")
         else:
             for ref in refutations:
                 if isinstance(ref, dict):
-                    total_refutations += 1
+                    if is_target_repo:
+                        total_refutations += 1
                     rcid = ref.get("candidate_id") or ref.get("chain_id") or "[UNSPECIFIED — REQUIRES UPDATE]"
                     rreason = ref.get("refutation_reason") or ref.get("reason") or "[UNSPECIFIED — REQUIRES UPDATE]"
                     cevs = [str(e) for e in (ref.get("counterevidence_ids") or ref.get("evidence_ids") or []) if str(e).startswith("ev_")]
@@ -2269,15 +2358,16 @@ def render_v3_reports(
         qa_lines.extend(repo_qa_sec)
         r_qa_lines.extend(repo_qa_sec)
 
-        sub_dir = docs_dir / rname
-        sub_dir.mkdir(parents=True, exist_ok=True)
-        rf1 = sub_dir / "01_developer_remediation_cards.md"
-        rf2 = sub_dir / "02_executive_risk_and_key_questions.md"
-        rf3 = sub_dir / "03_pentest_qa_verification_playbook.md"
-        _write_md(rf1, r_dev_lines)
-        _write_md(rf2, r_exec_lines)
-        _write_md(rf3, r_qa_lines)
-        repo_files_written.extend([str(rf1), str(rf2), str(rf3)])
+        if is_target_repo:
+            sub_dir = docs_dir / rname
+            sub_dir.mkdir(parents=True, exist_ok=True)
+            rf1 = sub_dir / "01_developer_remediation_cards.md"
+            rf2 = sub_dir / "02_executive_risk_and_key_questions.md"
+            rf3 = sub_dir / "03_pentest_qa_verification_playbook.md"
+            _write_md(rf1, r_dev_lines)
+            _write_md(rf2, r_exec_lines)
+            _write_md(rf3, r_qa_lines)
+            repo_files_written.extend([str(rf1), str(rf2), str(rf3)])
 
     f1 = docs_dir / "01_developer_remediation_cards.md"
     f2 = docs_dir / "02_executive_risk_and_key_questions.md"

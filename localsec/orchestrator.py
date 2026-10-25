@@ -1588,6 +1588,11 @@ DEPENDENCY_MANIFEST_NAMES = {
 
 CONTENT_ENTRYPOINT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("decorator_route", re.compile(r"@(?:app|router|api|bp|GetMapping|PostMapping|PutMapping|DeleteMapping|PatchMapping|RequestMapping|HttpGet|HttpPost|HttpPut|HttpDelete|KafkaListener|RabbitListener|GrpcService|Mutation|Query)\b")),
+    ("nestjs_controller_or_route", re.compile(r"@Controller\s*\(|@(?:Get|Post|Put|Delete|Patch)\s*\(")),
+    ("go_http_router", re.compile(r"\b(?:r|router|group|e|mux)\.(?:GET|POST|PUT|DELETE|PATCH|Use)\s*\(")),
+    ("dotnet_endpoint", re.compile(r"\[(?:HttpGet|HttpPost|HttpPut|HttpDelete|HttpPatch|Route)\b|\bMap(?:Get|Post|Put|Delete|Patch|GrpcService)\s*\(")),
+    ("spring_scheduled_or_listener", re.compile(r"@Scheduled\s*\(|@KafkaListener\s*\(|@RabbitListener\s*\(")),
+    ("aws_lambda_handler", re.compile(r"def\s+lambda_handler\s*\(|exports\.handler\s*=")),
     ("ocpp_action", re.compile(r"@on\(\s*Action\.|\bon_(?:boot_notification|remote_start_transaction|remote_stop_transaction|start_transaction|stop_transaction|authorize|meter_values)\b")),
     ("router_call", re.compile(r"\b(?:router|app|r|mux| server)\.(?:get|post|put|delete|patch|use|HandleFunc|Register\w*Server)\s*\(")),
     ("zmq_or_ipc", re.compile(r"#include\s*<zmq\.h>|\bzmq_(?:recv|msg_recv|bind|connect)\b|\bhandle_zmq_frame\b")),
@@ -1599,6 +1604,7 @@ CONTENT_ENTRYPOINT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 CONTENT_SECURITY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("jwt_or_token_verify", re.compile(r"\b(?:jwt\.decode|jwt\.verify|verify_token|require_jwt|validate_token|parse_token|Bearer\s)\b")),
     ("authz_guard", re.compile(r"\b(?:authorize|check_permission|has_permission|require_role|UseGuards|SecurityFilterChain|PreAuthorize|CanActivate|Depends\s*\(\s*(?:get_current_user|require_))\b|@(?:require_role|UseGuards|PreAuthorize|RolesAllowed|InternalServiceOnly)\b")),
+    ("framework_auth_decorator", re.compile(r"@UseGuards\s*\(|\[Authorize\b|\[AllowAnonymous\b")),
     ("crypto_or_hmac", re.compile(r"\b(?:hmac\.new|hmac\.compare_digest|crypto\.createHmac|bcrypt\.|argon2\.| pbkdf2)\b")),
     ("safety_interlock", re.compile(r"\b(?:check_interlock|safety_interlock|emergency_stop|verify_contactor_safe)\b")),
 ]
@@ -1691,11 +1697,34 @@ def _classify_inventory_file_with_signals(
             if len(signals) < 3 and s not in signals:
                 signals.append(s)
 
-    # 3. Wiring / Config
-    is_wiring = (
-        suffix in {".yaml", ".yml", ".toml", ".tf", ".hcl", ".conf", ".ini", ".properties", ".plist", ".entitlements", ".csproj"}
-        or any(tok in lower_rel for tok in ("docker-compose", "dockerfile", "helm", "k8s", "kubernetes", "ingress", "gateway", "krakend", "kong", "nginx", "envoy", "appsettings", "androidmanifest", "info.plist", "cors"))
+    # 3. Wiring / Config: narrow .yaml/.yml/.toml/.ini/.properties to files whose path or content indicates app/infra wiring
+    wiring_path_tokens = (
+        "docker", "compose", "dockerfile", "k8s", "kubernetes", "helm", "ingress",
+        "gateway", "kong", "krakend", "nginx", "envoy", "appsettings", "application.",
+        "config", "settings", "localsec", "manifest", "androidmanifest", "info.plist",
+        "cors", "auth", "security",
     )
+    wiring_content_tokens = (
+        "server:", "spring:", "services:", "ingress:", "routes:", "endpoints:",
+        "upstreams:", "plugins:", "cors", "jwt", "auth", "security", "listen ",
+        "proxy_pass", "apiversion:",
+    )
+    if suffix in {".tf", ".hcl", ".conf", ".plist", ".entitlements", ".csproj"}:
+        is_wiring = True
+    elif suffix in {".yaml", ".yml", ".toml", ".ini", ".properties"}:
+        is_wiring = (
+            any(tok in lower_rel for tok in wiring_path_tokens)
+            or any(tok in lower_sample for tok in wiring_content_tokens)
+        )
+    else:
+        is_wiring = any(
+            tok in lower_rel
+            for tok in (
+                "docker-compose", "dockerfile", "helm", "k8s", "kubernetes", "ingress",
+                "gateway", "krakend", "kong", "nginx", "envoy", "appsettings",
+                "androidmanifest", "info.plist", "cors",
+            )
+        )
     if is_wiring:
         categories.append("wiring_config")
         if len(signals) < 3:
@@ -1712,11 +1741,17 @@ def _classify_inventory_file_with_signals(
         if len(signals) < 3:
             signals.append("outbound_call_or_client")
 
-    # 5. Data Access
+    # 5. Data Access: require SQL/ORM/DB content signals OR .sql/.prisma suffix OR migrations directory
+    data_content_signals = (
+        "select ", "insert ", "update ", "delete from", "create table",
+        "@entity", "@table", "prisma.", "gorm.", "db.", "session.query",
+        "repository<", "dbcontext", "redis.", "mongo", ".execute(",
+        "sqlalchemy", "typeorm", "sequelize", "mongoose",
+    )
     is_data = (
         suffix in {".sql", ".prisma"}
-        or any(p in {"repositories", "repository", "repo", "dao", "models", "entities", "migrations", "db", "database", "store", "storage"} for p in parts_lower)
-        or any(tok in stem for tok in ("repository", "dao", "model", "entity", "migration", "schema", "query", "store", "cache", "redis"))
+        or "migrations" in parts_lower
+        or any(tok in lower_sample for tok in data_content_signals)
     )
     if is_data and suffix not in {".md", ".txt"}:
         categories.append("data_access")
@@ -1744,14 +1779,117 @@ def _redact_secret_preview(line: str) -> str:
     return redacted[:160]
 
 
-def _scan_external_tool_reports(project_root: Path, repo_root: Path) -> list[dict[str, Any]]:
-    """Scan <project_root>/reports/ and <repo_root>/reports/ for *.sarif, *trivy*.json, *gitleaks*.json."""
-    leads: list[dict[str, Any]] = []
-    report_dirs: list[Path] = []
-    for d in (project_root / "reports", repo_root / "reports"):
-        if d.is_dir() and d not in report_dirs:
-            report_dirs.append(d)
-    for rdir in report_dirs:
+def _scan_external_tool_reports_detailed(
+    project_root: Path,
+    repo_root: Path,
+    repo_name: str = "",
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], set[str]]:
+    """R3-A6: Scan <project_root>/reports/ and <repo_root>/reports/ for *.sarif, *trivy*.json, *gitleaks*.json.
+    Filters project-level reports by repo_name, extracts severity, groups CRITICAL/HIGH findings into
+    external_tool_leads, and places MEDIUM/LOW/INFO findings into deferred_external_tool_findings.
+    Returns (external_tool_leads, deferred_external_tool_findings, flagged_manifest_paths).
+    """
+    eff_repo_name = (repo_name or repo_root.name).strip()
+    other_repo_names: set[str] = set()
+    if project_root != repo_root and project_root.is_dir():
+        try:
+            for d in project_root.iterdir():
+                if (
+                    d.is_dir()
+                    and not d.name.startswith((".", "_"))
+                    and d.name not in {"reports", "documents", "localsec", "schemas", "contracts", "tests"}
+                    and d.name != eff_repo_name
+                ):
+                    other_repo_names.add(d.name)
+        except OSError:
+            pass
+
+    def _resolve_uri_for_repo(raw_uri: str, is_project_report: bool) -> str | None:
+        loc_uri = raw_uri.strip().replace("\\", "/")
+        if loc_uri.startswith("file://"):
+            loc_uri = loc_uri[7:]
+        loc_uri = loc_uri.lstrip("./")
+        if eff_repo_name and loc_uri.startswith(f"{eff_repo_name}/"):
+            return loc_uri[len(eff_repo_name) + 1:]
+        if not is_project_report:
+            return loc_uri
+        if not loc_uri:
+            return loc_uri if not other_repo_names else None
+        if (repo_root / loc_uri).exists():
+            return loc_uri
+        first_seg = loc_uri.split("/", 1)[0]
+        if first_seg in other_repo_names:
+            return None
+        for o_repo in other_repo_names:
+            if (project_root / o_repo / loc_uri).exists():
+                return None
+        if other_repo_names:
+            return None
+        if "/" in loc_uri and not (repo_root / first_seg).exists():
+            return None
+        return loc_uri
+
+    sev_rank = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "INFO": 0}
+    grouped_leads: dict[str, dict[str, Any]] = {}
+    deferred_findings: list[dict[str, Any]] = []
+    flagged_manifests: set[str] = set()
+
+    def _record_finding(
+        *,
+        tool: str,
+        rule_id: str,
+        title: str,
+        path: str,
+        line: int,
+        report_file: str,
+        severity: str,
+        group_key: str,
+    ) -> None:
+        sev_u = severity.upper() if severity.upper() in sev_rank else "HIGH"
+        if tool in {"trivy", "sarif"} and path:
+            flagged_manifests.add(path)
+        if tool == "gitleaks" or sev_u in {"CRITICAL", "HIGH"}:
+            if group_key not in grouped_leads:
+                grouped_leads[group_key] = {
+                    "tool": tool,
+                    "rule_id": rule_id,
+                    "title": title[:200],
+                    "path": path,
+                    "line": line,
+                    "report_file": report_file,
+                    "severity": sev_u,
+                    "group_key": group_key,
+                    "finding_count": 1,
+                    "cve_ids": [rule_id] if rule_id else [],
+                }
+            else:
+                grp = grouped_leads[group_key]
+                grp["finding_count"] = int(grp.get("finding_count", 1)) + 1
+                if rule_id and rule_id not in grp["cve_ids"]:
+                    grp["cve_ids"].append(rule_id)
+                if sev_rank.get(sev_u, 0) > sev_rank.get(str(grp.get("severity", "HIGH")), 0):
+                    grp["severity"] = sev_u
+        else:
+            deferred_findings.append({
+                "tool": tool,
+                "rule_id": rule_id,
+                "title": title[:200],
+                "path": path,
+                "line": line,
+                "report_file": report_file,
+                "severity": sev_u,
+                "group_key": group_key,
+            })
+
+    report_dirs: list[tuple[Path, bool]] = []
+    proj_reports = project_root / "reports"
+    repo_reports = repo_root / "reports"
+    if proj_reports.is_dir():
+        report_dirs.append((proj_reports, proj_reports.resolve() != repo_reports.resolve()))
+    if repo_reports.is_dir() and all(repo_reports.resolve() != d.resolve() for d, _ in report_dirs):
+        report_dirs.append((repo_reports, False))
+
+    for rdir, is_proj_report in report_dirs:
         try:
             files = sorted(rdir.rglob("*"))
         except OSError:
@@ -1770,6 +1908,23 @@ def _scan_external_tool_reports(project_root: Path, repo_root: Path) -> list[dic
                 for run in data.get("runs", []):
                     if not isinstance(run, dict):
                         continue
+                    rule_sev_map: dict[str, str] = {}
+                    driver = run.get("tool", {}).get("driver", {}) if isinstance(run.get("tool"), dict) else {}
+                    if isinstance(driver, dict):
+                        for r_def in driver.get("rules", []):
+                            if isinstance(r_def, dict) and r_def.get("id"):
+                                r_id_k = str(r_def["id"])
+                                r_props = r_def.get("properties", {}) if isinstance(r_def.get("properties"), dict) else {}
+                                r_def_cfg = r_def.get("defaultConfiguration", {}) if isinstance(r_def.get("defaultConfiguration"), dict) else {}
+                                if r_props.get("security-severity") is not None:
+                                    try:
+                                        ss = float(r_props["security-severity"])
+                                        rule_sev_map[r_id_k] = "CRITICAL" if ss >= 9.0 else ("HIGH" if ss >= 7.0 else ("MEDIUM" if ss >= 4.0 else "LOW"))
+                                    except (ValueError, TypeError):
+                                        pass
+                                elif r_def_cfg.get("level"):
+                                    lvl_s = str(r_def_cfg["level"]).lower()
+                                    rule_sev_map[r_id_k] = "HIGH" if lvl_s == "error" else ("MEDIUM" if lvl_s == "warning" else "LOW")
                     for res in run.get("results", []):
                         if not isinstance(res, dict):
                             continue
@@ -1788,50 +1943,93 @@ def _scan_external_tool_reports(project_root: Path, repo_root: Path) -> list[dic
                                     loc_uri = str(art.get("uri") or "")
                                 if isinstance(reg, dict) and reg.get("startLine"):
                                     start_line = int(reg["startLine"])
-                        leads.append({
-                            "tool": "sarif",
-                            "rule_id": rule_id,
-                            "title": text[:200],
-                            "path": loc_uri,
-                            "line": start_line,
-                            "report_file": f.name,
-                        })
+                        resolved_uri = _resolve_uri_for_repo(loc_uri, is_proj_report)
+                        if resolved_uri is None:
+                            continue
+                        props = res.get("properties", {}) if isinstance(res.get("properties"), dict) else {}
+                        sarif_sev = ""
+                        if props.get("security-severity") is not None:
+                            try:
+                                ss = float(props["security-severity"])
+                                sarif_sev = "CRITICAL" if ss >= 9.0 else ("HIGH" if ss >= 7.0 else ("MEDIUM" if ss >= 4.0 else "LOW"))
+                            except (ValueError, TypeError):
+                                sarif_sev = ""
+                        if not sarif_sev and str(props.get("severity") or res.get("severity") or "").upper() in sev_rank:
+                            sarif_sev = str(props.get("severity") or res.get("severity")).upper()
+                        if not sarif_sev and res.get("level"):
+                            lvl = str(res.get("level")).strip().lower()
+                            sarif_sev = "HIGH" if lvl == "error" else ("MEDIUM" if lvl == "warning" else ("LOW" if lvl == "note" else "INFO"))
+                        if not sarif_sev:
+                            sarif_sev = rule_sev_map.get(rule_id, "HIGH")
+                        module_dir = "/".join(resolved_uri.split("/")[:-1]) if "/" in resolved_uri else "."
+                        g_key = f"sarif:{rule_id}:{module_dir}"
+                        _record_finding(
+                            tool="sarif",
+                            rule_id=rule_id,
+                            title=text,
+                            path=resolved_uri,
+                            line=start_line,
+                            report_file=f.name,
+                            severity=sarif_sev,
+                            group_key=g_key,
+                        )
             elif "trivy" in lname and isinstance(data, dict):
                 for r_item in data.get("Results", data.get("results", [])):
                     if not isinstance(r_item, dict):
                         continue
                     target = str(r_item.get("Target") or r_item.get("target") or "")
+                    resolved_target = _resolve_uri_for_repo(target, is_proj_report)
+                    if resolved_target is None:
+                        continue
                     for vuln in list(r_item.get("Vulnerabilities") or []) + list(r_item.get("Misconfigurations") or []):
                         if not isinstance(vuln, dict):
                             continue
                         vid = str(vuln.get("VulnerabilityID") or vuln.get("ID") or "TRIVY_FINDING")
                         vtitle = str(vuln.get("Title") or vuln.get("PkgName") or vid)
-                        leads.append({
-                            "tool": "trivy",
-                            "rule_id": vid,
-                            "title": vtitle[:200],
-                            "path": target,
-                            "line": 1,
-                            "report_file": f.name,
-                        })
+                        raw_sev = str(vuln.get("Severity") or vuln.get("severity") or "HIGH").strip().upper()
+                        vsev = raw_sev if raw_sev in sev_rank else ("LOW" if raw_sev == "UNKNOWN" else "HIGH")
+                        pkg_name = str(vuln.get("PkgName") or vuln.get("pkgName") or vuln.get("Type") or vid).strip()
+                        installed_ver = str(vuln.get("InstalledVersion") or vuln.get("installedVersion") or "").strip()
+                        g_key = f"trivy:{resolved_target}:{pkg_name}@{installed_ver}"
+                        _record_finding(
+                            tool="trivy",
+                            rule_id=vid,
+                            title=vtitle,
+                            path=resolved_target,
+                            line=1,
+                            report_file=f.name,
+                            severity=vsev,
+                            group_key=g_key,
+                        )
             elif "gitleaks" in lname:
                 items = data if isinstance(data, list) else (data.get("findings", []) if isinstance(data, dict) else [])
                 if isinstance(items, list):
-                    for g_item in items:
+                    for g_idx, g_item in enumerate(items):
                         if not isinstance(g_item, dict):
                             continue
                         rid = str(g_item.get("RuleID") or g_item.get("rule_id") or "GITLEAKS_RULE")
                         desc = str(g_item.get("Description") or g_item.get("description") or rid)
                         gfile = str(g_item.get("File") or g_item.get("file") or "")
+                        resolved_gfile = _resolve_uri_for_repo(gfile, is_proj_report)
+                        if resolved_gfile is None:
+                            continue
                         gline = int(g_item.get("StartLine") or g_item.get("line") or 1)
-                        leads.append({
-                            "tool": "gitleaks",
-                            "rule_id": rid,
-                            "title": desc[:200],
-                            "path": gfile,
-                            "line": gline,
-                            "report_file": f.name,
-                        })
+                        _record_finding(
+                            tool="gitleaks",
+                            rule_id=rid,
+                            title=desc,
+                            path=resolved_gfile,
+                            line=gline,
+                            report_file=f.name,
+                            severity="HIGH",
+                            group_key=f"gitleaks:{rid}:{resolved_gfile}:{gline}:{g_idx}",
+                        )
+    return list(grouped_leads.values()), deferred_findings, flagged_manifests
+
+
+def _scan_external_tool_reports(project_root: Path, repo_root: Path, repo_name: str = "") -> list[dict[str, Any]]:
+    """Scan <project_root>/reports/ and <repo_root>/reports/ for *.sarif, *trivy*.json, *gitleaks*.json."""
+    leads, _, _ = _scan_external_tool_reports_detailed(project_root, repo_root, repo_name=repo_name)
     return leads
 
 
@@ -1984,7 +2182,18 @@ def inventory_repo(
                             })
 
     _walk(repo_root)
-    external_tool_leads = _scan_external_tool_reports(project_root, repo_root)
+    external_tool_leads, deferred_external_tool_findings, flagged_manifests = _scan_external_tool_reports_detailed(
+        project_root,
+        repo_root,
+        repo_name=repo_name,
+    )
+    flagged_manifest_dirs = {str(Path(p).parent.as_posix()) for p in flagged_manifests if p}
+    for d_lead in dependency_leads:
+        if isinstance(d_lead, dict):
+            d_path = str(d_lead.get("path") or "")
+            d_dir = str(Path(d_path).parent.as_posix()) if d_path else ""
+            if d_path in flagged_manifests or (d_dir and d_dir in flagged_manifest_dirs):
+                d_lead["vulnerable_or_flagged"] = True
 
     has_entrypoints = len(mandatory_files["entrypoint"]) > 0
     has_security = len(mandatory_files["security"]) > 0
@@ -2045,6 +2254,8 @@ def inventory_repo(
         "dependency_manifests": dependency_manifests,
         "dependency_leads": dependency_leads,
         "external_tool_leads": external_tool_leads,
+        "deferred_external_tool_findings": deferred_external_tool_findings,
+        "deferred_external_tool_findings_count": len(deferred_external_tool_findings),
         "recommended_tier": recommended_tier,
         "recommended_tier_number": recommended_tier_num,
         "operator_tier": norm_op_tier,
@@ -2172,9 +2383,11 @@ def audit_visibility_and_coverage(
             return ""
         if ref in ep_to_file:
             return ep_to_file[ref]
-        if "/" in ref and not ref.startswith(("GET ", "POST ", "PUT ", "DELETE ", "PATCH ", "OCPP:", "HTTP")):
-            return ref.lstrip("./")
-        return ref
+        cand_rel = ref.lstrip("./")
+        if not cand_rel.startswith(("GET ", "POST ", "PUT ", "DELETE ", "PATCH ", "OCPP:", "HTTP")):
+            if Path(cand_rel).suffix != "" or (workspace.root / cand_rel).is_file():
+                return cand_rel
+        return ""
 
     clustered_files: set[str] = set()
     spot_check_clusters: list[dict[str, Any]] = []
@@ -2202,6 +2415,7 @@ def audit_visibility_and_coverage(
             or cl.get("member_endpoints")
             or []
         )
+        raw_member_count = len(raw_members) if isinstance(raw_members, list) else 0
         members: list[str] = []
         if isinstance(raw_members, list):
             for m in raw_members:
@@ -2215,22 +2429,27 @@ def audit_visibility_and_coverage(
         for m in members:
             if not rep or rep in visited_set:
                 clustered_files.add(m)
-        if len(members) >= 5:
+        effective_member_count = max(len(members), raw_member_count)
+        if effective_member_count >= 5:
             non_rep = sorted(m for m in members if m != rep)
+            spot_file = ""
             if non_rep:
                 pick_idx = int(hashlib.sha256(cid.encode("utf-8")).hexdigest(), 16) % len(non_rep)
                 spot_file = non_rep[pick_idx]
+            elif rep:
+                spot_file = rep
+            if spot_file:
                 spot_read = spot_file in visited_set
                 spot_check_clusters.append({
                     "cluster_id": cid,
-                    "member_count": len(members),
+                    "member_count": effective_member_count,
                     "representative_file": rep,
                     "required_spot_check_file": spot_file,
                     "spot_check_read": spot_read,
                 })
                 if not spot_read:
                     spot_check_violations.append(
-                        f"Cluster {cid!r} has {len(members)} members (>=5); spot-check member {spot_file!r} must be directly read"
+                        f"Cluster {cid!r} has {effective_member_count} members (>=5); spot-check member {spot_file!r} must be directly read"
                     )
 
     # Check ignored/waived modules from scout_map
@@ -2396,6 +2615,7 @@ def generate_coverage_matrix(run_dir: Path, repo_name: str) -> dict[str, Any]:
 
     # Index explicit surface anomalies / candidates / entrypoints per (mod, aclass)
     flagged_evidence_by_cell: dict[tuple[str, str], list[str]] = {}
+    flagged_cells: set[tuple[str, str]] = set()
     safe_evidence_by_cell: dict[tuple[str, str], list[str]] = {}
 
     def _match_attack_class(raw_cls: str) -> str:
@@ -2412,7 +2632,7 @@ def generate_coverage_matrix(run_dir: Path, repo_name: str) -> dict[str, Any]:
             return "STATE_RACE"
         if any(k in u for k in ("SAFETY", "INVARIANT", "ACTUATOR", "INTERLOCK")):
             return "SAFETY_INVARIANT"
-        return "BOLA_IDOR"
+        return ""
 
     for anom in (
         list(surf.get("anomalies", []))
@@ -2431,13 +2651,18 @@ def generate_coverage_matrix(run_dir: Path, repo_name: str) -> dict[str, Any]:
         raw_ac = str(
             anom.get("attack_class")
             or ((anom.get("attack_classes") or [""])[0] if isinstance(anom.get("attack_classes"), list) else "")
-            or "BOLA_IDOR"
+            or ""
         )
         mapped_ac = _match_attack_class(raw_ac)
+        if not mapped_ac:
+            continue
         raw_eids = list(anom.get("evidence_ids") or [])
         for mod in target_mods:
+            if mod == "." or (ap and (ap == mod or ap.startswith(mod + "/") or mod in ap)):
+                flagged_cells.add((mod, mapped_ac))
             mod_eids = _filter_module_eids(raw_eids, mod)
             if mod_eids and (mod == "." or mod in ap or not ap):
+                flagged_cells.add((mod, mapped_ac))
                 cell = flagged_evidence_by_cell.setdefault((mod, mapped_ac), [])
                 for e in mod_eids:
                     if e not in cell:
@@ -2446,10 +2671,12 @@ def generate_coverage_matrix(run_dir: Path, repo_name: str) -> dict[str, Any]:
     for ic in surf.get("invariant_checks", []):
         if isinstance(ic, dict) and str(ic.get("enforcement_status") or ic.get("status") or "").lower() in {"missing", "partial"}:
             raw_eids = list(ic.get("implementation_evidence_ids") or ic.get("evidence_ids") or [])
+            ic_ac = "SAFETY_INVARIANT" if "SAFETY_INVARIANT" in attack_classes else "STATE_RACE"
             for mod in target_mods:
                 mod_eids = _filter_module_eids(raw_eids, mod)
                 if mod_eids:
-                    cell = flagged_evidence_by_cell.setdefault((mod, "SAFETY_INVARIANT" if "SAFETY_INVARIANT" in attack_classes else "STATE_RACE"), [])
+                    flagged_cells.add((mod, ic_ac))
+                    cell = flagged_evidence_by_cell.setdefault((mod, ic_ac), [])
                     for e in mod_eids:
                         if e not in cell:
                             cell.append(e)
@@ -2457,15 +2684,21 @@ def generate_coverage_matrix(run_dir: Path, repo_name: str) -> dict[str, Any]:
     for ep in surf.get("entrypoints", []):
         if not isinstance(ep, dict):
             continue
-        ep_file = str(ep.get("file") or ep.get("path") or "").strip()
+        ep_file = str(ep.get("file") or ep.get("path") or "").strip().lstrip("./")
         raw_eids = list(ep.get("ownership_evidence_ids") or ep.get("evidence_ids") or [])
         for mod in target_mods:
             if mod != "." and not (ep_file == mod or ep_file.startswith(mod + "/")):
                 continue
+            is_bola_flagged = bool(
+                ep.get("ownership_check") == "missing"
+                or (ep.get("object_id_params") and ep.get("ownership_check") != "present")
+            )
+            if is_bola_flagged:
+                flagged_cells.add((mod, "BOLA_IDOR"))
             mod_eids = _filter_module_eids(raw_eids, mod)
             if not mod_eids:
                 continue
-            if ep.get("ownership_check") == "missing" or (ep.get("object_id_params") and ep.get("ownership_check") != "present"):
+            if is_bola_flagged:
                 cell = flagged_evidence_by_cell.setdefault((mod, "BOLA_IDOR"), [])
                 for e in mod_eids:
                     if e not in cell:
@@ -2479,19 +2712,29 @@ def generate_coverage_matrix(run_dir: Path, repo_name: str) -> dict[str, Any]:
     records: list[dict[str, Any]] = []
     seen_cids: set[str] = set()
 
-    # Preserve existing coverage_ledger records only when they cite valid non-placeholder evidence IDs
+    # Preserve existing coverage_ledger records only when they cite valid non-placeholder evidence IDs and do not contradict flagged cells
     for rec in existing_ledger.get("records", []):
         if isinstance(rec, dict) and rec.get("coverage_id"):
             cid_str = str(rec["coverage_id"])
             rec_mod = str(rec.get("target_module") or ".")
+            rec_ac = str(rec.get("attack_class") or "")
             valid_rec_eids = _filter_module_eids(list(rec.get("evidence_ids") or []), rec_mod)
             rec_copy = dict(rec)
             raw_st = str(rec_copy.get("status") or "unassessed")
+            cell_flagged_eids = flagged_evidence_by_cell.get((rec_mod, rec_ac), [])
+            cell_is_flagged = bool(cell_flagged_eids or (rec_mod, rec_ac) in flagged_cells)
             if raw_st in {"verified_safe", "covered_safe"}:
-                rec_copy["status"] = "covered_safe" if valid_rec_eids else "unassessed"
+                if cell_is_flagged:
+                    rec_copy["status"] = "flagged_for_phase_2"
+                    rec_copy["evidence_ids"] = cell_flagged_eids or valid_rec_eids
+                else:
+                    rec_copy["status"] = "covered_safe" if valid_rec_eids else "unassessed"
+                    rec_copy["evidence_ids"] = valid_rec_eids
             elif raw_st in {"covered_finding", "flagged_for_phase_2"}:
-                rec_copy["status"] = "flagged_for_phase_2" if valid_rec_eids else "unassessed"
-            rec_copy["evidence_ids"] = valid_rec_eids
+                rec_copy["status"] = "flagged_for_phase_2" if (valid_rec_eids or cell_is_flagged) else "unassessed"
+                rec_copy["evidence_ids"] = valid_rec_eids or cell_flagged_eids
+            else:
+                rec_copy["evidence_ids"] = valid_rec_eids
             seen_cids.add(cid_str)
             records.append(rec_copy)
 
@@ -2689,18 +2932,56 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
                     ep,
                 )
 
-    # 1c. unified_surface_mapper.json -> surface_checklist unknown items (status=='unknown' or present is None)
+    # 1c. unified_surface_mapper.json -> surface_checklist unknown items or 'absent' items contradicted by inventory_repo signals
+    inv_signals = inv.get("mandatory_file_signals", {}) if isinstance(inv.get("mandatory_file_signals"), dict) else {}
+    inv_mfiles = inv.get("mandatory_files", {}) if isinstance(inv.get("mandatory_files"), dict) else {}
+    all_inv_files = list(inv_mfiles.get("entrypoint", [])) + list(inv_mfiles.get("security", []))
+
+    def _contradicting_inventory_files(stype_name: str) -> list[str]:
+        st_low = stype_name.strip().lower()
+        matched_files: list[str] = []
+        signal_keywords: tuple[str, ...] = ()
+        path_keywords: tuple[str, ...] = ()
+        if st_low == "websocket_mqtt_ocpp":
+            signal_keywords = ("ocpp", "mqtt", "zmq", "websocket")
+            path_keywords = ("ocpp", "mqtt", "websocket", "ws_")
+        elif st_low == "mobile_deeplink_or_exported_component":
+            signal_keywords = ("mobile_bridge", "mobile_manifest", "flutter_method_channel", "methodchannel", "deeplink")
+            path_keywords = ("androidmanifest.xml", "info.plist", "deeplink", "method_channel")
+        elif st_low == "ble_or_hardware_bus":
+            signal_keywords = ("ros2", "modbus", "opcua", "iec61850", "dnp3", "canbus", "ble")
+            path_keywords = ("ros2", "modbus", "opcua", "canbus", "ble")
+        if not signal_keywords and not path_keywords:
+            return []
+        for fpath, sigs in inv_signals.items():
+            sig_list = [str(s).lower() for s in (sigs if isinstance(sigs, list) else [sigs])]
+            fl = str(fpath).lower()
+            if any(any(k in s for k in signal_keywords) for s in sig_list) or any(pk in fl for pk in path_keywords):
+                if str(fpath) not in matched_files:
+                    matched_files.append(str(fpath))
+        for fpath in all_inv_files:
+            fl = str(fpath).lower()
+            if any(pk in fl for pk in path_keywords) and str(fpath) not in matched_files:
+                matched_files.append(str(fpath))
+        return matched_files
+
     s_chk = surf.get("surface_checklist")
     if isinstance(s_chk, dict):
         for stype, sinfo in s_chk.items():
             is_unk = False
+            is_abs = False
             if sinfo is None:
                 is_unk = True
             elif isinstance(sinfo, dict):
-                if str(sinfo.get("status", "")).lower() == "unknown" or ("present" in sinfo and sinfo.get("present") is None):
+                st_str = str(sinfo.get("status", "")).lower()
+                if st_str == "unknown" or ("present" in sinfo and sinfo.get("present") is None):
                     is_unk = True
+                elif st_str == "absent" or sinfo.get("present") is False:
+                    is_abs = True
             elif str(sinfo).lower() == "unknown":
                 is_unk = True
+            elif str(sinfo).lower() in {"absent", "false"}:
+                is_abs = True
             if is_unk:
                 _add_candidate(
                     "surface_anomalies",
@@ -2710,13 +2991,24 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
                     list(sinfo.get("evidence_ids", [])) if isinstance(sinfo, dict) else [],
                     {"surface_type": stype, "status": "unknown"},
                 )
+            elif is_abs:
+                contra_files = _contradicting_inventory_files(str(stype))
+                if contra_files:
+                    _add_candidate(
+                        "surface_anomalies",
+                        f"Contradicted Surface Checklist ('absent' vs inventory_repo signals): {stype} ({', '.join(contra_files[:3])})",
+                        "UNVERIFIED_SURFACE",
+                        contra_files[0],
+                        list(sinfo.get("evidence_ids", [])) if isinstance(sinfo, dict) else [],
+                        {"surface_type": stype, "status": "absent_contradicted_by_inventory", "contradicting_files": contra_files},
+                    )
     elif isinstance(s_chk, list):
         for sinfo in s_chk:
-            if isinstance(sinfo, dict) and (
-                str(sinfo.get("status", "")).lower() == "unknown"
-                or ("present" in sinfo and sinfo.get("present") is None)
-            ):
-                stype = str(sinfo.get("surface_type") or sinfo.get("type") or "surface")
+            if not isinstance(sinfo, dict):
+                continue
+            stype = str(sinfo.get("surface_type") or sinfo.get("type") or "surface")
+            st_str = str(sinfo.get("status", "")).lower()
+            if st_str == "unknown" or ("present" in sinfo and sinfo.get("present") is None):
                 _add_candidate(
                     "surface_anomalies",
                     f"Unknown Surface Type Requires Verification: {stype}",
@@ -2725,6 +3017,17 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
                     list(sinfo.get("evidence_ids", [])),
                     sinfo,
                 )
+            elif st_str == "absent" or sinfo.get("present") is False:
+                contra_files = _contradicting_inventory_files(stype)
+                if contra_files:
+                    _add_candidate(
+                        "surface_anomalies",
+                        f"Contradicted Surface Checklist ('absent' vs inventory_repo signals): {stype} ({', '.join(contra_files[:3])})",
+                        "UNVERIFIED_SURFACE",
+                        contra_files[0],
+                        list(sinfo.get("evidence_ids", [])),
+                        {**sinfo, "status": "absent_contradicted_by_inventory", "contradicting_files": contra_files},
+                    )
 
     # 1d. unified_surface_mapper.json -> anomalies[]
     for item in surf.get("anomalies", []):
@@ -2901,6 +3204,14 @@ def _normalize_boundary_target(raw_target: str, explicit_service: str = "") -> t
     return host, norm_path, norm_segments
 
 
+def _extract_boundary_http_method(raw_target: str, explicit_method: str = "") -> str:
+    m = explicit_method.strip().upper()
+    if m in {"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"}:
+        return m
+    mt = re.match(r"^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+", raw_target.strip(), flags=re.IGNORECASE)
+    return mt.group(1).upper() if mt else ""
+
+
 def match_cross_repo_boundaries(project_root: Path, run_id: str = "default") -> dict[str, Any]:
     """DEPTH-4.1f: Deterministic Cross-Repo Producer/Consumer Boundary Matcher.
     Reads all <repo>/unified_surface_mapper.json and <repo>/inventory_repo.json across .localsec/runs/<run_id>/*,
@@ -2944,22 +3255,30 @@ def match_cross_repo_boundaries(project_root: Path, run_id: str = "default") -> 
                         ).strip()
                         if not target_val:
                             continue
-                        id_prop = str(
-                            out_item.get("identity_forwarding")
-                            or out_item.get("identity_propagation")
-                            or ""
-                        ).lower()
-                        fw_auth = bool(
-                            out_item.get(
-                                "forwards_auth",
-                                out_item.get("auth_forwarded", id_prop not in {"none", "stripped", "absent", "false"}),
-                            )
+                        raw_id_prop = out_item.get("identity_forwarding") or out_item.get("identity_propagation")
+                        has_explicit_auth = (
+                            raw_id_prop is not None
+                            or "forwards_auth" in out_item
+                            or "auth_forwarded" in out_item
                         )
+                        if not has_explicit_auth:
+                            id_prop = "unknown"
+                            fw_auth = False
+                        else:
+                            id_prop = str(raw_id_prop or "").strip().lower()
+                            if "forwards_auth" in out_item:
+                                fw_auth = bool(out_item["forwards_auth"])
+                            elif "auth_forwarded" in out_item:
+                                fw_auth = bool(out_item["auth_forwarded"])
+                            else:
+                                fw_auth = id_prop not in {"none", "stripped", "absent", "false", "unknown", ""}
                         producers.append({
                             "repo_name": rname,
                             "target": target_val,
+                            "method": _extract_boundary_http_method(target_val, str(out_item.get("method") or "")),
                             "target_service": str(out_item.get("target_service") or out_item.get("service") or "").strip().lower(),
                             "protocol": str(out_item.get("protocol") or "http").lower(),
+                            "identity_forwarding": id_prop or ("forwarded" if fw_auth else "none"),
                             "forwards_auth": fw_auth,
                             "path": str(out_item.get("path") or out_item.get("source") or ""),
                             "evidence_ids": list(out_item.get("evidence_ids", [])),
@@ -2982,6 +3301,7 @@ def match_cross_repo_boundaries(project_root: Path, run_id: str = "default") -> 
                         consumers.append({
                             "repo_name": rname,
                             "target": target_val,
+                            "method": _extract_boundary_http_method(target_val, str(in_item.get("method") or "")),
                             "protocol": str(in_item.get("protocol") or "http").lower(),
                             "expects_auth": expects_auth,
                             "assumes_upstream_auth": bool(in_item.get("assumes_upstream_auth", "upstream" in authn_str or "gateway_trusted" in authn_str)),
@@ -2997,10 +3317,14 @@ def match_cross_repo_boundaries(project_root: Path, run_id: str = "default") -> 
 
     for prod in producers:
         ptarget = prod["target"]
+        pmethod = prod.get("method", "")
         phost, pnorm, psegs = _normalize_boundary_target(ptarget, prod.get("target_service", ""))
         matched_any = False
         for c_idx, cons in enumerate(consumers):
             if cons["repo_name"] == prod["repo_name"]:
+                continue
+            cmethod = cons.get("method", "")
+            if pmethod and cmethod and pmethod != cmethod:
                 continue
             ctarget = cons["target"]
             chost, cnorm, csegs = _normalize_boundary_target(ctarget)
@@ -3019,7 +3343,8 @@ def match_cross_repo_boundaries(project_root: Path, run_id: str = "default") -> 
                 shorter_segs = psegs if len(psegs) <= len(csegs) else csegs
                 longer_segs = csegs if len(psegs) <= len(csegs) else psegs
                 if len(shorter_segs) >= 2 and longer_segs[-len(shorter_segs):] == shorter_segs:
-                    is_match = True
+                    if not (len(shorter_segs) == 2 and shorter_segs[0] in {"api", "v1", "v2", "v3", "internal"} and shorter_segs[1] == "{param}"):
+                        is_match = True
             if is_match:
                 matched_any = True
                 matched_consumer_indices.add(c_idx)
@@ -3036,13 +3361,15 @@ def match_cross_repo_boundaries(project_root: Path, run_id: str = "default") -> 
                 }
                 matched_edges.append(edge)
                 if (not prod["forwards_auth"] and cons["expects_auth"]) or cons["assumes_upstream_auth"]:
+                    if cons["assumes_upstream_auth"]:
+                        gap_reason = "Consumer assumes upstream auth without local verification"
+                    elif prod.get("identity_forwarding") == "unknown":
+                        gap_reason = "Producer identity_forwarding is unspecified ('unknown') while consumer requires authentication"
+                    else:
+                        gap_reason = "Producer does not forward auth context required by consumer"
                     auth_propagation_gaps.append({
                         **edge,
-                        "gap_reason": (
-                            "Consumer assumes upstream auth without local verification"
-                            if cons["assumes_upstream_auth"]
-                            else "Producer does not forward auth context required by consumer"
-                        ),
+                        "gap_reason": gap_reason,
                     })
         if not matched_any and ptarget:
             unmatched_producers.append(prod)
@@ -3301,7 +3628,7 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
                     challenger_by_id[cid] = ch
 
     verified_phase3_findings: list[dict[str, Any]] = []
-    refuted_ledger: list[dict[str, Any]] = list(ev_gate.get("empirical_refutations_ledger", []))
+    refuted_ledger: list[dict[str, Any]] = []
     hypothesis_only: list[dict[str, Any]] = []
     reconciliation_log: list[dict[str, Any]] = []
     accounted_candidate_ids: set[str] = set()
@@ -3318,23 +3645,18 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
     }
 
     for unexp in deep_trace.get("unexploitable_candidates", []):
-        if isinstance(unexp, str) and unexp.strip():
-            accounted_candidate_ids.add(unexp.strip())
-        elif isinstance(unexp, dict):
-            for k in ("candidate_id", "id", "chain_id"):
-                if unexp.get(k):
-                    accounted_candidate_ids.add(str(unexp[k]))
-            refuted_ledger.append({
-                "candidate_id": str(unexp.get("candidate_id") or unexp.get("id") or ""),
-                "refutation_reason": str(unexp.get("reason") or unexp.get("rationale") or "Marked unexploitable in deep_trace_chain_analyst"),
-                "counterevidence_ids": list(unexp.get("evidence_ids") or []),
-            })
-
-    for ref_item in refuted_ledger:
-        if isinstance(ref_item, dict):
-            for k in ("candidate_id", "chain_id", "finding_id"):
-                if ref_item.get(k):
-                    accounted_candidate_ids.add(str(ref_item[k]))
+        if isinstance(unexp, dict):
+            unexp_eids = [str(e) for e in (unexp.get("evidence_ids") or []) if str(e).startswith("ev_")]
+            unexp_reason = str(unexp.get("reason") or unexp.get("rationale") or "").strip()
+            if unexp_eids and len(unexp_reason) >= 10:
+                for k in ("candidate_id", "id", "chain_id"):
+                    if unexp.get(k):
+                        accounted_candidate_ids.add(str(unexp[k]))
+                refuted_ledger.append({
+                    "candidate_id": str(unexp.get("candidate_id") or unexp.get("id") or ""),
+                    "refutation_reason": unexp_reason,
+                    "counterevidence_ids": unexp_eids,
+                })
 
     chains = list(deep_trace.get("chains") or deep_trace.get("verified_chains") or [])
     if not chains and ev_gate.get("verified_phase2_findings"):
@@ -3607,6 +3929,7 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
 
     confirmed_runtime_controls: set[str] = set()
     blocked_by_runtime_controls: set[str] = set()
+    runtime_answers = runtime_facts.get("answers", {}) if isinstance(runtime_facts.get("answers"), dict) else {}
     for ctrl in runtime_facts.get("controls", []):
         if isinstance(ctrl, dict):
             st = str(ctrl.get("status", "enforced")).lower()
@@ -3619,6 +3942,21 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
                         if ctrl.get(k):
                             blocked_by_runtime_controls.add(str(ctrl[k]).lower())
 
+    def _pre_status(pre: dict[str, Any]) -> str:
+        raw_st = str(
+            pre.get("status")
+            or pre.get("precondition_status")
+            or pre.get("satisfied")
+            or ""
+        ).strip().lower()
+        if raw_st in {"yes", "true", "satisfied", "confirmed", "observed"}:
+            return "yes"
+        if raw_st in {"no", "false", "unsatisfied", "impossible"}:
+            return "no"
+        if raw_st in {"unknown", "unverified", "hypothesis"}:
+            return "unknown"
+        return raw_st
+
     downgraded_controls: list[dict[str, Any]] = []
     key_questions: list[dict[str, Any]] = []
 
@@ -3630,11 +3968,27 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
             if aid:
                 actor_by_id[aid] = a_entry
             for pre in a_entry.get("preconditions", []):
-                if isinstance(pre, dict) and str(pre.get("status") or pre.get("satisfied") or "").lower() in {"unknown", "unverified", "hypothesis"}:
-                    cond_desc = str(pre.get("condition") or pre.get("description") or pre.get("precondition") or "unknown precondition")
+                if not isinstance(pre, dict):
+                    continue
+                pst = _pre_status(pre)
+                cond_desc = str(pre.get("condition") or pre.get("description") or pre.get("precondition") or "unknown precondition")
+                if pst == "no":
+                    pre_eids = [
+                        str(e)
+                        for e in (pre.get("evidence_ids") or [])
+                        if str(e).startswith("ev_") and (not ws_evidence_ids or str(e) in ws_evidence_ids)
+                    ]
+                    ans_val = str(runtime_answers.get(cond_desc) or runtime_answers.get(aid) or "").strip().lower()
+                    has_no_fact = ans_val in {"no", "false", "unsatisfied", "impossible"}
+                    if not pre_eids and not has_no_fact:
+                        pst = "unknown"
+                        pre["status"] = "unknown"
+                        pre["precondition_status"] = "unknown"
+                if pst == "unknown":
                     key_questions.append({
                         "question_id": f"KQ-{len(key_questions) + 1:02d}",
                         "chain_id": aid or "repo_wide",
+                        "question_kind": "precondition",
                         "target_team": "appsec_architecture",
                         "question": f"Does runtime precondition '{cond_desc}' hold for {aid or repo_name}?",
                         "searched_paths": list(pre.get("searched_paths", [])),
@@ -3658,7 +4012,7 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
         cid_ref = str(ctrl.get("chain_id") or ctrl.get("finding_id") or "")
         if status in {"CONFIRMED_ENFORCED", "CONFIRMED", "OBSERVED"}:
             ev_ids = [str(e) for e in ctrl.get("evidence_ids", []) if str(e).startswith("ev_")]
-            has_repo_ev = bool(ev_ids and (not ws_evidence_ids or any(e in ws_evidence_ids for e in ev_ids)))
+            has_repo_ev = bool(ev_ids and ws_evidence_ids and any(e in ws_evidence_ids for e in ev_ids))
             has_runtime_fact = (
                 bool(cname and cname.lower() in confirmed_runtime_controls)
                 or bool(cid_ref and cid_ref.lower() in confirmed_runtime_controls)
@@ -3685,6 +4039,7 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
             key_questions.append({
                 "question_id": f"KQ-{len(key_questions) + 1:02d}",
                 "chain_id": cid_ref or "repo_wide",
+                "question_kind": "beyond_code_control",
                 "target_team": "infra_cloud_sec",
                 "question": f"Is control '{cname}' actively enforced in production for {cid_ref or repo_name}?",
                 "searched_paths": list(ctrl.get("searched_paths", [])),
@@ -3696,11 +4051,11 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
     if downgraded_controls:
         write_json(run_dir / "beyond_code_control_mapper.json", beyond_code)
 
-    # ARCH-3H: Derive feasibility_derived, derived_risk_rating, and Safety HSE handoff questions on calibrated_findings
+    # ARCH-3H & R3-A5: Derive feasibility_derived, derived_risk_rating, dynamic key_questions outcomes, and Safety HSE handoff questions
     calibrated_list = sfop.get("calibrated_findings", []) if isinstance(sfop, dict) else []
     accounted_chain_ids: set[str] = set()
-    rank_map = {"none": 0, "negligible": 0, "low": 1, "medium": 2, "high": 3, "critical": 4, "catastrophic": 4}
-    inv_rank = {0: "negligible", 1: "low", 2: "medium", 3: "high", 4: "critical"}
+    rank_map = {"none": 0, "negligible": 0, "low": 1, "medium": 2, "high": 3, "critical": 4, "catastrophic": 5}
+    inv_rank = {0: "negligible", 1: "low", 2: "medium", 3: "high", 4: "critical", 5: "catastrophic"}
 
     for cf in calibrated_list:
         if not isinstance(cf, dict):
@@ -3717,26 +4072,60 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
             lvl = str(ax_obj.get("level") if isinstance(ax_obj, dict) else (ax_obj or "negligible")).lower()
             max_axis_rank = max(max_axis_rank, rank_map.get(lvl, 0))
         max_impact_str = inv_rank.get(max_axis_rank, "medium")
+        infeasible_risk_str = "low" if max_axis_rank >= 1 else "negligible"
 
         # Check 3.1 preconditions for this finding
         a_info = actor_by_id.get(fid, {})
         pre_list = a_info.get("preconditions", []) if isinstance(a_info, dict) else []
         has_false_precondition = any(
-            isinstance(p, dict) and str(p.get("status") or p.get("satisfied") or "").lower() in {"false", "unsatisfied", "impossible"}
+            isinstance(p, dict) and _pre_status(p) == "no"
             for p in pre_list
         )
-        has_unknown_precondition = any(
-            isinstance(p, dict) and str(p.get("status") or p.get("satisfied") or "").lower() in {"unknown", "unverified", "hypothesis"}
-            for p in pre_list
+        unk_pre_count = sum(
+            1 for p in pre_list if isinstance(p, dict) and _pre_status(p) == "unknown"
         )
+        has_unknown_precondition = unk_pre_count > 0
+        pending_chain_questions = [
+            q for q in key_questions
+            if q.get("chain_id") == fid and q.get("status") == "pending_operator"
+        ]
+        total_unknowns = len(pending_chain_questions)
+        for q in pending_chain_questions:
+            qkind = q.get("question_kind", "")
+            if qkind == "precondition":
+                if total_unknowns <= 1:
+                    q["outcome_if_yes"] = (
+                        f"All preconditions satisfied; feasibility becomes 'feasible' and contextual_risk_rating resolves to '{max_impact_str}' (max S-F-O-P-C impact)."
+                    )
+                else:
+                    q["outcome_if_yes"] = (
+                        f"Precondition satisfied, but {total_unknowns - 1} other unknown(s) remain pending for {fid}; "
+                        f"feasibility stays 'provisional_unknown' until all are resolved (max S-F-O-P-C impact='{max_impact_str}')."
+                    )
+                q["outcome_if_no"] = (
+                    f"Precondition falsified; feasibility becomes 'infeasible' and contextual_risk_rating downgrades to '{infeasible_risk_str}'."
+                )
+            elif qkind == "beyond_code_control":
+                q["outcome_if_yes"] = (
+                    f"Control is confirmed enforced; if mitigation_effect=='blocks_exploit', feasibility becomes 'infeasible' and contextual_risk_rating downgrades to '{infeasible_risk_str}'."
+                )
+                if total_unknowns <= 1:
+                    q["outcome_if_no"] = (
+                        f"Control is absent; feasibility becomes 'feasible' and contextual_risk_rating resolves to '{max_impact_str}' (max S-F-O-P-C impact)."
+                    )
+                else:
+                    q["outcome_if_no"] = (
+                        f"Control is absent, but {total_unknowns - 1} other unknown(s) remain pending for {fid}; "
+                        f"feasibility stays 'provisional_unknown' until all are resolved (max S-F-O-P-C impact='{max_impact_str}')."
+                    )
 
         if fid.lower() in blocked_by_runtime_controls or has_false_precondition:
             cf["feasibility_derived"] = "infeasible"
-            derived_risk = "low" if max_axis_rank >= 1 else "negligible"
+            derived_risk = infeasible_risk_str
             cf["derived_risk_rating"] = derived_risk
             cf["contextual_risk_rating"] = derived_risk
             cf["provisional"] = False
-        elif has_unknown_precondition or any(q["chain_id"] in {fid, "repo_wide"} and q["status"] == "pending_operator" for q in key_questions):
+        elif has_unknown_precondition or len(pending_chain_questions) > 0:
             cf["feasibility_derived"] = "provisional_unknown"
             cf["derived_risk_rating"] = max_impact_str
             cf["provisional"] = True
@@ -3745,11 +4134,24 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
             cf["derived_risk_rating"] = max_impact_str
             cf["provisional"] = False
 
-        # Ensure contextual_risk_rating never exceeds derived_risk_rating
-        cur_risk = str(cf.get("contextual_risk_rating") or cf.get("overall_risk") or max_impact_str).lower()
+        # Deterministic contextual_risk_rating enforcement (R3-A5):
+        # contextual_risk_rating == derived_risk_rating unless risk_override_rationale (>=80 chars) + valid risk_override_evidence_ids
         derived_rank = rank_map.get(str(cf["derived_risk_rating"]).lower(), max_axis_rank)
-        if rank_map.get(cur_risk, 0) > derived_rank:
+        override_rationale = str(cf.get("risk_override_rationale") or "").strip()
+        override_eids = [
+            str(e)
+            for e in (cf.get("risk_override_evidence_ids") or [])
+            if str(e).startswith("ev_") and ws_evidence_ids and str(e) in ws_evidence_ids
+        ]
+        has_valid_override = len(override_rationale) >= 80 and len(override_eids) > 0
+        cur_risk = str(cf.get("contextual_risk_rating") or cf.get("overall_risk") or cf["derived_risk_rating"]).lower()
+        cur_rank = rank_map.get(cur_risk, derived_rank)
+        if not has_valid_override:
             cf["contextual_risk_rating"] = cf["derived_risk_rating"]
+        else:
+            min_allowed_rank = max(0, derived_rank - 1)
+            clamped_rank = min(derived_rank, max(min_allowed_rank, cur_rank))
+            cf["contextual_risk_rating"] = inv_rank.get(clamped_rank, cf["derived_risk_rating"])
 
         # Check Safety axis for HSE/Functional Safety handoff question (DEPTH-4.4b)
         s_axis = axes.get("safety") if isinstance(axes, dict) else None
@@ -3764,6 +4166,27 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
                 "outcome_if_no": "No hardware interlock; software path can directly actuate physical state — Gate 0 Emergency Brake remains active.",
                 "status": "pending_safety_owner",
             })
+
+    # R3-A3: Forward hypothesis_only_findings from phase3_verified_queue.json into key_questions.json so they are never silently dropped
+    hypothesis_only_chain_ids: list[str] = []
+    for h_ch in p3_queue.get("hypothesis_only_findings", []):
+        if not isinstance(h_ch, dict):
+            continue
+        h_id = str(h_ch.get("chain_id") or h_ch.get("candidate_id") or "").strip()
+        if h_id:
+            hypothesis_only_chain_ids.append(h_id)
+        h_verdict = str(h_ch.get("challenger_verdict") or h_ch.get("challenge_verdict") or "needs_runtime_verification")
+        key_questions.append({
+            "question_id": f"KQ-HYP-{len(key_questions) + 1:02d}",
+            "chain_id": h_id or "repo_wide",
+            "question_kind": "hypothesis_runtime_verification",
+            "target_team": "appsec_pentest_qa",
+            "question": f"Execute runtime verification request_plan for hypothesis-only chain {h_id or repo_name} ({h_verdict}).",
+            "searched_paths": [str(h_ch.get("target_path") or "")],
+            "outcome_if_yes": "Exploit chain confirmed reproducible at runtime; promote to Confirmed Finding and calibrate S-F-O-P-C risk.",
+            "outcome_if_no": "Exploit chain blocked at runtime; move to Empirical Refutations Ledger with runtime evidence.",
+            "status": "pending_runtime_verification",
+        })
 
     if calibrated_list:
         write_json(run_dir / "sfop_risk_calibrator.json", sfop)
@@ -3801,6 +4224,7 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
         "run_id": run_id,
         "gate_passed": gate_passed,
         "unaccounted_phase2_chains": unaccounted_p3_chains,
+        "hypothesis_only_chain_ids": hypothesis_only_chain_ids,
         "downgraded_beyond_code_controls": downgraded_controls,
         "key_questions_count": len(key_questions),
         "sfop_validation_errors": sfop_validation_errors,

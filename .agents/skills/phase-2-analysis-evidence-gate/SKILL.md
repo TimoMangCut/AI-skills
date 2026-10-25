@@ -15,12 +15,12 @@ Chỉ những chuỗi tấn công đã vượt qua kiểm toán bằng chứng m
 
 ---
 
-## 1. Cổng Kiểm toán Thực thi Bằng Script (`finalize_v3_phase2` — `ARCH-3D`, `ARCH-3G`, `R2-P1-04`)
+## 1. Cổng Kiểm toán Thực thi Bằng Script (`finalize_v3_phase2` — `ARCH-3D`, `ARCH-3G`, `R2-P1-04`, `R3-A4`, `R3-A7`)
 
-1. **`finalize_v3_phase2` là Cổng Chặn Tất định Có Thẩm quyền Cuối cùng của Phase 2 (`R2-P1-04`)**:
+1. **`finalize_v3_phase2` là Cổng Chặn Tất định Có Thẩm quyền Cuối cùng của Phase 2 (`R2-P1-04`, `R3-A4`, `R3-A7`)**:
    - Lệnh `python -m localsec.manual_session finalize_v3_phase2 <repo_name>` thực thi tự động toàn bộ các quy tắc kiểm toán:
-     - **Hạch toán 100% Ứng viên (`100% Candidate Accounting` — `ARCH-3G`)**: Kiểm tra mọi `candidate_id` từ `.localsec/runs/default/<repo_name>/candidate_queue.json` đều đã được hạch toán vào `chains[].candidate_ids` hoặc `unexploitable_candidates[]`. Nếu sót bất kỳ `candidate_id` nào, cổng sẽ **FAIL**.
-     - **Chặn Chuỗi Chưa Qua Phản biện (`UNCHALLENGED_BLOCKED` — `R2-P1-01`, `R2-P1-02`)**: Kiểm tra mọi `chain_id` đều đã được Bước 2.3 (`blinded_counterevidence_challenger`) phản biện sau thời điểm sinh gói `.localsec/tmp/blinded_chains_<repo_name>.json` (kiểm tra tính mới của timestamp) và kiểm tra đủ cả 6 vị trí trong `control_search_checklist` kèm `searched_paths` + `evidence_ids`. Mọi chuỗi chưa qua phản biện sẽ bị chặn (`UNCHALLENGED_BLOCKED`).
+     - **Hạch toán 100% Ứng viên & Chặn Loại bỏ Không Bằng chứng (`100% Candidate Accounting` — `ARCH-3G`, `R3-A4`)**: Kiểm tra mọi `candidate_id` từ `.localsec/runs/default/<repo_name>/candidate_queue.json` đều đã được hạch toán vào `chains[].candidate_ids` hoặc `unexploitable_candidates[]` (mỗi mục `unexploitable_candidates` bắt buộc là object có `candidate_id`, `reason` $\ge 10$ ký tự và `evidence_ids` khác rỗng). Nếu sót bất kỳ `candidate_id` nào hoặc thiếu bằng chứng, cổng sẽ **FAIL**.
+     - **Chặn Chuỗi Chưa Qua Phản biện & Bác bỏ Thiếu Bằng chứng (`UNCHALLENGED_BLOCKED` — `R2-P1-01`, `R2-P1-02`, `R3-A4`, `R3-A7`)**: Kiểm tra mọi `chain_id` đều đã được Bước 2.3 (`blinded_counterevidence_challenger`) phản biện sau thời điểm sinh gói `.localsec/tmp/blinded_chains_<repo_name>.json` (đã lọc bỏ `preconditions` và `hops[].action`), kiểm tra đủ cả 6 vị trí trong `control_search_checklist` (cấm đánh dấu cả 6 vị trí là `not_applicable`; mọi mục `not_applicable` phải có `reason` $\ge 20$ ký tự; mọi phán quyết `refuted`/`mitigated_by_existing_control`/`broken_link` phải có `counter_evidence_ids` khác rỗng).
      - **Luật Cứng `request_plan_is_not_execution`**: Tự động áp trần `chain_verdict` ở `"code_supported"` cho mọi chuỗi có `execution_status != "executed"`.
      - **Ghi Sổ cái & Hàng đợi Phase 3**: Tự động xuất `.localsec/runs/default/<repo_name>/analysis_evidence_gate.json`, `.localsec/runs/default/<repo_name>/phase3_verified_queue.json` và biên nhận `.localsec/runs/default/<repo_name>/phase2_gate_receipt.json`.
 

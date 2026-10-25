@@ -2,8 +2,8 @@
 
 Bộ **16 Skills (`.agents/skills/` & `.claude/skills/`) + Always-On Rules (`AGENTS.md`, `SOUL.md`, `CLAUDE.md`) + Python Epistemic Engine (`localsec`)** tối ưu hóa cho môi trường **Windows (PowerShell, CMD, Git Bash)** dùng để kiểm toán bảo mật mã nguồn & hệ sinh thái Cyber-Physical (Vingroup / VinSOC) qua **3 Phase chuẩn hóa v3.0** (`AI-skills/contracts/v3-orchestration.json`):
 - **Phase 1**: Unified Reconnaissance (`/phase-1-orchestrator` — 6 bước v3.0 theo thứ tự **Intent Before Code (`1.1 -> 1.3 -> 1.2 -> 1.4 -> 1.5 -> 1.6`)**: `inventory_repo` + AI Scouting $\rightarrow$ S-F-O-P-C Invariants trước khi đọc code $\rightarrow$ Tailored Extractor $\rightarrow$ Single-Pass Safe Semantic Clustering $\rightarrow$ Cross-Repo Boundary Matching & Arch Review $\rightarrow$ Physical Visibility Tracker, Evidence Audit & `finalize_v3_phase1`)
-- **Phase 2**: Deep Analysis & Falsification (`/phase-2-orchestrator` — 4 bước v3.0 (`2.1 -> 2.4`): Candidate Queue Intake + 16 Attack-Class Companions $\rightarrow$ Deep Trace & Chain Analyst (100% candidate accounting + `hop_kind`) $\rightarrow$ Isolated Context-Blinded Challenger (6-item `control_search_checklist`) $\rightarrow$ Analysis Evidence Gate & `finalize_v3_phase2`)
-- **Phase 3**: Contextual Risk & Exploitability Assessment (`/phase-3-orchestrator` — 3 bước v3.0 (`3.1 -> 3.3` + Report): Actor & Structured Precondition Feasibility $\rightarrow$ Beyond-Code Controls Cloudflare/WAF/VPC/OT Interlock (`ingest_runtime_facts`) $\rightarrow$ 5-Axis S-F-O-P-C Quantitative Risk Calibrator, `finalize_v3_phase3` & `render_v3_report`)
+- **Phase 2**: Deep Analysis & Falsification (`/phase-2-orchestrator` — 4 bước v3.0 (`2.1 -> 2.4`): Candidate Queue Intake + 16 Attack-Class Companions $\rightarrow$ Deep Trace & Chain Analyst (100% candidate accounting + fail-closed `unexploitable_candidates` objects + `hop_kind` — `R3-A4`) $\rightarrow$ Isolated Context-Blinded Challenger (`context: fork` + `localsec/claude_subagent_guard.py` + 6-item `control_search_checklist` — `R3-A7`) $\rightarrow$ Analysis Evidence Gate & `finalize_v3_phase2`)
+- **Phase 3**: Contextual Risk & Exploitability Assessment (`/phase-3-orchestrator` — 3 bước v3.0 (`3.1 -> 3.3` + Report): Actor & Structured Precondition Feasibility (`preconditions[].status`: `yes`/`no`/`unknown`, fail-closed `status: "no"` — `R3-A1`, `R3-A5`) $\rightarrow$ Beyond-Code Controls Cloudflare/WAF/VPC/OT Interlock (`ingest_runtime_facts`) $\rightarrow$ 5-Axis S-F-O-P-C Quantitative Risk Calibrator (required `owner_role`, deterministic `contextual_risk_rating = derived_risk_rating` — `R3-A5`), `finalize_v3_phase3` & `render_v3_report`)
 
 ---
 
@@ -27,7 +27,7 @@ Khi áp dụng bộ Skills này vào một dự án thực tế (`<Project-Root>
 │   ├── README.md                      <-- Sổ tay tra cứu nhanh các lệnh & mẫu Prompt trên Windows
 │   ├── rules\soul.md
 │   └── skills\phase-{1,2,3}-*\SKILL.md
-├── .claude\                           <-- [Copy từ AI-skills] 16 Skills chuẩn Claude Code
+├── .claude\                           <-- [Copy từ AI-skills] 16 Skills chuẩn Claude Code (kèm `context: fork` cho Bước 2.3)
 │   └── skills\phase-{1,2,3}-*\SKILL.md
 │
 └── AI-skills\                         <-- Thư mục git clone nằm gọn một chỗ
@@ -35,7 +35,7 @@ Khi áp dụng bộ Skills này vào một dự án thực tế (`<Project-Root>
     ├── setup.bat                      <-- Script cài đặt chuẩn Windows CMD
     ├── setup.sh                       <-- Script cài đặt cho Git Bash / WSL
     ├── setup_bootstrap.py             <-- Bộ cài đặt & đồng bộ đa nền tảng (Windows / POSIX)
-    ├── localsec\                      <-- Bộ máy Python CLI (manual_session.py, validators.py, workspace.py...)
+    ├── localsec\                      <-- Bộ máy Python CLI (manual_session.py, validators.py, claude_subagent_guard.py...)
     ├── skills\                        <-- Prompts & Registry gốc
     ├── schemas\                       <-- JSON Schemas (AI-skills/schemas/v3/*.schema.json)
     ├── contracts\                     <-- Contracts, v3-orchestration.json & 16 Attack-Class Companions

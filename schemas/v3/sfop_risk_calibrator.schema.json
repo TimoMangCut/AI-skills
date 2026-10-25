@@ -15,6 +15,7 @@
           "impact_axes",
           "max_impact",
           "contextual_risk_rating",
+          "owner_role",
           "risk_owner"
         ],
         "properties": {
@@ -131,6 +132,16 @@
               "data_privacy_dpo",
               "unassigned_pending_roster"
             ]
+          },
+          "risk_override_rationale": {
+            "type": "string",
+            "minLength": 80
+          },
+          "risk_override_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "blast_radius": {
             "type": "string",

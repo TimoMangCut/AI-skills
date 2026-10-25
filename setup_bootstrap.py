@@ -254,11 +254,16 @@ def main(argv: list[str] | None = None) -> int:
     copied_skills = 0
     for sp in sorted((skill_dir / ".agents" / "skills").iterdir()):
         if sp.is_dir():
-            for dst_root in (agents_dst / "skills", claude_dst / "skills"):
-                target_sp = dst_root / sp.name
-                if target_sp.exists():
-                    shutil.rmtree(target_sp)
-                shutil.copytree(sp, target_sp)
+            target_ag = agents_dst / "skills" / sp.name
+            if target_ag.exists():
+                shutil.rmtree(target_ag)
+            shutil.copytree(sp, target_ag)
+
+            cl_src = skill_dir / ".claude" / "skills" / sp.name
+            target_cl = claude_dst / "skills" / sp.name
+            if target_cl.exists():
+                shutil.rmtree(target_cl)
+            shutil.copytree(cl_src if cl_src.is_dir() else sp, target_cl)
             copied_skills += 1
 
     # 2. Rewrite folder references if cloned under a custom folder name != AI-skills

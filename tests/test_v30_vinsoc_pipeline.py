@@ -1124,14 +1124,23 @@ class LocalSecV30VinSOCPipelineTests(unittest.TestCase):
                 ["read_file", "csms-core", "src/middleware/auth_guard.py", "--start-line", "1", "--end-line", "10", "--skill", "unified_surface_mapper"],
             )["result"]["evidence_id"]
 
-            def replace_ev_ids(obj):
+            def replace_ev_ids(obj, path_hint=""):
                 if isinstance(obj, str):
                     if obj.startswith("ev_"):
-                        return ev_doc if "doc" in obj or "spec" in obj or "intent" in obj else ev_ocpp
+                        if "doc" in obj or "spec" in obj or "intent" in obj or "doc" in path_hint:
+                            return ev_doc
+                        if "api" in path_hint or "station_controller" in path_hint:
+                            return ev_api
+                        if "middleware" in path_hint or "auth_guard" in path_hint:
+                            return ev_mw
+                        if "charging_router" in path_hint:
+                            return ev_router
+                        return ev_ocpp
                     return obj
                 if isinstance(obj, list):
-                    return [replace_ev_ids(x) for x in obj]
+                    return [replace_ev_ids(x, path_hint=path_hint) for x in obj]
                 if isinstance(obj, dict):
+                    local_hint = str(obj.get("file") or obj.get("path") or obj.get("target_module") or path_hint)
                     out = {}
                     for k, v in obj.items():
                         if k == "intent_evidence_ids":
@@ -1139,48 +1148,70 @@ class LocalSecV30VinSOCPipelineTests(unittest.TestCase):
                         elif k == "implementation_evidence_ids":
                             out[k] = [ev_ocpp]
                         else:
-                            out[k] = replace_ev_ids(v)
+                            out[k] = replace_ev_ids(v, path_hint=local_hint)
                     return out
                 return obj
 
-            extracted_payloads: dict[str, dict] = {}
-            for folder_name, skill_name in skill_folder_map:
-                skill_md = (skills_dir / folder_name / "SKILL.md").read_text(encoding="utf-8")
-                blocks = re.findall(r"```json\s*\n(.*?)\n```", skill_md, flags=re.DOTALL)
-                self.assertGreaterEqual(len(blocks), 1, f"{folder_name}/SKILL.md has no ```json example block")
-                parsed = json.loads(blocks[0])
-                patched = replace_ev_ids(parsed)
-                extracted_payloads[skill_name] = patched
+            p1_skills = {
+                "codebase_scout",
+                "intent_invariant_modeler",
+                "extractor_tailor",
+                "unified_surface_mapper",
+                "cross_repo_and_arch_review",
+                "coverage_and_evidence_auditor",
+            }
+            p2_skills = {
+                "candidate_intake_planner",
+                "deep_trace_chain_analyst",
+                "blinded_counterevidence_challenger",
+                "analysis_evidence_gate",
+            }
+            p3_skills = {
+                "actor_and_feasibility_assessor",
+                "beyond_code_control_mapper",
+                "sfop_risk_calibrator",
+            }
 
-                tmp_json = proj / ".localsec" / "tmp" / f"skill_md_{skill_name}.json"
-                tmp_json.parent.mkdir(parents=True, exist_ok=True)
-                tmp_json.write_text(json.dumps(patched, ensure_ascii=False, indent=2), encoding="utf-8")
+            def submit_skill_group(target_set: set[str]) -> None:
+                for folder_name, skill_name in skill_folder_map:
+                    if skill_name not in target_set:
+                        continue
+                    skill_md = (skills_dir / folder_name / "SKILL.md").read_text(encoding="utf-8")
+                    blocks = re.findall(r"```json\s*\n(.*?)\n```", skill_md, flags=re.DOTALL)
+                    self.assertGreaterEqual(len(blocks), 1, f"{folder_name}/SKILL.md has no ```json example block")
+                    parsed = json.loads(blocks[0])
+                    patched = replace_ev_ids(parsed)
+                    tmp_json = proj / ".localsec" / "tmp" / f"skill_md_{skill_name}.json"
+                    tmp_json.parent.mkdir(parents=True, exist_ok=True)
+                    tmp_json.write_text(json.dumps(patched, ensure_ascii=False, indent=2), encoding="utf-8")
 
-                if skill_name == "codebase_scout":
-                    run_cli(proj, ["register_scout_map", "csms-core", str(tmp_json)])
-                run_cli(proj, ["submit_skill", "csms-core", skill_name, str(tmp_json)])
-                if skill_name == "unified_surface_mapper":
-                    run_cli(proj, ["submit_skill", "csms-core", "coverage_ledger", str(tmp_json)])
+                    if skill_name == "codebase_scout":
+                        run_cli(proj, ["register_scout_map", "csms-core", str(tmp_json)])
+                    run_cli(proj, ["submit_skill", "csms-core", skill_name, str(tmp_json)])
+                    if skill_name == "unified_surface_mapper":
+                        run_cli(proj, ["submit_skill", "csms-core", "coverage_ledger", str(tmp_json)])
 
+            # Run Phase 1 -> finalize_v3_phase1 -> Phase 2 -> finalize_v3_phase2 -> Phase 3 -> finalize_v3_phase3
+            # with ZERO monkey-patching of candidate_ids or mtimes!
+            submit_skill_group(p1_skills)
             p1_fin = run_cli(proj, ["finalize_v3_phase1", "csms-core"])
             self.assertTrue(p1_fin["gate_passed"], f"finalize_v3_phase1 failed on SKILL.md examples: {p1_fin}")
-            # Ensure Phase 2 deep_trace_chain_analyst accounts for all generated Phase 1 candidate_ids
-            run_dir = proj / ".localsec" / "runs" / "default" / "csms-core"
-            cq = json.loads((run_dir / "candidate_queue.json").read_text(encoding="utf-8"))
-            all_cids = [c["candidate_id"] for c in cq.get("candidates", [])]
-            dt_raw = json.loads((run_dir / "deep_trace_chain_analyst.json").read_text(encoding="utf-8"))
-            dt_res = dt_raw.get("result", dt_raw)
-            if dt_res.get("chains"):
-                dt_res["chains"][0]["candidate_ids"] = list(set(dt_res["chains"][0].get("candidate_ids", []) + all_cids))
-                (run_dir / "deep_trace_chain_analyst.json").write_text(json.dumps(dt_raw, indent=2), encoding="utf-8")
-            # Touch challenger so its mtime >= deep_trace_chain_analyst
-            chal_path = run_dir / "blinded_counterevidence_challenger.json"
-            chal_path.write_text(chal_path.read_text(encoding="utf-8"), encoding="utf-8")
 
+            submit_skill_group(p2_skills)
             p2_fin = run_cli(proj, ["finalize_v3_phase2", "csms-core"])
             self.assertTrue(p2_fin["gate_passed"], f"finalize_v3_phase2 failed on SKILL.md examples: {p2_fin}")
+
+            submit_skill_group(p3_skills)
             p3_fin = run_cli(proj, ["finalize_v3_phase3", "csms-core"])
             self.assertTrue(p3_fin["gate_passed"], f"finalize_v3_phase3 failed on SKILL.md examples: {p3_fin}")
+
+            # Verify R3-A1: the SKILL.md 3.1 example ('status': 'unknown' on PRE-02) generates a key question
+            run_dir = proj / ".localsec" / "runs" / "default" / "csms-core"
+            kq = json.loads((run_dir / "key_questions.json").read_text(encoding="utf-8"))
+            self.assertGreaterEqual(len(kq["questions"]), 1)
+            sfop_after = json.loads((run_dir / "sfop_risk_calibrator.json").read_text(encoding="utf-8"))
+            cal_res = sfop_after.get("result", sfop_after)
+            self.assertEqual(cal_res["calibrated_findings"][0]["feasibility_derived"], "provisional_unknown")
 
     def test_v30_round2_p0_p1_p2_hardening(self) -> None:
         """Verify Round 2 P0/P1/P2 fixes:
@@ -1411,9 +1442,380 @@ class LocalSecV30VinSOCPipelineTests(unittest.TestCase):
             self.assertNotIn("Refuted Chain Should Not Appear In Report", dev_cards)
             self.assertIn("Uncovered & Unverified Scope", exec_doc)
 
+    def test_v30_round3_a1_to_a7_and_b_hardening(self) -> None:
+        """Verify all Round 3 ('Đợt 3') fixes A1-A7 and Section B:
+        - A1: precondition_status ('yes'/'no'/'unknown') and status ('yes'/'no'/'unknown') both work in 3.1 -> finalize_v3_phase3
+        - A2: finalize_v3_phase2 computes empirical_refutations_ledger fresh on each run (no sticky refutations)
+        - A3: HYPOTHESIS_ONLY_UNVERIFIED and UNCHALLENGED_BLOCKED chains are forwarded to key_questions and reports
+        - A4: All 4 un-evidenced dismissal paths are rejected fail-closed
+        - A5: Script deterministically sets contextual_risk_rating = derived_risk_rating (preventing arbitrary lowering), requires evidence for 'no' preconditions, and computes dynamic outcome_if_yes/outcome_if_no
+        - A6: External tool SARIF/Trivy findings are filtered by repo path, grouped by pkg@version / rule_id, and filtered to CRITICAL/HIGH + secrets
+        - A7: prepare_blinded_chain_verifier strips preconditions and hops[].action; claude_subagent_guard blocks forbidden reads
+        - B: First-line truncation records 0 full lines; multi-repo render_v3_reports does not clobber other repos and prints [UNFINALIZED / GATE FAILED] banner when gate_passed=False
+        """
+        import json
+        from localsec.claude_subagent_guard import evaluate_tool_use
+        from localsec.orchestrator import (
+            build_v3_candidate_queue,
+            finalize_v3_phase2,
+            finalize_v3_phase3,
+            inventory_repo,
+        )
+        from localsec.reporting import render_v3_reports
+        from localsec.validators import OutputValidationError, validate_agent_output
+
+        ev = self.ws.read_file("unified_surface_mapper", "src/ocpp/charging_router.py", 1, 15)["evidence_id"]
+
+        # 1. R3-A4: Verify all 4 un-evidenced dismissal paths are blocked
+        # (a) Refutation verdict without counter_evidence_ids
+        six_locs = {
+            loc: {"status": "checked_not_found", "searched_paths": ["src/api.py"], "evidence_ids": [ev]}
+            for loc in (
+                "global_middleware_or_filter",
+                "gateway_or_ingress_config",
+                "service_or_domain_guard",
+                "orm_global_filter_or_scoped_query",
+                "db_constraint_rls_or_trigger",
+                "upstream_caller_validation",
+            )
+        }
+        with self.assertRaises(OutputValidationError):
+            validate_agent_output(
+                "blinded_counterevidence_challenger",
+                {
+                    "challenged_chains": [
+                        {
+                            "chain_id": "CH-1",
+                            "challenge_verdict": "refuted",
+                            "control_search_checklist": six_locs,
+                            "counter_evidence_ids": [],
+                        }
+                    ]
+                },
+                {ev},
+            )
+
+        # (b) Bare string in unexploitable_candidates
+        with self.assertRaises(OutputValidationError):
+            validate_agent_output(
+                "deep_trace_chain_analyst",
+                {
+                    "chains": [],
+                    "unexploitable_candidates": ["cand_111122223333"],
+                },
+                {ev},
+            )
+
+        # (d) All 6 control locations marked 'not_applicable' or missing >=20 char reason
+        all_na_locs = {
+            loc: {"status": "not_applicable", "reason": "No such layer present in this stateless microservice."}
+            for loc in six_locs
+        }
+        with self.assertRaises(OutputValidationError):
+            validate_agent_output(
+                "blinded_counterevidence_challenger",
+                {
+                    "challenged_chains": [
+                        {
+                            "chain_id": "CH-1",
+                            "challenge_verdict": "confirmed_exploit_chain",
+                            "control_search_checklist": all_na_locs,
+                            "counter_evidence_ids": [],
+                        }
+                    ]
+                },
+                {ev},
+            )
+
+        # 2. R3-A1 & R3-A5: 'no' precondition without evidence_ids is rejected by validator
+        with self.assertRaises(OutputValidationError):
+            validate_agent_output(
+                "actor_and_feasibility_assessor",
+                {
+                    "actor_assessments": [
+                        {
+                            "chain_id": "CH-1",
+                            "minimum_actor": "authenticated_user",
+                            "identity_acquisition_cost": "low",
+                            "preconditions": [
+                                {
+                                    "precondition_id": "PRE-NO-EVIDENCE",
+                                    "description": "Assume internal network is unreachable",
+                                    "precondition_status": "no",
+                                    "searched_paths": [],
+                                    "evidence_ids": [],
+                                }
+                            ],
+                            "evidence_ids": [ev],
+                        }
+                    ]
+                },
+                {ev},
+            )
+
+        # 3. R3-A2, R3-A3, R3-A5, R3-A6, R3-A7, R3-B end-to-end checks
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp)
+            svc_a = proj / "svc-a"
+            svc_b = proj / "svc-b"
+            (svc_a / "src").mkdir(parents=True)
+            (svc_b / "src").mkdir(parents=True)
+            (svc_a / "src" / "controller.py").write_text(
+                "@router.post('/api/v1/orders/{order_id}')\ndef update_order(order_id: str):\n    return order_id\n",
+                encoding="utf-8",
+            )
+            (svc_b / "src" / "handler.py").write_text(
+                "@router.get('/api/v1/items')\ndef get_items():\n    return []\n",
+                encoding="utf-8",
+            )
+
+            # R3-B item 8: First line exceeding max_chars_per_read records 0 full lines
+            (svc_a / "src" / "single_long_line.py").write_text("x = '" + ("A" * 500) + "'\ny = 2\n", encoding="utf-8")
+            tiny_cfg = dict(self.cfg)
+            tiny_cfg["max_chars_per_read"] = 100
+            ws_tiny = ManualWorkspace(svc_a, "svc-a", tiny_cfg, "default", project_root=proj)
+            r_line1 = ws_tiny.read_file("unified_surface_mapper", "src/single_long_line.py", 1, 2)
+            self.assertEqual(r_line1["fully_returned_through_line"], 0)
+            self.assertEqual(ws_tiny.read_ranges.get("src/single_long_line.py", []), [])
+
+            # R3-A6: Project-level reports/ filtering by repo, severity, and package@version grouping
+            (proj / "reports").mkdir()
+            (proj / "reports" / "trivy-scan.json").write_text(
+                json.dumps({
+                    "Results": [
+                        {
+                            "Target": "svc-a/requirements.txt",
+                            "Vulnerabilities": [
+                                {"VulnerabilityID": "CVE-2026-0001", "PkgName": "pyjwt", "InstalledVersion": "2.0.0", "Severity": "CRITICAL", "Title": "JWT Key Confusion 1"},
+                                {"VulnerabilityID": "CVE-2026-0002", "PkgName": "pyjwt", "InstalledVersion": "2.0.0", "Severity": "HIGH", "Title": "JWT Key Confusion 2"},
+                                {"VulnerabilityID": "CVE-2026-0003", "PkgName": "urllib3", "InstalledVersion": "1.26.0", "Severity": "LOW", "Title": "Minor cookie issue"},
+                            ],
+                        },
+                        {
+                            "Target": "svc-b/requirements.txt",
+                            "Vulnerabilities": [
+                                {"VulnerabilityID": "CVE-2026-9999", "PkgName": " cryptography", "InstalledVersion": "3.0", "Severity": "CRITICAL", "Title": "Other repo vuln"},
+                            ],
+                        },
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            inv_a = inventory_repo(proj, "svc-a", run_id="default")
+            # Both CVE-2026-0001 and CVE-2026-0002 on pyjwt@2.0.0 in svc-a are grouped into 1 lead,
+            # while CVE-2026-0003 (LOW) is deferred and svc-b's CVE is excluded from svc-a!
+            self.assertEqual(len(inv_a["external_tool_leads"]), 1)
+            self.assertEqual(inv_a["external_tool_leads"][0]["finding_count"], 2)
+            self.assertGreaterEqual(inv_a["deferred_external_tool_findings_count"], 1)
+
+            # Create real workspace evidence in svc-a
+            ws_a = ManualWorkspace(svc_a, "svc-a", dict(self.cfg), "default", project_root=proj)
+            ev_a = ws_a.read_file("unified_surface_mapper", "src/controller.py", 1, 3)["evidence_id"]
+            run_dir_a = proj / ".localsec" / "runs" / "default" / "svc-a"
+            run_dir_a.mkdir(parents=True, exist_ok=True)
+            (run_dir_a / "workspace_state.json").write_text(
+                json.dumps({"repo_name": "svc-a", "run_id": "default", "evidence": ws_a.evidence, "tool_log": [], "read_ranges": {"src/controller.py": [[1, 3]]}}),
+                encoding="utf-8",
+            )
+
+            # R3-A2 & R3-A3: Test sticky refutation prevention + HYPOTHESIS_ONLY_UNVERIFIED forwarding
+            (run_dir_a / "candidate_queue.json").write_text(
+                json.dumps({"candidates": [{"candidate_id": "cand_111111111111"}, {"candidate_id": "cand_222222222222"}]}),
+                encoding="utf-8",
+            )
+            (run_dir_a / "deep_trace_chain_analyst.json").write_text(
+                json.dumps({
+                    "chains": [
+                        {
+                            "chain_id": "CHAIN-FLIP",
+                            "candidate_ids": ["cand_111111111111"],
+                            "title": "Order Update BOLA",
+                            "chain_verdict": "code_supported",
+                            "preconditions": ["Should be stripped from blinded package"],
+                            "hops": [{"hop_id": "H1", "hop_kind": "in_process", "file": "src/controller.py", "action": "Narrative action to strip", "evidence_ids": [ev_a]}],
+                            "root_cause": "Missing ownership check",
+                            "request_plan": {"execution_status": "not_executed", "discriminating_requests": ["POST /api/v1/orders/2"]},
+                            "evidence_ids": [ev_a],
+                        },
+                        {
+                            "chain_id": "CHAIN-HYP",
+                            "candidate_ids": ["cand_222222222222"],
+                            "title": "Runtime Gateway Header Strip Check",
+                            "chain_verdict": "hypothesized",
+                            "hops": [{"hop_id": "H2", "hop_kind": "in_process", "file": "src/controller.py", "evidence_ids": [ev_a]}],
+                            "root_cause": "Depends on ingress header stripping",
+                            "request_plan": {"execution_status": "not_executed", "discriminating_requests": ["POST /api/v1/orders/2 -H X-Internal:1"]},
+                            "evidence_ids": [ev_a],
+                        },
+                    ],
+                    "unexploitable_candidates": [],
+                }),
+                encoding="utf-8",
+            )
+
+            # Run 1: CHAIN-FLIP is refuted; AI also writes a fake refutation in analysis_evidence_gate.json
+            (run_dir_a / "analysis_evidence_gate.json").write_text(
+                json.dumps({
+                    "empirical_refutations_ledger": [
+                        {"chain_id": "CHAIN-AI-FAKE-REFUTATION", "refutation_reason": "AI tried to self-refute"}
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            locs_a = {
+                loc: {"status": "checked_not_found", "searched_paths": ["src/controller.py"], "evidence_ids": [ev_a]}
+                for loc in six_locs
+            }
+            (run_dir_a / "blinded_counterevidence_challenger.json").write_text(
+                json.dumps({
+                    "challenged_chains": [
+                        {
+                            "chain_id": "CHAIN-FLIP",
+                            "challenge_verdict": "refuted",
+                            "control_search_checklist": locs_a,
+                            "counter_evidence_ids": [ev_a],
+                        },
+                        {
+                            "chain_id": "CHAIN-HYP",
+                            "challenge_verdict": "needs_runtime_verification",
+                            "control_search_checklist": locs_a,
+                            "counter_evidence_ids": [],
+                        },
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            p2_run1 = finalize_v3_phase2(proj, "svc-a", run_id="default")
+            self.assertTrue(p2_run1["gate_passed"])
+            self.assertEqual(p2_run1["reachable_vulnerabilities_count"], 0)
+            # AI-authored fake refutation must NOT be accepted, only CHAIN-FLIP is in ledger
+            self.assertEqual(p2_run1["refuted_false_positives_count"], 1)
+
+            # Run 2 (R3-A2): CHAIN-FLIP is now confirmed_exploit_chain! Must NOT remain sticky in refuted_ledger!
+            (run_dir_a / "blinded_counterevidence_challenger.json").write_text(
+                json.dumps({
+                    "challenged_chains": [
+                        {
+                            "chain_id": "CHAIN-FLIP",
+                            "challenge_verdict": "confirmed_exploit_chain",
+                            "control_search_checklist": locs_a,
+                            "counter_evidence_ids": [],
+                        },
+                        {
+                            "chain_id": "CHAIN-HYP",
+                            "challenge_verdict": "needs_runtime_verification",
+                            "control_search_checklist": locs_a,
+                            "counter_evidence_ids": [],
+                        },
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            p2_run2 = finalize_v3_phase2(proj, "svc-a", run_id="default")
+            self.assertTrue(p2_run2["gate_passed"])
+            self.assertEqual(p2_run2["reachable_vulnerabilities_count"], 1)
+            self.assertEqual(p2_run2["refuted_false_positives_count"], 0)
+            self.assertEqual(p2_run2["hypothesis_only_count"], 1)
+
+            # R3-A1 & R3-A5: Test precondition_status='unknown' in 3.1 + model trying to lower contextual_risk_rating to 'low' when max_impact is 'high'
+            (run_dir_a / "actor_and_feasibility_assessor.json").write_text(
+                json.dumps({
+                    "actor_assessments": [
+                        {
+                            "chain_id": "CHAIN-FLIP",
+                            "minimum_actor": "authenticated_user",
+                            "identity_acquisition_cost": "low",
+                            "preconditions": [
+                                {
+                                    "precondition_id": "PRE-A1",
+                                    "description": "Order ID is predictable or enumerable",
+                                    "precondition_status": "unknown",
+                                    "searched_paths": ["src/controller.py"],
+                                    "evidence_ids": [ev_a],
+                                }
+                            ],
+                            "evidence_ids": [ev_a],
+                        }
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            (run_dir_a / "beyond_code_control_mapper.json").write_text(
+                json.dumps({"beyond_code_controls": []}),
+                encoding="utf-8",
+            )
+            (run_dir_a / "sfop_risk_calibrator.json").write_text(
+                json.dumps({
+                    "calibrated_findings": [
+                        {
+                            "finding_id": "FIND-FLIP-01",
+                            "chain_id": "CHAIN-FLIP",
+                            "impact_axes": {
+                                "safety": "negligible",
+                                "financial": "high",
+                                "operational": "medium",
+                                "privacy": "low",
+                                "compliance": "low",
+                            },
+                            "max_impact": "high",
+                            "contextual_risk_rating": "low",  # Model tried to arbitrarily lower risk to 'low'!
+                            "owner_role": "dev_team",
+                            "risk_owner": "dev_team (pending roster)",
+                            "safety_owner": "",
+                            "evidence_ids": [ev_a],
+                        }
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            p3_res = finalize_v3_phase3(proj, "svc-a", run_id="default")
+            self.assertTrue(p3_res["gate_passed"])
+            sfop_saved = json.loads((run_dir_a / "sfop_risk_calibrator.json").read_text(encoding="utf-8"))
+            cf0 = sfop_saved["calibrated_findings"][0]
+            # R3-A1: precondition_status='unknown' must set feasibility_derived='provisional_unknown'
+            self.assertEqual(cf0["feasibility_derived"], "provisional_unknown")
+            # R3-A5: contextual_risk_rating must be forced to derived_risk_rating ('high'), not kept at 'low'!
+            self.assertEqual(cf0["derived_risk_rating"], "high")
+            self.assertEqual(cf0["contextual_risk_rating"], "high")
+
+            # R3-A3: key_questions.json contains both PRE-A1 question and CHAIN-HYP runtime verification question
+            kq_a = json.loads((run_dir_a / "key_questions.json").read_text(encoding="utf-8"))
+            q_chains = {q["chain_id"] for q in kq_a["questions"]}
+            self.assertIn("CHAIN-FLIP", q_chains)
+            self.assertIn("CHAIN-HYP", q_chains)
+
+            # R3-A7: Verify claude_subagent_guard blocks forbidden Read on .localsec/runs and documents/
+            guard_block = evaluate_tool_use({
+                "tool_name": "Read",
+                "tool_input": {"file_path": str(run_dir_a / "deep_trace_chain_analyst.json")},
+                "skill": "phase-2-blinded-counterevidence-challenger",
+            })
+            self.assertEqual(guard_block["decision"], "block")
+
+            # R3-B item 6: Multi-repo report aggregation and [UNFINALIZED / GATE FAILED] banner
+            run_dir_b = proj / ".localsec" / "runs" / "default" / "svc-b"
+            run_dir_b.mkdir(parents=True, exist_ok=True)
+            (run_dir_b / "phase2_gate_receipt.json").write_text(json.dumps({"gate_passed": False}), encoding="utf-8")
+
+            render_v3_reports(proj, repo_name="svc-a", run_id="default")
+            render_v3_reports(proj, repo_name="svc-b", run_id="default")
+
+            top_dev = (proj / "documents" / "01_developer_remediation_cards.md").read_text(encoding="utf-8")
+            top_exec = (proj / "documents" / "02_executive_risk_and_key_questions.md").read_text(encoding="utf-8")
+            top_qa = (proj / "documents" / "03_pentest_qa_verification_playbook.md").read_text(encoding="utf-8")
+            # Rendering svc-b must NOT overwrite svc-a out of the top-level aggregate documents!
+            self.assertIn("svc-a", top_dev)
+            self.assertIn("CHAIN-FLIP", top_dev)
+            self.assertIn("svc-b", top_dev)
+            self.assertIn("[UNFINALIZED / GATE FAILED]", top_exec)
+            # R3-A3: Hypothesis-only chain is surfaced in Executive Uncovered Scope and QA Playbook
+            self.assertIn("CHAIN-HYP", top_exec)
+            self.assertIn("CHAIN-HYP", top_qa)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

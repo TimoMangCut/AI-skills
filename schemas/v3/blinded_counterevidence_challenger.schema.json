@@ -54,6 +54,9 @@
                     "not_applicable"
                   ]
                 },
+                "reason": {
+                  "type": "string"
+                },
                 "searched_paths": {
                   "type": "array",
                   "items": {

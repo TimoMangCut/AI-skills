@@ -15,16 +15,18 @@ Theo nguyên lý **Refute-First (Bác bỏ trước, khẳng định sau)**: m�
 
 ---
 
-## 1. Quy tắc Cô lập Ngữ cảnh Whitelist & Danh sách 6 Vị trí Săn tìm Kiểm soát (`ARCH-3E`, `DEPTH-4.2d`, `R2-P0-01`, `R2-P1-01`, `R2-P1-02`)
+## 1. Quy tắc Cô lập Ngữ cảnh Whitelist & Danh sách 6 Vị trí Săn tìm Kiểm soát (`ARCH-3E`, `DEPTH-4.2d`, `R2-P0-01`, `R2-P1-01`, `R2-P1-02`, `R3-A4`, `R3-A7`)
 
-1. **Gói Ngữ cảnh Mù Kết luận theo Cơ chế Whitelist (`prepare_blinded_chain_verifier` — `R2-P1-01`)**:
+1. **Gói Ngữ cảnh Mù Kết luận theo Cơ chế Whitelist & Chặn Lộ Prose (`prepare_blinded_chain_verifier` — `R2-P1-01`, `R3-A7`)**:
    - Đầu tiên, Orchestrator chạy `python -m localsec.manual_session prepare_blinded_chain_verifier <repo_name>` để sinh gói `.localsec/tmp/blinded_chains_<repo_name>.json`.
-   - Lệnh này áp dụng **Strict Whitelist** (loại bỏ hoàn toàn `title`, `root_cause`, `severity`, `chain_verdict`, `expected_vulnerable_behavior` và mọi kết luận của Bước 2.2) và đính kèm danh sách **`control_search_paths`** trích xuất từ `inventory_repo.json` để Subagent phản biện mở đọc các file middleware, guard, gateway config, ORM repository và migration.
-   - Bước 2.3 **BẮT BUỘC chạy trong Subagent cô lập / Fresh Context** chỉ nhận duy nhất `.localsec/tmp/blinded_chains_<repo_name>.json`.
-2. **Tên Trường Chuẩn `challenged_chains` & `challenge_verdict` (`R2-P0-01`)**:
+   - Lệnh này áp dụng **Strict Whitelist (`R3-A7`)**: loại bỏ hoàn toàn `title`, `root_cause`, `severity`, `chain_verdict`, `expected_vulnerable_behavior`, **`preconditions`**, **`hops[].action`**, và mọi kết luận văn xuôi của Bước 2.2; trong mỗi bước nhảy `hops[]` chỉ giữ lại các định vị mã nguồn trung lập (`hop_id`, `hop_kind`, `repo_name`, `file`, `path`, `function_or_symbol`, `line_start`, `line_end`) kèm danh sách **`control_search_paths`** trích xuất từ `inventory_repo.json`.
+   - Bước 2.3 **BẮT BUỘC chạy trong Subagent cô lập / Fresh Context** chỉ nhận duy nhất `.localsec/tmp/blinded_chains_<repo_name>.json`:
+     - Trên Claude Code, `.claude/skills/phase-2-blinded-counterevidence-challenger/SKILL.md` khai báo **`context: fork`** trong YAML frontmatter và được bảo vệ bởi PreToolUse hook guard **`localsec/claude_subagent_guard.py`** (chặn mọi thao tác đọc `deep_trace_chain_analyst.json` hoặc các artifact kết luận của Bước 2.2).
+2. **Tên Trường Chuẩn `challenged_chains`, `challenge_verdict` & Luật Fail-Closed khi Bác bỏ (`R2-P0-01`, `R3-A4`)**:
    - Đặt danh sách kết quả vào trường **`"challenged_chains"`** (TUYỆT ĐỐI KHÔNG dùng `"chain_challenges"`).
    - Mỗi phần tử dùng trường **`"challenge_verdict"`** thuộc enum: `"confirmed_exploit_chain" | "sustained" | "upheld" | "mitigated_by_existing_control" | "refuted" | "broken_link" | "needs_runtime_verification" | "partially_mitigated"` (TUYỆT ĐỐI KHÔNG dùng `"overall_challenge_outcome"`).
-3. **Kiểm tra Bắt buộc Đủ 6 Vị trí Kiểm soát Bù trừ (`control_search_checklist` — `DEPTH-4.2d`, `R2-P1-02`)**:
+   - **Bắt buộc Bằng chứng Phản bác khi Bác bỏ (`R3-A4`)**: Mọi phán quyết bác bỏ (`"refuted"`, `"mitigated_by_existing_control"`, `"broken_link"`) **BẮT BUỘC phải có `"counter_evidence_ids"` khác rỗng (`["ev_..."]`)** (hoặc ít nhất một mục `checked_found` có `evidence_ids` hợp lệ) chứng minh kiểm soát ngăn chặn trong code. Bác bỏ không có mã bằng chứng sẽ bị validator từ chối.
+3. **Kiểm tra Bắt buộc Đủ 6 Vị trí Kiểm soát Bù trừ (`control_search_checklist` — `DEPTH-4.2d`, `R2-P1-02`, `R3-A4`)**:
    - Với mỗi chuỗi trong `challenged_chains`, bắt buộc kiểm tra **đủ cả 6 khóa cố định** trong `control_search_checklist`:
      1. `global_middleware_or_filter`
      2. `gateway_or_ingress_config`
@@ -34,6 +36,7 @@ Theo nguyên lý **Refute-First (Bác bỏ trước, khẳng định sau)**: m�
      6. `upstream_caller_validation`
    - Mỗi vị trí **BẮT BUỘC** khai báo `"status"` thuộc đúng 3 giá trị **`"checked_found" | "checked_not_found" | "not_applicable"`** (TUYỆT ĐỐI KHÔNG dùng `"checked_not_blocking"` hay `"found_blocking_control"`).
    - Mọi mục có `"status": "checked_not_found"` hoặc `"status": "checked_found"` **BẮT BUỘC phải có CẢ mảng `"searched_paths"` khác rỗng LẪN mảng `"evidence_ids"` khác rỗng (`["ev_001"]`)** chứng minh đã mở đọc file thực tế (`R2-P1-02`).
+   - **Chặn lạm dụng `"not_applicable"` (`R3-A4`)**: Mọi mục có `"status": "not_applicable"` **BẮT BUỘC phải có trường `"reason"`** (hoặc `"notes"`) dài **$\ge 20$ ký tự** giải thích vì sao tầng kiểm soát đó không tồn tại, và **TUYỆT ĐỐI CẤM đánh dấu cả 6 vị trí đều là `"not_applicable"`** (validator sẽ từ chối ngay lập tức).
 
 ---
 
@@ -115,6 +118,7 @@ python -m localsec.manual_session submit_skill <repo_name> blinded_countereviden
           },
           "upstream_caller_validation": {
             "status": "not_applicable",
+            "reason": "Endpoint is directly reachable by authenticated HTTP clients without upstream service hop",
             "searched_paths": [
               "src/ocpp_controller.py"
             ],

@@ -61,7 +61,6 @@ python -m localsec.manual_session submit_skill <repo_name> cross_repo_and_arch_r
     "trust_boundary_mismatches": [
       {
         "mismatch_id": "XREPO-HDR-01",
-        "candidate_id": "cand_111122223333",
         "title": "Consumer trusts unsigned X-Tenant-Id header from gateway",
         "producer_repo": "api-gateway",
         "consumer_repo": "csms-service",

@@ -129,7 +129,6 @@ python -m localsec.manual_session submit_skill <repo_name> coverage_ledger .loca
       },
       {
         "surface_type": "ble_or_hardware_bus",
-        "candidate_id": "cand_111122223333",
         "status": "unknown",
         "searched_paths": [
           "src"
@@ -156,7 +155,6 @@ python -m localsec.manual_session submit_skill <repo_name> coverage_ledger .loca
       },
       {
         "id": "EP-REMOTE-START",
-        "candidate_id": "cand_111122223333",
         "method": "POST",
         "path": "/api/v1/sessions/{sessionId}/remote-start",
         "file": "src/ocpp_controller.py",
@@ -193,7 +191,6 @@ python -m localsec.manual_session submit_skill <repo_name> coverage_ledger .loca
         ],
         "outliers": [
           {
-            "candidate_id": "cand_111122223333",
             "id": "EP-REMOTE-START",
             "method": "POST",
             "path": "/api/v1/sessions/{sessionId}/remote-start",
@@ -208,7 +205,6 @@ python -m localsec.manual_session submit_skill <repo_name> coverage_ledger .loca
     "invariant_checks": [
       {
         "invariant_id": "INV-SAFE-01",
-        "candidate_id": "cand_111122223333",
         "enforcement_status": "missing",
         "status": "observed",
         "intent_evidence_ids": [
