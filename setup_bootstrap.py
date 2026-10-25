@@ -149,9 +149,12 @@ def _update_git_exclude(root: Path, skill_folder: str, has_bridge: bool = True, 
         "/.agents/skills/phase-1-*",
         "/.agents/skills/phase-2-*",
         "/.agents/skills/phase-3-*",
+        "/.agents/skills/phase-4-*",
         "/.claude/skills/phase-1-*",
         "/.claude/skills/phase-2-*",
         "/.claude/skills/phase-3-*",
+        "/.claude/skills/phase-4-*",
+        "/.claude/agents/localsec-*",
         "/.localsec/",
         "/documents/",
     ]
@@ -227,6 +230,14 @@ def main(argv: list[str] | None = None) -> int:
                         shutil.rmtree(target_sp)
             if not any((claude_dir / "skills").iterdir()):
                 (claude_dir / "skills").rmdir()
+        if (claude_dir / "agents").is_dir() and (skill_dir / ".claude" / "agents").is_dir():
+            for ap in (skill_dir / ".claude" / "agents").iterdir():
+                if ap.is_file():
+                    target_ap = claude_dir / "agents" / ap.name
+                    if target_ap.is_file():
+                        target_ap.unlink()
+            if not any((claude_dir / "agents").iterdir()):
+                (claude_dir / "agents").rmdir()
         if claude_dir.is_dir() and not any(claude_dir.iterdir()):
             claude_dir.rmdir()
 
@@ -239,12 +250,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[✓] Đã gỡ cài đặt các file AI-skills khỏi {project_root} (giữ nguyên mọi nội dung gốc của dự án).")
         return 0
 
-    # 1. Sync .agents/ (Antigravity) and .claude/skills/ (Claude Code)
+    # 1. Sync .agents/ (Antigravity) and .claude/skills/ + .claude/agents/ (Claude Code)
     agents_dst = project_root / ".agents"
     claude_dst = project_root / ".claude"
     (agents_dst / "skills").mkdir(parents=True, exist_ok=True)
     (agents_dst / "rules").mkdir(parents=True, exist_ok=True)
     (claude_dst / "skills").mkdir(parents=True, exist_ok=True)
+    (claude_dst / "agents").mkdir(parents=True, exist_ok=True)
     (project_root / ".localsec" / "tmp").mkdir(parents=True, exist_ok=True)
 
     shutil.copy2(skill_dir / ".agents" / "README.md", agents_dst / "README.md")
@@ -266,9 +278,14 @@ def main(argv: list[str] | None = None) -> int:
             shutil.copytree(cl_src if cl_src.is_dir() else sp, target_cl)
             copied_skills += 1
 
+    if (skill_dir / ".claude" / "agents").is_dir():
+        for ap in sorted((skill_dir / ".claude" / "agents").iterdir()):
+            if ap.is_file():
+                shutil.copy2(ap, claude_dst / "agents" / ap.name)
+
     # 2. Rewrite folder references if cloned under a custom folder name != AI-skills
     if folder_name != "AI-skills":
-        for root_target in (agents_dst, claude_dst / "skills"):
+        for root_target in (agents_dst, claude_dst / "skills", claude_dst / "agents"):
             for md in root_target.rglob("*.md"):
                 txt = md.read_text(encoding="utf-8")
                 md.write_text(txt.replace("AI-skills", folder_name), encoding="utf-8")

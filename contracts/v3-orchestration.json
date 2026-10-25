@@ -85,6 +85,23 @@
       "finalize_command": "finalize_v3_phase3",
       "finalizer": "finalize_v3_phase3",
       "gate_receipt": "phase3_gate_receipt.json"
+    },
+    "4": {
+      "name": "Final Report Synthesis & Canonical Export",
+      "ordered_steps": [
+        "export_final_phase_inputs"
+      ],
+      "order": [
+        "export_final_phase_inputs"
+      ],
+      "required_artifacts": [
+        "00_manifest.md",
+        "BAO_CAO_TONG_HOP_BAO_MAT.md",
+        "DANH_GIA_RUI_RO.md"
+      ],
+      "finalize_command": "finalize_v3_phase4",
+      "finalizer": "finalize_v3_phase4",
+      "gate_receipt": "phase4_gate_receipt.json"
     }
   },
   "surface_checklist_types": [

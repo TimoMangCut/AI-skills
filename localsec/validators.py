@@ -936,7 +936,7 @@ def _normalize_v30_aliases(skill: str, value: dict[str, Any]) -> None:
                 if "owner_role" not in item:
                     ro_str = str(item.get("risk_owner") or "").strip().lower()
                     matched_role = next((r for r in VALID_OWNER_ROLES if r in ro_str), None)
-                    item["owner_role"] = matched_role or "dev_team"
+                    item["owner_role"] = matched_role or "unassigned_pending_roster"
     elif skill == "blinded_counterevidence_challenger":
         if "challenged_chains" not in value:
             for alias in ("challenges", "chain_challenges"):

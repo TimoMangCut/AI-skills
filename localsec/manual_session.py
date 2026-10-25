@@ -286,7 +286,7 @@ def main(argv: list[str] | None = None) -> int:
 
     p_stat = sub.add_parser("phase_status", help="Show completed vs remaining steps and next required step for a phase")
     p_stat.add_argument("repo_name", nargs="?", default="_analysis")
-    p_stat.add_argument("--phase", type=int, choices=[1, 2, 3], default=1)
+    p_stat.add_argument("--phase", type=int, choices=[1, 2, 3, 4], default=1)
     p_stat.add_argument("--flow", choices=["v3", "v2"], default=None, help="Pipeline flow version (default: v3 unless v2 artifacts detected)")
 
     p_sub = sub.add_parser("submit_skill", help="Validate and save a skill JSON output for a repo")
@@ -367,6 +367,12 @@ def main(argv: list[str] | None = None) -> int:
 
     p_fp3 = sub.add_parser("finalize_v3_phase3", help="ARCH-3D: Finalize v3 Phase 3, audit beyond-code controls & SFOP hard laws, and emit phase3_gate_Certificate.json")
     p_fp3.add_argument("repo_name")
+
+    p_fp4 = sub.add_parser("finalize_v3_phase4", help="Phase 4: Export canonical documents/ tree, risk work files, and synthesize final reports")
+    p_fp4.add_argument("repo_name", nargs="?", default=None)
+
+    p_efpi = sub.add_parser("export_final_phase_inputs", help="Phase 4: Export v3 run outputs into canonical documents/ layout and synthesize final reports")
+    p_efpi.add_argument("repo_name", nargs="?", default=None)
 
     p_irf = sub.add_parser("ingest_runtime_facts", help="DEPTH-4.4a: Ingest operator-supplied runtime_environment_facts.json")
     p_irf.add_argument("repo_name")
@@ -565,6 +571,14 @@ def main(argv: list[str] | None = None) -> int:
 
         eff_run = _effective_v3_run_id(args.repo_name)
         res = finalize_v3_phase3(root, args.repo_name, run_id=eff_run)
+        print(json.dumps(res, ensure_ascii=False, indent=2))
+        return 0 if res.get("gate_passed") else 2
+
+    if args.cmd in {"finalize_v3_phase4", "export_final_phase_inputs"}:
+        from .reporting import export_final_phase_inputs
+
+        eff_run = _effective_v3_run_id(getattr(args, "repo_name", None))
+        res = export_final_phase_inputs(root, run_id=eff_run)
         print(json.dumps(res, ensure_ascii=False, indent=2))
         return 0 if res.get("gate_passed") else 2
 

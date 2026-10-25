@@ -32,10 +32,11 @@ LLM tối ưu **độ hợp lý bề ngoài**, không phải **độ đúng**; c
 2. **Gom cụm bằng Ngữ nghĩa (`AI Semantic Clustering`):** Do AI quyết định dựa trên hiểu biết về Middleware/Guard và nghiệp vụ; không dùng Python tự đoán lỗi.
 3. **Đo độ phủ bằng Sự thật Vật lý (`Visibility Tracker`):** Python ghi nhận khách quan những thư mục/file nào trong `Target Modules Map` đã được mở đọc (`visited` vs `unvisited`) và chặn hành vi đọc lướt vài dòng đầu (`Anti-Grazing`).
 
-## Quy trình 3 Phase Chuẩn hóa
-1. **Phase 1 — Unified Reconnaissance:** Trinh sát cấu trúc & cách code (`1.1`) → Tùy chỉnh/chạy Extractor (`1.2`) → Mô hình hóa Ý định & Bất biến S-F-O-P-C (`1.3`) → Đọc code 1 lần gom cụm ngữ nghĩa & tìm điểm dị biệt (`1.4`) → Đánh giá Ranh giới Xuyên Repo (`1.5`) → Kiểm toán Độ phủ Thực đọc & Bằng chứng (`1.6`).
+## Quy trình 4 Phase Chuẩn hóa
+1. **Phase 1 — Unified Reconnaissance:** Trinh sát cấu trúc & cách code (`1.1`) → Mô hình hóa Ý định & Bất biến S-F-O-P-C trước khi đọc code (`1.3`) → Tùy chỉnh/chạy Extractor (`1.2`) → Đọc code 1 lần gom cụm ngữ nghĩa & tìm điểm dị biệt (`1.4`) → Đánh giá Ranh giới Xuyên Repo (`1.5`) → Kiểm toán Độ phủ Thực đọc & Bằng chứng (`1.6`).
 2. **Phase 2 — Deep Analysis & Falsification:** Lọc trùng & chia Batch Candidate (`2.1`) → Truy vết sâu Hops, Ghép chuỗi, Root Cause & Repro (`2.2`) → Phản biện đối kháng mù ngữ cảnh (`2.3`) → Cổng Kiểm toán Bằng chứng & Sổ cái Bác bỏ (`2.4`).
 3. **Phase 3 — Contextual Risk & Exploitability Assessment:** Chứng minh Actor/Role & Độ khả thi khai thác (`3.1`) → Đối chiếu Kiểm soát Ngoài Code & Hạ tầng (`3.2`) → Hiệu chỉnh Risk Thực tế S-F-O-P-C, gán `Risk Owner` / `Safety Owner` & Phanh An toàn `Gate 0 / Emergency Brake` (`3.3`).
+4. **Phase 4 — Final Synthesis & Canonical Report Generation (`/phase-4-orchestrator`):** Kết xuất cấu trúc chuẩn `documents/<repo>/`, `documents/_analysis/`, `documents/_system/`, `documents/_v3/<repo>/`, `documents/_report/work/risk/F-xx.json` + `_combinations.json` (đối soát parity với `derived_risk_rating` của Phase 3), và tổng hợp bộ báo cáo `documents/_report/00_manifest.md`, `BAO_CAO_TONG_HOP_BAO_MAT.md`, `DANH_GIA_RUI_RO.md` (`finalize_v3_phase4`).
 
 ## Kỷ luật đầu ra
 Deliverable-driven: mỗi phiên đẻ ra artifact. Không nịnh. Nêu trade-off. Gắn metric/impact khi có thể. Kết bằng self-check 3 điểm.

@@ -37,10 +37,11 @@ Sau khi Phase 2 (`finalize_v3_phase2`) đã bàn giao danh sách các chuỗi t�
    - Tuân thủ **Luật Cứng**: `overall_risk <= max_impact`, `safety_owner != risk_owner` khi `safety != "negligible"`. Mặc định `finalize_v3_phase3` sẽ gán `contextual_risk_rating = derived_risk_rating` (cả trần lẫn sàn); nếu đề xuất điều chỉnh tối đa 1 bậc, bắt buộc có `"risk_override_rationale"` ($\ge 80$ ký tự) và `"risk_override_evidence_ids"` khác rỗng (`R3-A5`).
    - Lưu qua CLI: `python -m localsec.manual_session submit_skill <repo_name> sfop_risk_calibrator .localsec/tmp/sfop_risk_calibrator_<repo_name>.json` (tuân thủ `AI-skills/schemas/v3/sfop_risk_calibrator.schema.json`).
 
-5. **Bước 3.4 — Khóa sổ Phase 3 & Xuất Báo cáo (`finalize_v3_phase3` + `render_v3_report` — `ARCH-3H`, `ARCH-3I`, `R2-P0-03`, `R3-A5`)**:
-   - Chạy `python -m localsec.manual_session finalize_v3_phase3 <repo_name>` để kiểm tra tính toàn vẹn `chain_id` xuyên suốt `3.1 -> 3.2 -> 3.3`, tính toán tất định `feasibility_derived` cùng `derived_risk_rating` (áp dụng `contextual_risk_rating = derived_risk_rating` trừ khi có override 1 bậc hợp lệ), và xuất `.localsec/runs/default/<repo_name>/key_questions.json` (kèm hai nhánh `outcome_if_yes` / `outcome_if_no`) cùng `phase3_gate_receipt.json`.
-   - Chạy `python -m localsec.manual_session render_v3_report <repo_name>` để kết xuất bộ 3 báo cáo kiểm toán hoàn chỉnh ra thư mục `./documents/`:
+5. **Bước 3.4 — Khóa sổ Phase 3 & Xuất Báo cáo (`finalize_v3_phase3` + `render_v3_report` — `ARCH-3H`, `ARCH-3I`, `R2-P0-03`, `R3-A5`, `C2`, `C6`)**:
+   - Chạy `python -m localsec.manual_session finalize_v3_phase3 <repo_name>` để kiểm tra tính toàn vẹn `chain_id` xuyên suốt `3.1 -> 3.2 -> 3.3`, tính toán tất định `feasibility_derived` cùng `derived_risk_rating` (áp dụng `contextual_risk_rating = derived_risk_rating` trừ khi có override 1 bậc hợp lệ kèm `"risk_override_applied": true`), và xuất `.localsec/runs/default/<repo_name>/key_questions.json` (kèm hai nhánh `outcome_if_yes` / `outcome_if_no` và câu hỏi `KQ-OWNER-*` nếu `owner_role == "unassigned_pending_roster"`) cùng `phase3_gate_receipt.json`.
+   - Chạy `python -m localsec.manual_session render_v3_report <repo_name>` để kết xuất bộ 3 báo cáo kiểm toán per-repo ra thư mục `./documents/<repo_name>/`.
+   - Sau khi tất cả các repository trong dự án đã hoàn tất Phase 3, chuyển sang **Phase 4 (`/phase-4-orchestrator` — Final Synthesis & Canonical Report Generation)** trong một phiên mới:
 
 ```text
-python -m localsec.manual_session render_v3_report <repo_name>
+python -m localsec.manual_session finalize_v3_phase4
 ```
