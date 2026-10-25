@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalSec v3.0 Phase 1 Candidate Queue Schema",
+  "type": "object",
+  "required": [
+    "repo_name",
+    "candidates"
+  ],
+  "properties": {
+    "repo_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "source_type",
+          "title",
+          "target_paths",
+          "attack_classes",
+          "status",
+          "evidence_ids"
+        ],
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "attack_classes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  }
+}

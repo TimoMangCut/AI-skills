@@ -1,0 +1,271 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalSec v3.0 Phase 1.4 Unified Surface Mapper Schema",
+  "type": "object",
+  "properties": {
+    "repo_name": {
+      "type": "string"
+    },
+    "surface_checklist": {
+      "type": [
+        "array",
+        "object"
+      ]
+    },
+    "entrypoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "file": {
+            "type": "string"
+          },
+          "authn": {
+            "type": "string"
+          },
+          "authz": {
+            "type": "string"
+          },
+          "object_id_params": {
+            "type": [
+              "array",
+              "string"
+            ]
+          },
+          "ownership_check": {
+            "type": [
+              "string",
+              "boolean",
+              "object"
+            ]
+          },
+          "ownership_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "input_binding": {
+            "type": [
+              "string",
+              "object",
+              "array"
+            ]
+          },
+          "response_shape": {
+            "type": [
+              "string",
+              "object",
+              "array"
+            ]
+          },
+          "rate_limit": {
+            "type": [
+              "string",
+              "boolean",
+              "object"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "semantic_clusters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "cluster_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "shared_guard_signature": {
+            "type": "string"
+          },
+          "shared_control_signature": {
+            "type": "string"
+          },
+          "data_access_pattern": {
+            "type": "string"
+          },
+          "representative_endpoint": {
+            "type": "string"
+          },
+          "representative_Format": {
+            "type": "string"
+          },
+          "representative_deep_read_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "member_endpoints": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "object"
+              ]
+            }
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "object"
+              ]
+            }
+          },
+          "member_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "outliers": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "object"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "outliers": {
+      "type": "array",
+      "items": {
+        "type": [
+          "string",
+          "object"
+        ]
+      }
+    },
+    "invariant_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "invariant_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "enforcement_status": {
+            "type": "string",
+            "enum": [
+              "enforced",
+              "missing",
+              "partial",
+              "unknown"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "intent_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "implementation_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "data_flows": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "sensitive_data": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "candidate_queue": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "string"
+        ]
+      }
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "entrypoints"
+      ]
+    },
+    {
+      "required": [
+        "surface_checklist"
+      ]
+    },
+    {
+      "required": [
+        "semantic_clusters"
+      ]
+    },
+    {
+      "required": [
+        "candidate_queue"
+      ]
+    }
+  ]
+}

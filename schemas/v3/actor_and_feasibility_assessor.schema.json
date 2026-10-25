@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalSec v3.0 Phase 3.1 Actor & Feasibility Assessor Schema",
+  "type": "object",
+  "required": [],
+  "properties": {
+    "actor_assessments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "chain_id",
+          "minimum_actor",
+          "identity_acquisition_cost",
+          "preconditions",
+          "attack_feasibility",
+          "evidence_ids"
+        ],
+        "properties": {
+          "chain_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "finding_id": {
+            "type": "string"
+          },
+          "minimum_actor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minimum_viable_actor": {
+            "type": "string"
+          },
+          "identity_acquisition_cost": {
+            "type": "string",
+            "minLength": 1
+          },
+          "preconditions": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "object"
+              ]
+            }
+          },
+          "operational_preconditions": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "object"
+              ]
+            }
+          },
+          "attack_feasibility": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low",
+              "theoretical"
+            ]
+          },
+          "blocked_by_environment": {
+            "type": "boolean"
+          },
+          "blocker_details": {
+            "type": "string"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "assessments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "finding_id",
+          "minimum_viable_actor",
+          "identity_acquisition_cost",
+          "operational_preconditions",
+          "blocked_by_environment",
+          "evidence_ids"
+        ],
+        "properties": {
+          "finding_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "chain_id": {
+            "type": "string"
+          },
+          "minimum_viable_actor": {
+            "type": "string",
+            "enum": [
+              "unauthenticated_external",
+              "authenticated_consumer_b2c",
+              "enterprise_partner_dealer",
+              "internal_employee_operator",
+              "compromised_edge_device_tbox_charger_robot",
+              "privileged_admin_devops"
+            ]
+          },
+          "identity_acquisition_cost": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "none"
+            ]
+          },
+          "operational_preconditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "blocked_by_environment": {
+            "type": "boolean"
+          },
+          "blocker_details": {
+            "type": "string"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "actor_assessments"
+      ]
+    },
+    {
+      "required": [
+        "assessments"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalSec v3.0 Phase 2.2 Deep Trace Chain Analyst Schema",
+  "type": "object",
+  "properties": {
+    "repo_name": {
+      "type": "string"
+    },
+    "chains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "chain_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string"
+          },
+          "candidate_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "chain_verdict": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "code_supported",
+              "partially_confirmed",
+              "hypothesized",
+              "hypothesis",
+              "refuted",
+              "inconclusive",
+              "observed",
+              "derived"
+            ]
+          },
+          "execution_status": {
+            "type": "string"
+          },
+          "hops": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "hop_id": {
+                  "type": "string"
+                },
+                "hop_kind": {
+                  "type": "string",
+                  "enum": [
+                    "in_process",
+                    "http",
+                    "grpc",
+                    "message_queue",
+                    "zmq_or_ipc",
+                    "db",
+                    "file_or_hardware"
+                  ]
+                },
+                "repo_name": {
+                  "type": "string"
+                },
+                "file": {
+                  "type": "string"
+                },
+                "function_or_symbol": {
+                  "type": "string"
+                },
+                "line_start": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "line_end": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "caller_evidence_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "callee_evidence_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "evidence_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "root_cause": {
+            "type": [
+              "object",
+              "string"
+            ]
+          },
+          "request_plan": {
+            "type": [
+              "object",
+              "array",
+              "string"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "unexploitable_candidates": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "string"
+        ]
+      }
+    },
+    "root_causes": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "chains"
+      ]
+    },
+    {
+      "required": [
+        "unexploitable_candidates"
+      ]
+    }
+  ]
+}

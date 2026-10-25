@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalSec v3.0 Phase 3.3 S-F-O-P-C Risk Calibrator Schema",
+  "type": "object",
+  "required": [
+    "calibrated_findings"
+  ],
+  "properties": {
+    "calibrated_findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "finding_id",
+          "max_impact",
+          "contextual_risk_rating",
+          "risk_owner"
+        ],
+        "properties": {
+          "finding_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "chain_id": {
+            "type": "string"
+          },
+          "code_verified_severity": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "informational",
+              "negligible"
+            ]
+          },
+          "exploitability_likelihood": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low",
+              "theoretical"
+            ]
+          },
+          "sfop_impacts": {
+            "type": "object",
+            "required": [
+              "safety",
+              "financial",
+              "operational",
+              "privacy",
+              "compliance"
+            ],
+            "properties": {
+              "safety": {
+                "type": [
+                  "string",
+                  "object"
+                ]
+              },
+              "financial": {
+                "type": [
+                  "string",
+                  "object"
+                ]
+              },
+              "operational": {
+                "type": [
+                  "string",
+                  "object"
+                ]
+              },
+              "privacy": {
+                "type": [
+                  "string",
+                  "object"
+                ]
+              },
+              "compliance": {
+                "type": [
+                  "string",
+                  "object"
+                ]
+              }
+            }
+          },
+          "impact_axes": {
+            "type": "object",
+            "required": [
+              "safety",
+              "financial",
+              "operational",
+              "privacy",
+              "compliance"
+            ],
+            "properties": {
+              "safety": {
+                "type": [
+                  "string",
+                  "object"
+                ]
+              },
+              "financial": {
+                "type": [
+                  "string",
+                  "object"
+                ]
+              },
+              "operational": {
+                "type": [
+                  "string",
+                  "object"
+                ]
+              },
+              "privacy": {
+                "type": [
+                  "string",
+                  "object"
+                ]
+              },
+              "compliance": {
+                "type": [
+                  "string",
+                  "object"
+                ]
+              }
+            }
+          },
+          "max_impact": {
+            "type": "string",
+            "enum": [
+              "catastrophic",
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "negligible"
+            ]
+          },
+          "contextual_risk_rating": {
+            "type": "string",
+            "enum": [
+              "catastrophic",
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "informational",
+              "negligible"
+            ]
+          },
+          "risk_owner": {
+            "type": "string",
+            "minLength": 2
+          },
+          "safety_owner": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "owner_role": {
+            "type": "string",
+            "enum": [
+              "dev_team",
+              "infra_cloud_sec",
+              "iam_platform",
+              "ot_safety_engineering",
+              "data_privacy_dpo",
+              "unassigned_pending_roster"
+            ]
+          },
+          "blast_radius": {
+            "type": "string",
+            "enum": [
+              "component",
+              "service",
+              "domain",
+              "cross_domain",
+              "platform"
+            ]
+          },
+          "sfop_details": {
+            "type": "object"
+          },
+          "gate_0_emergency_brake": {
+            "type": "boolean"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  }
+}

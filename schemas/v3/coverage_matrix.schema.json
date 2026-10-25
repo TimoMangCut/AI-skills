@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalSec v3.0 Phase 1 Coverage Matrix Schema",
+  "type": "object",
+  "required": [
+    "repo_name",
+    "cells",
+    "summary"
+  ],
+  "properties": {
+    "repo_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cells": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "cell_id",
+          "surface_ref",
+          "attack_class",
+          "standard_code",
+          "status",
+          "evidence_ids"
+        ],
+        "properties": {
+          "cell_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "surface_ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "attack_class": {
+            "type": "string",
+            "minLength": 1
+          },
+          "standard_code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "derived",
+              "hypothesis",
+              "unknown",
+              "not_assessed",
+              "confirmed",
+              "absent",
+              "covered_clean",
+              "covered_finding",
+              "reopened",
+              "deferred_out_of_budget"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  }
+}

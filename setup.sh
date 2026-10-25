@@ -76,7 +76,7 @@ def _merge_marked_file(src_path: Path, dst_path: Path, marker_name: str) -> str:
 
     pattern = re.compile(re.escape(begin_tag) + r".*?" + re.escape(end_tag) + r"\n?", re.DOTALL)
     if pattern.search(existing):
-        updated = pattern.sub(block, existing)
+        updated = pattern.sub(lambda _: block, existing)
         dst_path.write_text(updated, encoding="utf-8")
         return "updated"
 
@@ -193,18 +193,20 @@ if (skill_dir / ".agents" / "rules" / "soul.md").is_file():
 
 copied_skills = 0
 for sp in sorted((skill_dir / ".agents" / "skills").iterdir()):
-    if sp.is_dir():
+    if sp.is_dir() and not sp.name.startswith("._"):
         for dst_root in (agents_dst / "skills", claude_dst / "skills"):
             target_sp = dst_root / sp.name
             if target_sp.exists():
                 shutil.rmtree(target_sp)
-            shutil.copytree(sp, target_sp)
+            shutil.copytree(sp, target_sp, ignore=shutil.ignore_patterns("._*"))
         copied_skills += 1
 
 # 2. If cloned under a custom folder name != AI-skills, rewrite references in copied .agents/ and .claude/skills/
 if folder_name != "AI-skills":
     for root_target in (agents_dst, claude_dst / "skills"):
         for md in root_target.rglob("*.md"):
+            if md.name.startswith("._"):
+                continue
             txt = md.read_text(encoding="utf-8")
             md.write_text(txt.replace("AI-skills", folder_name), encoding="utf-8")
 

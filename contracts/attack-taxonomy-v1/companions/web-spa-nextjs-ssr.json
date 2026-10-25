@@ -1,0 +1,91 @@
+{
+  "id": "web-spa-nextjs-ssr",
+  "companion_id": "web-spa-nextjs-ssr",
+  "file": "web-spa-nextjs-ssr.md",
+  "companion_json": "companions/web-spa-nextjs-ssr.json",
+  "group": "I. Web, Mobile & API Core",
+  "title": "Web Apps, SPAs (React/Next.js/Angular/Vue), SSR & Low-Code",
+  "always_inject": false,
+  "triggers": [
+    "react",
+    "nextjs",
+    "next",
+    "angular",
+    "vue",
+    "webpack",
+    "vite",
+    "sourcemap",
+    "ssr",
+    "nocobase",
+    "wordpress",
+    "php",
+    "spa",
+    "cors",
+    "csrf",
+    "xss"
+  ],
+  "trigger_signals": [
+    "react",
+    "nextjs",
+    "next",
+    "angular",
+    "vue",
+    "webpack",
+    "vite",
+    "sourcemap",
+    "ssr",
+    "nocobase",
+    "wordpress",
+    "php",
+    "spa",
+    "cors",
+    "csrf",
+    "xss",
+    "spa_web_frontend",
+    "fullstack_web_app",
+    "ecommerce_portal",
+    "lowcode_admin_portal"
+  ],
+  "archetypes": [
+    "SPA_Web_Frontend",
+    "Fullstack_Web_App",
+    "Ecommerce_Portal",
+    "LowCode_Admin_Portal"
+  ],
+  "blocks": [
+    "nextjs-ssr-and-server-actions",
+    "spa-sourcemap-and-bundle-secrets",
+    "dom-xss-postmessage-and-cors",
+    "general-injection-ssti-and-path-traversal"
+  ],
+  "standard_mappings": [
+    "OWASP-ASVS-V5",
+    "OWASP-ASVS-V13",
+    "OWASP-API3:2023",
+    "OWASP-API8:2023",
+    "CWE-79",
+    "CWE-22",
+    "CWE-1336"
+  ],
+  "safe_patterns": [
+    "productionBrowserSourceMaps: false in next.config.js / vite.config.ts",
+    "Explicit session & role verification inside every Next.js Server Action ('use server') and getServerSideProps",
+    "Strict event.origin allowlist check in window.addEventListener('message', ...) before processing payload",
+    "Parameterized queries and context-aware auto-escaping without dangerouslySetInnerHTML or raw template compilation"
+  ],
+  "vulnerable_patterns": [
+    "productionBrowserSourceMaps: true or exposed *.js.map files in public S3/CDN buckets",
+    "NEXT_PUBLIC_*, VITE_*, or REACT_APP_* variables containing internal API keys, client secrets, or static HMAC keys",
+    "Access-Control-Allow-Origin reflecting arbitrary Origin headers with Access-Control-Allow-Credentials: true",
+    "Uncanonicalized path.join(uploadDir, req.file.originalname) or dangerouslySetInnerHTML={{ __html: userContent }}"
+  ],
+  "required_evidence": [
+    "ev_... excerpt of build/bundler config (next.config.js, vite.config.ts, angular.json) or server route/action handler",
+    "ev_... excerpt of CORS middleware configuration or postMessage event handler showing origin validation logic"
+  ],
+  "questions_when_unclear": [
+    "Are source maps (*.js.map) stripped in the CI/CD production deployment stage or blocked at the CDN/Cloudflare edge?",
+    "Does an upstream reverse proxy override or sanitize Access-Control-Allow-Origin headers before responses reach the browser?"
+  ],
+  "markdown": "# Web Apps, SPAs (React/Next.js/Angular/Vue), SSR & Low-Code (`web-spa-nextjs-ssr`)\n\n> **Group:** I. Web, Mobile & API Core\n> **Product Archetypes:** SPA_Web_Frontend, Fullstack_Web_App, Ecommerce_Portal, LowCode_Admin_Portal\n> **Trigger Signals:** react, nextjs, next, angular, vue, webpack, vite, sourcemap, ssr, nocobase, wordpress, php, spa, cors, csrf, xss\n\n## [ BLOCK: nextjs-ssr-and-server-actions ]\n### Next.js App/Pages Router, SSR Data Leaks & Server Actions\n- Inspect `getServerSideProps`, React Server Components (RSC), and Server Actions (`'use server'`) for missing session/role checks.\n- Verify whether full internal objects or admin routes (e.g., 900+ client routes in Next.js manifests) leak sensitive tenant/dealer logic or internal API base URLs.\n- Check middleware bypass (`middleware.ts` matcher gaps, `x-middleware-subrequest`, path normalization).\n\n## [ BLOCK: spa-sourcemap-and-bundle-secrets ]\n### SPA Sourcemaps (.js.map), Environment Configs & Client-Side Auth Bypass\n- Check build configs (`productionBrowserSourceMaps`, Vite/Webpack/Angular `sourceMap`) for `.js.map` exposure in prod/staging buckets.\n- Inspect `NEXT_PUBLIC_*`, `VITE_*`, `REACT_APP_*`, and `config.js` for leaked internal API gateways (`emp-non-prod-api`, OAuth client secrets, static HMAC keys).\n- Enforce the H5 200-Falsehood rule: distinguish real asset/API responses from SPA `index.html` catch-all rewrites.\n\n## [ BLOCK: dom-xss-postmessage-and-cors ]\n### DOM XSS, postMessage Bridges, OAuth Redirects & Permissive CORS\n- Trace `window.addEventListener('message', ...)` handlers without strict `event.origin` verification.\n- Audit `Access-Control-Allow-Origin` reflection and staging/localhost origins (`http://localhost:3003`) enabled with `Access-Control-Allow-Credentials: true`.\n- Verify OAuth/OIDC `redirect_uri`, `state`, and PKCE validation against open-redirect token theft.\n\n## [ BLOCK: general-injection-ssti-and-path-traversal ]\n### Server-Side Template Injection (SSTI), File Upload Path Traversal & DOM Sinks\n- Trace dynamic template rendering (`Handlebars`, `EJS`, `Jinja2`, `Twig`, `Freemarker`) and SSR file-serving helpers (`path.join`, `sendFile`) for SSTI and `../` path traversal.\n- Audit multipart uploads and static asset proxies for unvalidated filenames, SVG/HTML stored XSS, and ZipSlip extraction.\n\n### Standard Mappings\n- OWASP-ASVS-V5, OWASP-ASVS-V13, OWASP-API3:2023, OWASP-API8:2023, CWE-79, CWE-22, CWE-1336\n\n### Safe Patterns (Refutation Anchors)\n- productionBrowserSourceMaps: false in next.config.js / vite.config.ts\n- Explicit session & role verification inside every Next.js Server Action ('use server') and getServerSideProps\n- Strict event.origin allowlist check in window.addEventListener('message', ...) before processing payload\n- Parameterized queries and context-aware auto-escaping without dangerouslySetInnerHTML or raw template compilation\n\n### Vulnerable Patterns\n- productionBrowserSourceMaps: true or exposed *.js.map files in public S3/CDN buckets\n- NEXT_PUBLIC_*, VITE_*, or REACT_APP_* variables containing internal API keys, client secrets, or static HMAC keys\n- Access-Control-Allow-Origin reflecting arbitrary Origin headers with Access-Control-Allow-Credentials: true\n- Uncanonicalized path.join(uploadDir, req.file.originalname) or dangerouslySetInnerHTML={{ __html: userContent }}\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of build/bundler config (next.config.js, vite.config.ts, angular.json) or server route/action handler\n- ev_... excerpt of CORS middleware configuration or postMessage event handler showing origin validation logic\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Are source maps (*.js.map) stripped in the CI/CD production deployment stage or blocked at the CDN/Cloudflare edge?\n- Does an upstream reverse proxy override or sanitize Access-Control-Allow-Origin headers before responses reach the browser?\n"
+}

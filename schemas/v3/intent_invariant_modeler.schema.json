@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LocalSec v3.0 Phase 1.3 Intent & Invariant Modeler Schema",
+  "type": "object",
+  "properties": {
+    "repo_name": {
+      "type": "string"
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "invariants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "invariant_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "id": {
+            "type": "string"
+          },
+          "axis": {
+            "type": "string",
+            "enum": [
+              "safety",
+              "financial",
+              "operational",
+              "privacy",
+              "compliance"
+            ]
+          },
+          "statement": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string",
+            "enum": [
+              "authoritative_doc",
+              "spec_or_schema",
+              "manifest_or_config",
+              "inferred_hypothesis"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "sfop_invariants": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "self_challenged_gaps": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "string"
+        ]
+      }
+    },
+    "blinded_challenges": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object",
+          "string"
+        ]
+      }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "anyOf": [
+    {
+      "required": [
+        "invariants"
+      ]
+    },
+    {
+      "required": [
+        "sfop_invariants"
+      ]
+    },
+    {
+      "required": [
+        "capabilities"
+      ]
+    }
+  ]
+}

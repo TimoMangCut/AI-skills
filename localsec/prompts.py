@@ -41,6 +41,8 @@ TOOL PROTOCOL:
 - Each tool call and each final answer uses one model turn. Respect the remaining budget provided in the job payload.
 """
 
+V30_ORCHESTRATION_PATH = ROOT / "contracts" / "v3-orchestration.json"
+
 V30_SKILLS_DEFAULT: dict[str, dict[str, Any]] = {
     "codebase_scout": {
         "version": "3.0.0",
@@ -48,6 +50,8 @@ V30_SKILLS_DEFAULT: dict[str, dict[str, Any]] = {
         "purpose": "Phase 1.1 Micro-Skill: Scout directory structure and 3-5 sample files to classify Product Archetypes, Repo Tier, coding conventions, and Target Modules Map.",
         "read_scope": "source_config_docs",
         "allowed_tools": ["list_dir", "read_file"],
+        "prompt": ".agents/skills/phase-1-codebase-scout/SKILL.md",
+        "schema": "schemas/v3/codebase_scout.schema.json",
     },
     "extractor_tailor": {
         "version": "3.0.0",
@@ -55,6 +59,8 @@ V30_SKILLS_DEFAULT: dict[str, dict[str, Any]] = {
         "purpose": "Phase 1.2 Micro-Skill: Evaluate and tailor Python structural extractor to repo coding idioms on canary files, or choose SKIP_EXTRACTOR_DIRECT_READ.",
         "read_scope": "source_config_docs",
         "allowed_tools": ["list_dir", "read_file"],
+        "prompt": ".agents/skills/phase-1-extractor-tailor/SKILL.md",
+        "schema": "schemas/v3/extractor_tailor.schema.json",
     },
     "intent_invariant_modeler": {
         "version": "3.0.0",
@@ -62,6 +68,8 @@ V30_SKILLS_DEFAULT: dict[str, dict[str, Any]] = {
         "purpose": "Phase 1.3: Model business & cyber-physical safety invariants (S-F-O-P-C) and run context-blinded invariant challenge.",
         "read_scope": "intent_and_specs_only",
         "allowed_tools": ["list_dir", "read_file"],
+        "prompt": ".agents/skills/phase-1-intent-invariant-modeler/SKILL.md",
+        "schema": "schemas/v3/intent_invariant_modeler.schema.json",
     },
     "unified_surface_mapper": {
         "version": "3.0.0",
@@ -69,6 +77,17 @@ V30_SKILLS_DEFAULT: dict[str, dict[str, Any]] = {
         "purpose": "Phase 1.4: Single-pass manual code reading + AI Semantic Clustering + Intent vs Implementation comparison + Coverage Ledger tracking.",
         "read_scope": "source_config_docs",
         "allowed_tools": ["list_dir", "read_file"],
+        "prompt": ".agents/skills/phase-1-unified-surface-mapper/SKILL.md",
+        "schema": "schemas/v3/unified_surface_mapper.schema.json",
+    },
+    "coverage_ledger": {
+        "version": "3.0.0",
+        "phase": "phase_1_recon",
+        "purpose": "Phase 1.4 Coverage Ledger: Append-only RFC 3986 coverage_id ledger and AI Semantic Clustering artifact.",
+        "read_scope": "source_config_docs",
+        "allowed_tools": ["list_dir", "read_file"],
+        "prompt": ".agents/skills/phase-1-unified-surface-mapper/SKILL.md",
+        "schema": "schemas/v3/coverage_ledger.schema.json",
     },
     "cross_repo_and_arch_review": {
         "version": "3.0.0",
@@ -76,6 +95,8 @@ V30_SKILLS_DEFAULT: dict[str, dict[str, Any]] = {
         "purpose": "Phase 1.5: Architecture & cross-repo trust boundary mismatch analysis + Mermaid diagram authoring.",
         "read_scope": "source_config_docs",
         "allowed_tools": ["list_dir", "read_file"],
+        "prompt": ".agents/skills/phase-1-cross-repo-and-arch-review/SKILL.md",
+        "schema": "schemas/v3/cross_repo_and_arch_review.schema.json",
     },
     "coverage_and_evidence_auditor": {
         "version": "3.0.0",
@@ -83,6 +104,8 @@ V30_SKILLS_DEFAULT: dict[str, dict[str, Any]] = {
         "purpose": "Phase 1.6: Fail-closed audit of ev_... evidence and Visibility Tracker / Coverage Ledger gate.",
         "read_scope": "none",
         "allowed_tools": [],
+        "prompt": ".agents/skills/phase-1-coverage-and-evidence-auditor/SKILL.md",
+        "schema": "schemas/v3/coverage_and_evidence_auditor.schema.json",
     },
     "candidate_intake_planner": {
         "version": "3.0.0",
@@ -90,6 +113,8 @@ V30_SKILLS_DEFAULT: dict[str, dict[str, Any]] = {
         "purpose": "Phase 2.1: Normalize Phase 1 Candidate Queue and select verbatim Attack Taxonomy Companion blocks.",
         "read_scope": "source_config_docs",
         "allowed_tools": ["list_dir", "read_file"],
+        "prompt": ".agents/skills/phase-2-candidate-intake-planner/SKILL.md",
+        "schema": "schemas/v3/candidate_intake_planner.schema.json",
     },
     "deep_trace_chain_analyst": {
         "version": "3.0.0",
@@ -97,6 +122,8 @@ V30_SKILLS_DEFAULT: dict[str, dict[str, Any]] = {
         "purpose": "Phase 2.2: Deep code hop trace, multi-step attack chain construction, root-cause mapping, and repro sequence design.",
         "read_scope": "source_config_docs",
         "allowed_tools": ["list_dir", "read_file"],
+        "prompt": ".agents/skills/phase-2-deep-trace-chain-analyst/SKILL.md",
+        "schema": "schemas/v3/deep_trace_chain_analyst.schema.json",
     },
     "blinded_counterevidence_challenger": {
         "version": "3.0.0",
@@ -104,6 +131,8 @@ V30_SKILLS_DEFAULT: dict[str, dict[str, Any]] = {
         "purpose": "Phase 2.3: Context-blinded adversarial verification of chain steps and active hunt for compensating controls.",
         "read_scope": "exact_paths",
         "allowed_tools": ["read_file"],
+        "prompt": ".agents/skills/phase-2-blinded-counterevidence-challenger/SKILL.md",
+        "schema": "schemas/v3/blinded_counterevidence_challenger.schema.json",
     },
     "analysis_evidence_gate": {
         "version": "3.0.0",
@@ -111,6 +140,8 @@ V30_SKILLS_DEFAULT: dict[str, dict[str, Any]] = {
         "purpose": "Phase 2.4: Independent evidence gate and Empirical Refutations Ledger audit before Phase 3.",
         "read_scope": "none",
         "allowed_tools": [],
+        "prompt": ".agents/skills/phase-2-analysis-evidence-gate/SKILL.md",
+        "schema": "schemas/v3/analysis_evidence_gate.schema.json",
     },
     "actor_and_feasibility_assessor": {
         "version": "3.0.0",
@@ -118,6 +149,8 @@ V30_SKILLS_DEFAULT: dict[str, dict[str, Any]] = {
         "purpose": "Phase 3.1: Prove which actor/role can reach the vulnerable code path, identity acquisition cost, and operational preconditions.",
         "read_scope": "source_config_docs",
         "allowed_tools": ["list_dir", "read_file"],
+        "prompt": ".agents/skills/phase-3-actor-and-feasibility-assessor/SKILL.md",
+        "schema": "schemas/v3/actor_and_feasibility_assessor.schema.json",
     },
     "beyond_code_control_mapper": {
         "version": "3.0.0",
@@ -125,6 +158,8 @@ V30_SKILLS_DEFAULT: dict[str, dict[str, Any]] = {
         "purpose": "Phase 3.2: Assess edge/infra/WAF/network/IAM/OT physical interlocks and defense-in-depth controls beyond application code.",
         "read_scope": "source_config_docs",
         "allowed_tools": ["list_dir", "read_file"],
+        "prompt": ".agents/skills/phase-3-beyond-code-control-mapper/SKILL.md",
+        "schema": "schemas/v3/beyond_code_control_mapper.schema.json",
     },
     "sfop_risk_calibrator": {
         "version": "3.0.0",
@@ -132,8 +167,59 @@ V30_SKILLS_DEFAULT: dict[str, dict[str, Any]] = {
         "purpose": "Phase 3.3: Calibrate 5-axis S-F-O-P-C impact, exploitability likelihood, overall_risk <= max_impact, and Risk Owner vs Safety Owner.",
         "read_scope": "none",
         "allowed_tools": [],
+        "prompt": ".agents/skills/phase-3-sfop-risk-calibrator/SKILL.md",
+        "schema": "schemas/v3/sfop_risk_calibrator.schema.json",
     },
 }
+
+
+def load_v3_orchestration() -> dict[str, Any]:
+    """Load canonical LocalSec v3.0 orchestration contract from contracts/v3-orchestration.json with inline fallback."""
+    if V30_ORCHESTRATION_PATH.is_file():
+        try:
+            return json.loads(V30_ORCHESTRATION_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {
+        "version": "3.0.0",
+        "flow": "v3",
+        "canonical_pipeline": "localsec-v3-unified-refute-first",
+        "legacy_v2_deprecated": True,
+        "phases": {
+            "phase_1_recon": {
+                "order": [
+                    "codebase_scout",
+                    "extractor_tailor",
+                    "intent_invariant_modeler",
+                    "unified_surface_mapper",
+                    "cross_repo_and_arch_review",
+                    "coverage_and_evidence_auditor",
+                ],
+                "finalizer": "finalize_v3_phase1",
+                "gate_receipt": "phase1_gate_receipt.json",
+            },
+            "phase_2_analysis": {
+                "order": [
+                    "candidate_intake_planner",
+                    "deep_trace_chain_analyst",
+                    "blinded_counterevidence_challenger",
+                    "analysis_evidence_gate",
+                ],
+                "finalizer": "finalize_v3_phase2",
+                "gate_receipt": "phase2_gate_receipt.json",
+            },
+            "phase_3_risk": {
+                "order": [
+                    "actor_and_feasibility_assessor",
+                    "beyond_code_control_mapper",
+                    "sfop_risk_calibrator",
+                ],
+                "finalizer": "finalize_v3_phase3",
+                "gate_receipt": "phase3_gate_receipt.json",
+            },
+        },
+        "skills": V30_SKILLS_DEFAULT,
+    }
 
 
 def load_attack_taxonomy_registry() -> dict[str, Any]:
@@ -172,7 +258,9 @@ def select_companion_blocks(
     techstack: list[str] | None = None,
     archetypes: list[str] | None = None,
     signals: list[str] | None = None,
+    candidate_classes: list[str] | None = None,
     exclude_reasons: dict[str, str] | None = None,
+    run_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Select verbatim Attack-Class Companion Markdown blocks for sub-agent prompts.
     Enforces verbatim `## [ BLOCK: ... ]` preservation and requires explicit reasons for any exclusions.
@@ -182,7 +270,7 @@ def select_companion_blocks(
     exclude_reasons = exclude_reasons or {}
 
     tokens: set[str] = set()
-    for collection in (techstack or [], archetypes or [], signals or []):
+    for collection in (techstack or [], archetypes or [], signals or [], candidate_classes or []):
         for item in collection:
             if isinstance(item, str) and item.strip():
                 low = item.strip().lower()
@@ -228,18 +316,30 @@ def select_companion_blocks(
             })
 
     combined_md = "\n\n".join(b["markdown"] for b in verbatim_blocks)
-    return {
+    result: dict[str, Any] = {
         "taxonomy_version": reg.get("version", "3.0.0"),
         "selected_module_ids": selected_ids,
+        "selected_companion_ids": list(selected_ids),
         "excluded_blocks": excluded_blocks,
         "verbatim_blocks": verbatim_blocks,
         "combined_markdown": combined_md,
     }
+    if run_dir is not None:
+        out_file = Path(run_dir) / "selected_attack_companions.json"
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        result["saved_to"] = str(out_file)
+    return result
 
 
 def load_registry() -> dict[str, Any]:
     reg = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
+    v3_orch = load_v3_orchestration()
     merged_skills: dict[str, Any] = dict(V30_SKILLS_DEFAULT)
+    for k, v in (v3_orch.get("skills") or {}).items():
+        if isinstance(v, dict):
+            merged_skills[k] = {**merged_skills.get(k, {}), **v}
+    reg["v3_orchestration_policy"] = v3_orch
     if ACA_REGISTRY_PATH.is_file():
         aca_reg = json.loads(ACA_REGISTRY_PATH.read_text(encoding="utf-8"))
         for item in aca_reg.get("skills", []):
@@ -269,14 +369,20 @@ def load_registry() -> dict[str, Any]:
 
 
 def _resolve_schema_path(schema_name: str) -> Path:
-    for d in (SCHEMA_DIR, BASV_SCHEMA_DIR, ACA_SCHEMA_DIR):
-        p = d / schema_name
+    direct = ROOT / schema_name
+    if direct.is_file():
+        return direct
+    for d in (SCHEMA_DIR / "v3", SCHEMA_DIR, BASV_SCHEMA_DIR, ACA_SCHEMA_DIR):
+        p = d / Path(schema_name).name
         if p.is_file():
             return p
     raise FileNotFoundError(f"Schema not found: {schema_name}")
 
 
 def _resolve_prompt_path(prompt_name: str) -> Path:
+    direct = ROOT / prompt_name
+    if direct.is_file():
+        return direct
     for d in (PROMPT_DIR, BASV_PROMPT_DIR, ACA_PROMPT_DIR):
         p = d / prompt_name
         if p.is_file():
@@ -289,7 +395,14 @@ def schema_for(skill: str) -> dict[str, Any]:
     spec = registry["skills"].get(skill)
     if not spec:
         raise ValueError(f"Unknown skill: {skill}")
-    return json.loads(_resolve_schema_path(spec["schema"]).read_text(encoding="utf-8"))
+    schema_ref = spec.get("schema")
+    if isinstance(schema_ref, str) and schema_ref:
+        try:
+            return json.loads(_resolve_schema_path(schema_ref).read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            pass
+    from .validators import load_schema
+    return load_schema(skill)
 
 
 def system_prompt(skill: str) -> tuple[str, dict[str, Any]]:
@@ -297,7 +410,23 @@ def system_prompt(skill: str) -> tuple[str, dict[str, Any]]:
     spec = registry["skills"].get(skill)
     if not spec:
         raise ValueError(f"Unknown skill: {skill}")
-    mandate = _resolve_prompt_path(spec["prompt"]).read_text(encoding="utf-8")
+    prompt_ref = spec.get("prompt")
+    mandate = ""
+    if isinstance(prompt_ref, str) and prompt_ref.strip():
+        try:
+            mandate = _resolve_prompt_path(prompt_ref).read_text(encoding="utf-8")
+        except FileNotFoundError:
+            mandate = ""
+    if not mandate:
+        mandate = (
+            f"Skill ID: {skill}\n"
+            f"Version: {spec.get('version', '3.0.0')}\n"
+            f"Phase: {spec.get('phase', 'unknown')}\n"
+            f"Objective: {spec.get('purpose', '')}\n"
+            f"Read Scope: {spec.get('read_scope', 'none')}\n"
+            f"Allowed Tools: {', '.join(spec.get('allowed_tools', [])) or 'none'}"
+        )
     schema = schema_for(skill)
     prompt = BASE_POLICY + "\nIMMUTABLE SKILL MANDATE (version-controlled):\n" + mandate + "\n\nOUTPUT JSON SCHEMA:\n" + json.dumps(schema, ensure_ascii=False)
     return prompt, spec
+

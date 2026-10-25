@@ -1,0 +1,84 @@
+{
+  "id": "state-race-financial-commerce",
+  "companion_id": "state-race-financial-commerce",
+  "file": "state-race-financial-commerce.md",
+  "companion_json": "companions/state-race-financial-commerce.json",
+  "group": "I. Web, Mobile & API Core",
+  "title": "State Machines, Race Conditions (TOCTOU), Payments, Billing & E-Commerce",
+  "always_inject": true,
+  "triggers": [
+    "payment",
+    "billing",
+    "invoice",
+    "order",
+    "cart",
+    "checkout",
+    "voucher",
+    "coupon",
+    "wallet",
+    "refund",
+    "deposit",
+    "subscription",
+    "idempotency",
+    "lock",
+    "transaction"
+  ],
+  "trigger_signals": [
+    "payment",
+    "billing",
+    "invoice",
+    "order",
+    "cart",
+    "checkout",
+    "voucher",
+    "coupon",
+    "wallet",
+    "refund",
+    "deposit",
+    "subscription",
+    "idempotency",
+    "lock",
+    "transaction",
+    "payment_billing_service",
+    "ecommerce_portal",
+    "subscription_ota_commerce"
+  ],
+  "archetypes": [
+    "Payment_Billing_Service",
+    "Ecommerce_Portal",
+    "Subscription_OTA_Commerce"
+  ],
+  "blocks": [
+    "toctou-race-and-idempotency",
+    "payment-webhook-and-ota-entitlement",
+    "asvs-v7-otp-rate-limit-and-voucher-replay"
+  ],
+  "standard_mappings": [
+    "OWASP-API4:2023",
+    "OWASP-API6:2023",
+    "ASVS-V4",
+    "ASVS-V7",
+    "ASVS-V11",
+    "CWE-362",
+    "CWE-841"
+  ],
+  "safe_patterns": [
+    "Pessimistic row locking (SELECT ... FOR UPDATE) or single atomic conditional UPDATE (WHERE status = 'PENDING' AND balance >= :amount)",
+    "Idempotency key bound to (user_id, endpoint, request_payload_hash) stored atomically with the state transition",
+    "Cryptographic HMAC/RSA signature verification and strict state-machine transition guards on payment gateway webhooks"
+  ],
+  "vulnerable_patterns": [
+    "Read-modify-write balance/voucher check in application memory followed by a separate non-locking save/update",
+    "Payment webhook handler updating order status to PAID without verifying gateway signature or checking prior terminal state",
+    "Missing validation against negative quantities, negative transfer amounts, or currency mismatch between order creation and settlement"
+  ],
+  "required_evidence": [
+    "ev_... excerpt of the transaction/service method performing state check and balance/order mutation",
+    "ev_... excerpt of the database locking, idempotency middleware, or webhook signature verification logic"
+  ],
+  "questions_when_unclear": [
+    "Does a distributed lock (Redis Redlock) or database unique constraint / serializable isolation level prevent concurrent duplicate execution?",
+    "Is payment webhook authenticity verified by an upstream payment gateway adapter before reaching this service?"
+  ],
+  "markdown": "# State Machines, Race Conditions (TOCTOU), Payments, Billing & E-Commerce (`state-race-financial-commerce`)\n\n> **Group:** I. Web, Mobile & API Core\n> **Product Archetypes:** Payment_Billing_Service, Ecommerce_Portal, Subscription_OTA_Commerce\n> **Trigger Signals:** payment, billing, invoice, order, cart, checkout, voucher, coupon, wallet, refund, deposit, subscription, idempotency, lock, transaction\n\n## [ BLOCK: toctou-race-and-idempotency ]\n### Concurrent State Mutation (TOCTOU), Double-Spend & Missing Idempotency\n- Inspect balance/voucher redemptions, refund triggers, OTP verifications, and ownership transfers for read-modify-write without `SELECT ... FOR UPDATE`, atomic conditional update, or distributed lock.\n- Verify whether idempotency keys are scoped to `(userId, endpoint, payload_hash)` and cannot be replayed across different parameters.\n\n## [ BLOCK: payment-webhook-and-ota-entitlement ]\n### Payment Callback Forgery, Price/Currency Tampering & Paid OTA Entitlement\n- Verify cryptographic signature validation and state transition ordering on payment gateway webhooks.\n- In paid FOTA/SOTA or e-commerce flows, check whether an attacker can trigger fulfillment/installation before payment settlement completes.\n\n## [ BLOCK: asvs-v7-otp-rate-limit-and-voucher-replay ]\n### OTP/PIN Brute-Force, Coupon/Voucher Replay & Partial Refund Loops\n- Verify strict attempt counters, exponential backoff, and single-use atomic invalidation on OTP, PIN, gift card, and promo code redemption endpoints.\n- Check whether partial refunds, split payments, or negative quantity/amount values cause arithmetic underflow or double-crediting.\n\n### Standard Mappings\n- OWASP-API4:2023, OWASP-API6:2023, ASVS-V4, ASVS-V7, ASVS-V11, CWE-362, CWE-841\n\n### Safe Patterns (Refutation Anchors)\n- Pessimistic row locking (SELECT ... FOR UPDATE) or single atomic conditional UPDATE (WHERE status = 'PENDING' AND balance >= :amount)\n- Idempotency key bound to (user_id, endpoint, request_payload_hash) stored atomically with the state transition\n- Cryptographic HMAC/RSA signature verification and strict state-machine transition guards on payment gateway webhooks\n\n### Vulnerable Patterns\n- Read-modify-write balance/voucher check in application memory followed by a separate non-locking save/update\n- Payment webhook handler updating order status to PAID without verifying gateway signature or checking prior terminal state\n- Missing validation against negative quantities, negative transfer amounts, or currency mismatch between order creation and settlement\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of the transaction/service method performing state check and balance/order mutation\n- ev_... excerpt of the database locking, idempotency middleware, or webhook signature verification logic\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Does a distributed lock (Redis Redlock) or database unique constraint / serializable isolation level prevent concurrent duplicate execution?\n- Is payment webhook authenticity verified by an upstream payment gateway adapter before reaching this service?\n"
+}

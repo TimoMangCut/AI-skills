@@ -31,10 +31,10 @@ Bộ **16 Skills v3.0 (`.agents/skills/` & `.claude/skills/`) + Always-On Rules 
     ├── setup.sh                       <-- Script tự động đồng bộ 16 skills, AGENTS.md, SOUL.md, CLAUDE.md
     ├── localsec/                      <-- Bộ máy Python CLI (manual_session.py, orchestrator.py, validators.py, workspace.py...)
     ├── skills/                        <-- Prompts & Registry gốc
-    ├── schemas/                       <-- JSON Schemas (AI-skills/schemas/*.schema.json)
-    ├── contracts/                     <-- Contracts, Schemas & 16 Attack-Class Companions (AI-skills/contracts/...)
+    ├── schemas/                       <-- JSON Schemas (AI-skills/schemas/v3/*.schema.json)
+    ├── contracts/                     <-- AI-skills/contracts/v3-orchestration.json & 16 Attack-Class Companions
     ├── examples/                      <-- Repo mẫu (demo-go)
-    ├── tests/                         <-- 39 Unit Tests kiểm định toàn bộ cổng an toàn v3.0
+    ├── tests/                         <-- 41 Unit & End-to-End Tests kiểm định toàn bộ cổng an toàn v3.0
     └── localsec.toml                  <-- Cấu hình mặc định của bộ tool
 ```
 
@@ -63,22 +63,22 @@ sh AI-skills/setup.sh
 
 Mở `<Project-Root>` trong Antigravity IDE hoặc Claude Code và gọi tuần tự:
 
-### Bước A — Chạy Phase 1 (Unified Reconnaissance v3.0)
+### Bước A — Chạy Phase 1 (Unified Reconnaissance v3.0 — Intent Before Code)
 ```text
 /phase-1-orchestrator Thực hiện Phase 1 (Unified Reconnaissance v3.0 — 6 bước 1.1 -> 1.6) cho toàn bộ repositories.
-Áp dụng kỷ luật Refute-first: AI khảo sát cấu trúc trước (codebase_scout), kiểm thử Python extractor trên canary files (extractor_tailor), mô hình hóa bất biến S-F-O-P-C, đọc code 1 lượt kèm AI Semantic Clustering, và vượt qua cổng Visibility Tracker (unvisited_target_modules == 0, shallow_grazing_files == 0).
+Áp dụng kỷ luật Refute-first & Intent Before Code: chạy inventory_repo + codebase_scout (1.1), mô hình hóa bất biến S-F-O-P-C từ docs/specs trước khi đọc code (intent_invariant_modeler 1.3), kiểm thử Python extractor trên canary files (extractor_tailor 1.2), đọc code 1 lượt kèm AI Semantic Clustering (unified_surface_mapper 1.4), đối chiếu ranh giới xuyên repo (match_cross_repo_boundaries + 1.5), và khóa sổ qua finalize_v3_phase1 (1.6).
 ```
 
 ### Bước B — Chạy Phase 2 (Deep Analysis & Falsification v3.0)
 ```text
-/phase-2-orchestrator Thực hiện Phase 2 (Deep Analysis & Falsification v3.0 — 4 bước 2.1 -> 2.4) trên Candidate Queue từ Phase 1.
-Nạp nguyên văn các mô-đun Attack-Class Companion phù hợp, truy vết sâu từng bước nhảy hops[] kèm Root-Cause, chạy phản biện đối kháng ở chế độ Mù Kết luận (blinded_counterevidence_challenger) và khóa sổ qua cổng analysis_evidence_gate.
+/phase-2-orchestrator Thực hiện Phase 2 (Deep Analysis & Falsification v3.0 — 4 bước 2.1 -> 2.4) trên candidate_queue.json từ Phase 1.
+Nạp nguyên văn các mô-đun Attack-Class Companion phù hợp, truy vết sâu từng bước nhảy hops[] kèm Root-Cause, chạy phản biện đối kháng ở chế độ Mù Kết luận (prepare_blinded_chain_verifier + blinded_counterevidence_challenger trên 6 vị trí kiểm soát) và khóa sổ qua cổng finalize_v3_phase2.
 ```
 
 ### Bước C — Chạy Phase 3 (Contextual Risk & Exploitability Assessment v3.0)
 ```text
 /phase-3-orchestrator Thực hiện Phase 3 (Contextual Risk & Exploitability v3.0 — 3 bước 3.1 -> 3.3) cho các lỗ hổng đã chứng minh Reachable ở Phase 2.
-Chứng minh Actor/Role tối thiểu chạm được code path, đối chiếu các lớp kiểm soát ngoài code (Cloudflare WAF, Bare ALB, Kong/KrakenD, VPC 10.x, mTLS, OT Interlock) và hiệu chuẩn rủi ro thực tế trên 5 trục S-F-O-P-C (overall_risk <= max_impact).
+Chứng minh Actor/Role tối thiểu chạm được code path, đối chiếu các lớp kiểm soát ngoài code (Cloudflare WAF, Bare ALB, Kong/KrakenD, VPC 10.x, mTLS, OT Interlock), hiệu chuẩn rủi ro thực tế trên 5 trục S-F-O-P-C (overall_risk <= max_impact), chạy finalize_v3_phase3 (sinh key_questions.json) và xuất 3 báo cáo Markdown bằng render_v3_report.
 ```
 
-👉 Tra cứu chi tiết từng sub-skill riêng lẻ (16 skills v3.0) và bảng lệnh CLI tại **[`.agents/README.md`](./.agents/README.md)**.
+👉 Tra cứu chi tiết từng sub-skill riêng lẻ (16 skills v3.0) và bảng lệnh CLI (`inventory_repo`, `show_evidence`, `match_cross_repo_boundaries`, `finalize_v3_phase1`, `finalize_v3_phase2`, `finalize_v3_phase3`, `ingest_runtime_facts`, `render_v3_report`) tại **[`.agents/README.md`](./.agents/README.md)**.
