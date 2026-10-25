@@ -2526,26 +2526,51 @@ def audit_visibility_and_coverage(
                 spot_ep = spot_file
 
             if spot_file or spot_ep:
-                # C3: Verify handler-level spot-check!
-                # If spot_file != rep (multi-file cluster), require spot_file to be directly read (and if line_start is known, covered).
-                # If spot_file == rep (multiple endpoints in a single shared controller file), merely reading the representative
-                # handler in rep is NOT sufficient: require spot_ep to have a covered line_start/line_end in entrypoints[]
-                # or distinct handler evidence_ids in workspace.evidence!
+                # C3: Verify full handler-span spot-check!
+                # Merge overlapping/adjacent read ranges first so multi-read spans are evaluated accurately.
+                def _merge_ranges(raw_rngs: list[tuple[int, int]]) -> list[tuple[int, int]]:
+                    pts = sorted((int(a), int(b)) for a, b in raw_rngs if int(b) >= int(a))
+                    if not pts:
+                        return []
+                    merged: list[tuple[int, int]] = [pts[0]]
+                    for s, e in pts[1:]:
+                        prev_s, prev_e = merged[-1]
+                        if s <= prev_e + 1:
+                            merged[-1] = (prev_s, max(prev_e, e))
+                        else:
+                            merged.append((s, e))
+                    return merged
+
                 file_ranges = workspace.read_ranges.get(spot_file, []) if spot_file else []
                 span_info = ep_to_span.get(spot_ep)
                 if span_info is not None:
                     sf, l_start, l_end = span_info
-                    eff_ranges = workspace.read_ranges.get(sf, file_ranges)
-                    spot_read = any(r_s <= l_start and r_e >= l_start for r_s, r_e in eff_ranges)
+                    eff_ranges = _merge_ranges(workspace.read_ranges.get(sf, file_ranges))
+                    sf_total_lines = 0
+                    sf_disk = workspace.root / sf
+                    if sf_disk.is_file():
+                        try:
+                            sf_total_lines = len(sf_disk.read_text(encoding="utf-8", errors="replace").splitlines())
+                        except Exception:
+                            sf_total_lines = 0
+                    if l_end > l_start:
+                        req_end = min(sf_total_lines, l_end) if sf_total_lines > 0 else l_end
+                    else:
+                        # When only line_start (decorator/signature line) was provided, require reading the handler body window
+                        req_end = min(sf_total_lines, l_start + 8) if sf_total_lines > 0 else (l_start + 5)
+                    spot_read = any(r_s <= l_start and r_e >= req_end for r_s, r_e in eff_ranges)
                 elif spot_file and spot_file != rep:
                     spot_read = spot_file in visited_set
                 else:
                     # Single-file multi-endpoint cluster without line_start on spot_ep:
-                    # Check if spot_ep has its own distinct valid evidence_id in workspace.evidence
-                    ep_specific_eids = [
-                        e for e in ep_to_eids.get(spot_ep, [])
-                        if e in workspace.evidence and e not in set(rep_eids_list)
-                    ]
+                    # Require spot_ep to have its own distinct valid evidence_id in workspace.evidence covering >=3 lines
+                    ep_specific_eids = []
+                    for e in ep_to_eids.get(spot_ep, []):
+                        if e in workspace.evidence and e not in set(rep_eids_list):
+                            rec = workspace.evidence.get(e, {})
+                            span_len = int(rec.get("line_end", 0)) - int(rec.get("line_start", 0)) + 1
+                            if span_len >= 3:
+                                ep_specific_eids.append(e)
                     spot_read = len(ep_specific_eids) > 0
 
                 spot_check_clusters.append({
@@ -2560,7 +2585,7 @@ def audit_visibility_and_coverage(
                 if not spot_read:
                     spot_check_violations.append(
                         f"Cluster {cid!r} has {effective_member_count} members (>=5); spot-check handler/endpoint "
-                        f"{spot_ep!r} (file {spot_file!r}) must be directly read with line coverage"
+                        f"{spot_ep!r} (file {spot_file!r}) must be directly read across its full handler body span"
                     )
 
     # Check ignored/waived modules from scout_map
@@ -3806,7 +3831,7 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
             unexp_eids = [
                 str(e)
                 for e in (unexp.get("evidence_ids") or [])
-                if str(e).startswith("ev_") and (not ws_evidence_ids or str(e) in ws_evidence_ids)
+                if str(e).startswith("ev_") and bool(ws_evidence_ids and str(e) in ws_evidence_ids)
             ]
             unexp_reason = str(unexp.get("reason") or unexp.get("rationale") or "").strip()
             if unexp_eids and len(unexp_reason) >= 10:
@@ -3906,7 +3931,7 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
                         c_eids = [
                             str(e)
                             for e in (c_item.get("evidence_ids") or [])
-                            if str(e).startswith("ev_") and (not ws_evidence_ids or str(e) in ws_evidence_ids)
+                            if str(e).startswith("ev_") and bool(ws_evidence_ids and str(e) in ws_evidence_ids)
                         ]
                         if not c_eids:
                             checklist_invalid = True
@@ -3927,7 +3952,7 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
                 valid_counter_eids = [
                     str(e)
                     for e in raw_counter_eids
-                    if isinstance(e, str) and str(e).startswith("ev_") and (not ws_evidence_ids or str(e) in ws_evidence_ids)
+                    if isinstance(e, str) and str(e).startswith("ev_") and bool(ws_evidence_ids and str(e) in ws_evidence_ids)
                 ]
                 if not valid_counter_eids or (chain_id or cand_id) in incomplete_checklist_chains:
                     reconciled_status = "UNCHALLENGED_BLOCKED"

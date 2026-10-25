@@ -292,7 +292,8 @@ def main(argv: list[str] | None = None) -> int:
     p_sub = sub.add_parser("submit_skill", help="Validate and save a skill JSON output for a repo")
     p_sub.add_argument("repo_name")
     p_sub.add_argument("skill")
-    p_sub.add_argument("json_file")
+    p_sub.add_argument("json_file", nargs="?", default=None)
+    p_sub.add_argument("--input-file", dest="input_file", default=None, help="Optional alias for positional json_file")
     p_sub.add_argument("--artifact-id", default=None)
 
     p_fin = sub.add_parser("finalize_repo", help="Apply evidence audit and write ./documents/<repo_name>/")
@@ -370,9 +371,11 @@ def main(argv: list[str] | None = None) -> int:
 
     p_fp4 = sub.add_parser("finalize_v3_phase4", help="Phase 4: Export canonical documents/ tree, risk work files, and synthesize final reports")
     p_fp4.add_argument("repo_name", nargs="?", default=None)
+    p_fp4.add_argument("--force-overwrite", action="store_true", help="Allow overwriting existing non-wins files in documents/")
 
     p_efpi = sub.add_parser("export_final_phase_inputs", help="Phase 4: Export v3 run outputs into canonical documents/ layout and synthesize final reports")
     p_efpi.add_argument("repo_name", nargs="?", default=None)
+    p_efpi.add_argument("--force-overwrite", action="store_true", help="Allow overwriting existing non-wins files in documents/")
 
     p_irf = sub.add_parser("ingest_runtime_facts", help="DEPTH-4.4a: Ingest operator-supplied runtime_environment_facts.json")
     p_irf.add_argument("repo_name")
@@ -578,7 +581,11 @@ def main(argv: list[str] | None = None) -> int:
         from .reporting import export_final_phase_inputs
 
         eff_run = _effective_v3_run_id(getattr(args, "repo_name", None))
-        res = export_final_phase_inputs(root, run_id=eff_run)
+        res = export_final_phase_inputs(
+            root,
+            run_id=eff_run,
+            force_overwrite=bool(getattr(args, "force_overwrite", False)),
+        )
         print(json.dumps(res, ensure_ascii=False, indent=2))
         return 0 if res.get("gate_passed") else 2
 
@@ -1030,7 +1037,11 @@ def main(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                 )
                 return 1
-        payload = json.loads(_resolve_json_arg(args.json_file, root).read_text(encoding="utf-8"))
+        raw_json_arg = args.json_file or getattr(args, "input_file", None)
+        if not raw_json_arg:
+            print("ERROR: submit_skill requires json_file (positional or --input-file).", file=sys.stderr)
+            return 1
+        payload = json.loads(_resolve_json_arg(raw_json_arg, root).read_text(encoding="utf-8"))
         from .validators import V30_SKILLS
         if args.skill in V30_SKILLS and isinstance(payload, dict) and isinstance(payload.get("result"), dict) and "status" in payload:
             payload = payload["result"]
