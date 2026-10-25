@@ -19,7 +19,7 @@ Dựa vào kết quả `codebase_scout.json` từ Bước 1.1, bạn sẽ đánh
    - Tuyệt đối không dùng Python để phán đoán lỗ hổng hay tự động gom cụm tương đương (việc gom cụm do AI thực hiện ở Bước 1.4).
 2. **Ba chế độ quyết định (`mode`)**:
    - `USE_STANDARD_EXTRACTOR`: Dùng bộ regex/AST chuẩn khi repo viết theo chuẩn phổ thông (`@GetMapping`, `@Controller`, `router.POST`, `@app.route`, `@KafkaListener`) VÀ bắt buộc chạy thử khớp đúng 100% trên `canary_files` đã đọc ở Bước 1.1.
-   - `TAILOR_CUSTOM_EXTRACTOR`: Khi team dùng DSL riêng, bảng đăng ký hàm trong C++ (`vla.cpp` ZMQ dispatch table), custom wrapper hoặc file cấu hình định tuyến riêng → AI cập nhật/sinh biểu thức trích xuất riêng khớp với cách code của team, chạy kiểm증 trên `canary_files` trước khi quét các module mục tiêu.
+   - `TAILOR_CUSTOM_EXTRACTOR`: Khi team dùng DSL riêng, bảng đăng ký hàm trong C++ (`vla.cpp` ZMQ dispatch table), custom wrapper hoặc file cấu hình định tuyến riêng → AI cập nhật/sinh biểu thức trích xuất riêng khớp với cách code của team, chạy kiểm chứng trên `canary_files` trước khi quét các module mục tiêu.
    - `SKIP_EXTRACTOR_DIRECT_READ`: Khi code quá động (reflection, dynamic metaprogramming, Smali bytecode, macro C++ phức tạp) hoặc repo nhỏ (`tier_3`) → Bỏ qua Python extractor hoàn toàn để không làm nhiễu ngữ cảnh; AI đọc thủ công trực tiếp theo `target_modules`.
 3. **Cổng kiểm định Canary (`canary_verified = true` bắt buộc)**:
    - Nếu chọn `USE_STANDARD_EXTRACTOR` hoặc `TAILOR_CUSTOM_EXTRACTOR` mà chạy trên `canary_files` trả về `0` kết quả hoặc thiếu route đã biết → Hệ thống tự động **TỪ CHỐI** (`canary_verified: false`). Bạn bắt buộc phải sửa lại pattern hoặc chuyển sang `SKIP_EXTRACTOR_DIRECT_READ`.

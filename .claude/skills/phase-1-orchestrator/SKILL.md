@@ -13,7 +13,7 @@ Phase 1 của LocalSec v3.0 gộp **Technical Recon** và **Business/Safety Inte
 
 ## Kiến trúc 6 Bước Tinh gọn của Phase 1 (LocalSec v3.0)
 
-Với mỗi repository trong dự án (hoặc chạy增量 `--changed-files` qua `diff_prior_run`), thực thi tuần tự:
+Với mỗi repository trong dự án (hoặc chạytăng dần (incremental) `--changed-files` qua `diff_prior_run`), thực thi tuần tự:
 
 1. **Bước 1.1 — `/phase-1-codebase-scout` (`codebase_scout` Micro-Skill)**:
    - AI dùng `list_dir` (depth 2) và đọc lướt 3–5 file mẫu để xác định **Product Archetypes**, phân hạng **Repo Tier (`tier_1` / `tier_2` / `tier_3`)**, nắm quy ước code của team và lập **`Target Modules Map`** (`target_modules` + `ignored_modules` kèm lý do).
@@ -36,4 +36,3 @@ Với mỗi repository trong dự án (hoặc chạy增量 `--changed-files` qua
    - Chạy `python3 -m localsec.manual_session audit_visibility <repo_name>` để kiểm tra **Visibility Tracker** (`unvisited_target_modules == 0`) và **Anti-Grazing** (`shallow_grazing_files == 0`, cấm đọc lướt $\le 8$ dòng).
    - Chạy `python3 -m localsec.manual_session verify_semantic_claims <repo_name>` để kiểm toán bằng chứng `ev_...` theo cơ chế **Fail-Closed**.
 
-> **Tương thích ngược (Granular Mode)**: Nếu người vận hành yêu cầu xuất đầy đủ từng báo cáo riêng lẻ theo chuẩn v2.4 (`repo_profile`, `api_authz`, `dataflow`, `threat_model`, `architecture_review`, `evidence_auditor`, `cross_repo_review`, `diagram_author`), bạn vẫn có thể gọi các sub-skills tương ứng và kết thúc bằng `finalize_repo` / `finalize_system`.

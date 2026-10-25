@@ -255,13 +255,17 @@ func main() { println("hello") }
         repo_root = Path(__file__).resolve().parents[1]
         ag_skills = sorted((repo_root / ".agents" / "skills").glob("*/SKILL.md"))
         cl_skills = sorted((repo_root / ".claude" / "skills").glob("*/SKILL.md"))
-        self.assertEqual(len(ag_skills), 41)
-        self.assertEqual(len(cl_skills), 41)
+        self.assertEqual(len(ag_skills), 16)
+        self.assertEqual(len(cl_skills), 16)
 
         for ag_p, cl_p in zip(ag_skills, cl_skills):
             self.assertEqual(ag_p.parent.name, cl_p.parent.name)
             content = ag_p.read_text(encoding="utf-8")
             self.assertEqual(content, cl_p.read_text(encoding="utf-8"))
+            self.assertIsNone(
+                re.search(r"[\u0400-\u04ff\uac00-\ud7af\u4e00-\u9fff]", content),
+                f"Foreign script typo (Cyrillic/Hangul/CJK) found in {ag_p}",
+            )
             self.assertTrue(content.startswith("---\n"), f"Missing frontmatter start in {ag_p}")
             match = re.match(r"^---\n(.*?)\n---\n+(.*)", content, re.DOTALL)
             self.assertIsNotNone(match, f"Invalid frontmatter boundary in {ag_p}")
@@ -290,8 +294,8 @@ func main() { println("hello") }
             env = dict(os.environ, AI_SKILLS_SKIP_TESTS="1")
             res = subprocess.run(["sh", str(setup_sh)], cwd=str(target_root), env=env, capture_output=True, text=True)
             self.assertEqual(res.returncode, 0, res.stderr)
-            self.assertEqual(len(list((target_root / ".agents" / "skills").glob("*/SKILL.md"))), 41)
-            self.assertEqual(len(list((target_root / ".claude" / "skills").glob("*/SKILL.md"))), 41)
+            self.assertEqual(len(list((target_root / ".agents" / "skills").glob("*/SKILL.md"))), 16)
+            self.assertEqual(len(list((target_root / ".claude" / "skills").glob("*/SKILL.md"))), 16)
             self.assertTrue((target_root / "AGENTS.md").is_file())
             self.assertTrue((target_root / "SOUL.md").is_file())
             self.assertTrue((target_root / "CLAUDE.md").is_file())

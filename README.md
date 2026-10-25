@@ -1,15 +1,13 @@
-# AI-skills — LocalSec 3-Phase Security Review Pipeline (Antigravity & Claude Code)
+# AI-skills — LocalSec v3.0 Security Review Pipeline (macOS / Linux Edition — Antigravity & Claude Code)
 
-Bộ **28 Skills (`.agents/skills/` & `.claude/skills/`) + Always-On Rules (`AGENTS.md`, `SOUL.md`, `CLAUDE.md`) + Python Epistemic Engine (`localsec`)** dùng để kiểm toán bảo mật mã nguồn thủ công bằng AI qua **3 Phase chuẩn hóa**:
-- **Phase 1**: Manual Code Reconnaissance (`/phase-1-orchestrator` — 8 bước)
-- **Phase 2**: Business-Aware Security Verification / BASV (`/phase-2-orchestrator` — 9 bước)
-- **Phase 3**: Attack Chain & Root-Cause Analysis / ACA (`/phase-3-orchestrator` — 9 bước)
+Bộ **16 Skills v3.0 (`.agents/skills/` & `.claude/skills/`) + Always-On Rules (`AGENTS.md`, `SOUL.md`, `CLAUDE.md`) + Python Epistemic Engine (`localsec`)** dùng để kiểm toán bảo mật mã nguồn và kiến trúc bằng AI qua **3 Phase chuẩn hóa v3.0**:
+- **Phase 1 — Unified Reconnaissance (`/phase-1-orchestrator` — 6 bước `1.1 -> 1.6`)**: AI Scouting (`codebase_scout`), Tailored Python Extractor (`extractor_tailor`), Mô hình hóa Ý định & Bất biến S-F-O-P-C (`intent_invariant_modeler`), Đọc mã nguồn 1 lượt kèm AI Semantic Clustering (`unified_surface_mapper`), Kiến trúc Xuyên Repo (`cross_repo_and_arch_review`), và Kiểm toán Độ phủ Vật lý `Visibility Tracker` + Bằng chứng `ev_...` (`coverage_and_evidence_auditor`).
+- **Phase 2 — Deep Analysis & Falsification (`/phase-2-orchestrator` — 4 bước `2.1 -> 2.4`)**: Lọc trùng & nạp nguyên văn `Attack-Class Companions` (`candidate_intake_planner`), Truy vết sâu `hops[]` + Chuỗi tấn công + `Root-Cause` (`deep_trace_chain_analyst`), Phản biện đối kháng ở chế độ **Mù Kết luận (`blinded_counterevidence_challenger`)**, và Cổng Kiểm toán Bằng chứng kèm `Empirical Refutations Ledger` (`analysis_evidence_gate`).
+- **Phase 3 — Contextual Risk & Exploitability Assessment (`/phase-3-orchestrator` — 3 bước `3.1 -> 3.3`)**: Chứng minh Actor/Role tối thiểu chạm được code path (`actor_and_feasibility_assessor`), Đối chiếu Kiểm soát Ngoài Code (`beyond_code_control_mapper` — Cloudflare WAF, Bare ALB, Kong/KrakenD, VPC `10.x`, mTLS, OT Interlock), và Hiệu chuẩn Rủi ro 5 Trục **S-F-O-P-C** (`sfop_risk_calibrator`).
 
 ---
 
 ## 1. Cấu trúc Khi Clone Vào Một Project Cần Áp Dụng (`<Project-Root>`)
-
-Khi bạn cần áp dụng bộ Skills này vào một dự án thực tế (`<Project-Root>`), `setup.sh` **tự động đồng bộ `.agents/`, `.claude/`, `AGENTS.md`, `SOUL.md`, `CLAUDE.md` ra ngoài gốc Project** để cả **Antigravity** lẫn **Claude Code** nhận diện lệnh `/phase-*` và Rules, còn **toàn bộ Engine (`localsec/`), JSON Schemas (`schemas/`), Contracts (`contracts/`) vẫn nằm nguyên gọn gàng trong thư mục `AI-skills/`**:
 
 ```text
 <Project-Root>/                        <-- Mở thư mục này trong Antigravity IDE hoặc Claude Code
@@ -19,35 +17,26 @@ Khi bạn cần áp dụng bộ Skills này vào một dự án thực tế (`<P
 ├── documents/                         <-- Báo cáo đầu ra (Phase 1, 2, 3) sẽ tự động xuất ra đây
 ├── .localsec/                         <-- Trạng thái phiên làm việc & mã bằng chứng ev_... tự sinh tại đây
 │
-├── AGENTS.md                          <-- [Copy/Merge từ AI-skills] Rule Refute-first (Antigravity nạp)
-├── SOUL.md                            <-- [Copy/Merge từ AI-skills] Lớp giá trị cốt lõi
-├── CLAUDE.md                          <-- [Copy/Merge từ AI-skills] Entrypoint cho Claude Code (@SOUL.md, @AGENTS.md)
-├── .agents/                           <-- [Copy từ AI-skills] 28 Skills & Rules chuẩn Antigravity
+├── AGENTS.md                          <-- [Merge từ AI-skills] Rule Refute-first (Antigravity nạp)
+├── SOUL.md                            <-- [Merge từ AI-skills] Lớp giá trị cốt lõi
+├── CLAUDE.md                          <-- [Merge từ AI-skills] Entrypoint cho Claude Code (@SOUL.md, @AGENTS.md)
+├── .agents/                           <-- [Copy từ AI-skills] 16 Skills v3.0 & Rules chuẩn Antigravity
 │   ├── README.md                      <-- Sổ tay tra cứu nhanh các lệnh & mẫu Prompt
 │   ├── rules/soul.md
 │   └── skills/phase-{1,2,3}-*/SKILL.md
-├── .claude/                           <-- [Copy từ AI-skills] 28 Skills chuẩn Claude Code
+├── .claude/                           <-- [Copy từ AI-skills] 16 Skills v3.0 chuẩn Claude Code
 │   └── skills/phase-{1,2,3}-*/SKILL.md
 │
 └── AI-skills/                         <-- Thư mục git clone nằm gọn một chỗ, AI tự ánh xạ vào đây
-    ├── setup.sh                       <-- Script tự động đồng bộ .agents, .claude, AGENTS.md, SOUL.md, CLAUDE.md
-    ├── localsec/                      <-- Bộ máy Python CLI (manual_session.py, validators.py, workspace.py...)
-    ├── skills/                        <-- Prompts & Registry gốc của Phase 1
-    ├── schemas/                       <-- JSON Schemas của Phase 1 (AI-skills/schemas/*.schema.json)
-    ├── contracts/                     <-- Contracts & Schemas của Phase 2 & Phase 3 (AI-skills/contracts/...)
+    ├── setup.sh                       <-- Script tự động đồng bộ 16 skills, AGENTS.md, SOUL.md, CLAUDE.md
+    ├── localsec/                      <-- Bộ máy Python CLI (manual_session.py, orchestrator.py, validators.py, workspace.py...)
+    ├── skills/                        <-- Prompts & Registry gốc
+    ├── schemas/                       <-- JSON Schemas (AI-skills/schemas/*.schema.json)
+    ├── contracts/                     <-- Contracts, Schemas & 16 Attack-Class Companions (AI-skills/contracts/...)
     ├── examples/                      <-- Repo mẫu (demo-go)
-    ├── tests/                         <-- Unit Tests kiểm định toàn bộ cổng an toàn
+    ├── tests/                         <-- 39 Unit Tests kiểm định toàn bộ cổng an toàn v3.0
     └── localsec.toml                  <-- Cấu hình mặc định của bộ tool
 ```
-
-### Tại sao thiết kế theo cấu trúc này?
-1. **Không làm bẩn `<Project-Root>`**: Bạn không phải rải `localsec/`, `schemas/`, `contracts/`, `skills/`, `tests/`, `localsec.toml` ra ngoài thư mục gốc của dự án.
-2. **Đường dẫn trong 28 file `SKILL.md` đã được chuẩn hóa 100% sang `AI-skills/...`**:
-   - Mọi liên kết Prompt, Registry, Schema và Contract trong `.agents/skills/*/SKILL.md` đều chỉ thẳng vào `AI-skills/skills/...`, `AI-skills/schemas/...` và `AI-skills/contracts/...`. AI đọc `SKILL.md` sẽ tìm đúng trong thư mục `AI-skills/` ngay trước mặt nó.
-   - Mọi lệnh CLI trong `SKILL.md` đều dùng `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session ...`.
-   - **Tự động hỗ trợ cả Multi-Repo Workspace và Single-Repo Project**:
-     - Nếu `<Project-Root>` chứa nhiều thư mục repo con (`service-a/`, `service-b/`): truyền `<repo_name>` là tên thư mục con.
-     - Nếu `<Project-Root>` chính là một repo đơn lẻ: truyền `<repo_name>` là `.` (hoặc tên thư mục gốc `<Project-Root>`); Engine tự động loại trừ `AI-skills/`, `.agents/`, `.localsec/`, `documents/` khỏi phạm vi quét.
 
 ---
 
@@ -56,18 +45,12 @@ Khi bạn cần áp dụng bộ Skills này vào một dự án thực tế (`<P
 Đứng tại thư mục gốc của dự án cần kiểm toán (`<Project-Root>`):
 
 ```bash
-# 1. Clone bộ AI-skills vào trong <Project-Root>
-git clone https://github.com/TimoMangCut/AI-skills.git
+# 1. Clone nhánh mac của AI-skills vào trong <Project-Root>
+git clone -b mac https://github.com/TimoMangCut/AI-skills.git
 
 # 2. Chạy script cài đặt tự động
 sh AI-skills/setup.sh
 ```
-
-Script `setup.sh` thực hiện an toàn 4 việc:
-1. Đồng bộ 28 skills vào `<Project-Root>/.agents/skills/` và `.agents/rules/soul.md` mà **không xóa mất** các skill riêng sẵn có của dự án.
-2. Nếu `<Project-Root>` đã có sẵn `AGENTS.md` hoặc `SOUL.md` của dự án, script tự động **gộp (merge) có đánh dấu (`<!-- BEGIN AI-SKILLS:... -->`)** chứ không ghi đè làm mất nội dung cũ.
-3. Tự động ghi các đường dẫn công cụ (`/AI-skills/`, `/.agents/...`, `/.localsec/`, `/documents/`) vào `.git/info/exclude` của `<Project-Root>` để giữ `git status` của dự án hoàn toàn sạch sẽ mà không đụng chạm tới `.gitignore`.
-4. Chạy bộ kiểm định Unit Tests (hỗ trợ cả Python 3.9/3.10 lẫn Python 3.11+ không cần thư viện ngoài).
 
 - **Khi muốn gỡ sạch khỏi `<Project-Root>` sau khi kiểm toán xong**:
   ```bash
@@ -76,26 +59,26 @@ Script `setup.sh` thực hiện an toàn 4 việc:
 
 ---
 
-## 3. Cách Khởi Chạy Trên Antigravity
+## 3. Cách Khởi Chạy Trên Antigravity / Claude Code
 
-Mở `<Project-Root>` trong Antigravity IDE và gọi tuần tự:
+Mở `<Project-Root>` trong Antigravity IDE hoặc Claude Code và gọi tuần tự:
 
-### Bước A — Chạy Phase 1 (Manual Code Reconnaissance)
+### Bước A — Chạy Phase 1 (Unified Reconnaissance v3.0)
 ```text
-/phase-1-orchestrator Thực hiện Phase 1 (Manual Recon) cho toàn bộ repositories trên nhánh <prod|main> (nếu thiếu thì chọn nhánh cập nhật gần nhất và tách riêng Tier A vs Tier B).
-Áp dụng kỷ luật Refute-first: không dùng SAST/grep, chỉ đọc file thủ công qua ManualWorkspace để sinh mã ev_..., chạy tuần tự đủ 8 bước (1.1 -> 1.8) kèm kiểm tra phase_status, và bắt buộc qua evidence_auditor hạ cấp fail-closed trước khi tổng hợp hệ thống.
+/phase-1-orchestrator Thực hiện Phase 1 (Unified Reconnaissance v3.0 — 6 bước 1.1 -> 1.6) cho toàn bộ repositories.
+Áp dụng kỷ luật Refute-first: AI khảo sát cấu trúc trước (codebase_scout), kiểm thử Python extractor trên canary files (extractor_tailor), mô hình hóa bất biến S-F-O-P-C, đọc code 1 lượt kèm AI Semantic Clustering, và vượt qua cổng Visibility Tracker (unvisited_target_modules == 0, shallow_grazing_files == 0).
 ```
 
-### Bước B — Chạy Phase 2 (Business-Aware Security Verification)
+### Bước B — Chạy Phase 2 (Deep Analysis & Falsification v3.0)
 ```text
-/phase-2-orchestrator Thực hiện Phase 2 (Business-Aware Security Verification) nối tiếp kết quả Phase 1 trên toàn bộ repositories.
-Chạy tuần tự đủ 9 bước (2.1 -> 2.9) kèm kiểm tra phase_status: đối chiếu nguồn sự thật nghiệp vụ (BRD/BRS/SQL/Specs), làm mù ngữ cảnh (Context-Blinding) khi chạy Challenger & Targeted Verifier, lập bản đồ liên kết giữa các service và chạy evidence_auditor trước khi tổng hợp.
+/phase-2-orchestrator Thực hiện Phase 2 (Deep Analysis & Falsification v3.0 — 4 bước 2.1 -> 2.4) trên Candidate Queue từ Phase 1.
+Nạp nguyên văn các mô-đun Attack-Class Companion phù hợp, truy vết sâu từng bước nhảy hops[] kèm Root-Cause, chạy phản biện đối kháng ở chế độ Mù Kết luận (blinded_counterevidence_challenger) và khóa sổ qua cổng analysis_evidence_gate.
 ```
 
-### Bước C — Chạy Phase 3 (Attack Chain & Root-Cause Analysis)
+### Bước C — Chạy Phase 3 (Contextual Risk & Exploitability Assessment v3.0)
 ```text
-/phase-3-orchestrator Thực hiện Phase 3 (Attack Chain Analysis) nối tiếp kết quả Phase 1 & 2 để xây dựng và kiểm chứng các chuỗi tấn công đa bước xuyên dịch vụ.
-Chạy tuần tự đủ 9 bước (3.1 -> 3.9) kèm kiểm tra phase_status: mọi finding trước đó chỉ là manh mối, phải chứng minh từng mắt xích (step) và từng cạnh chuyển tiếp trạng thái (edge) bằng ev_..., làm mù kết luận khi verify/challenge, truy tới nguyên nhân gốc và tuyệt đối không gán confirmed nếu chỉ có kế hoạch request (request_plan_only).
+/phase-3-orchestrator Thực hiện Phase 3 (Contextual Risk & Exploitability v3.0 — 3 bước 3.1 -> 3.3) cho các lỗ hổng đã chứng minh Reachable ở Phase 2.
+Chứng minh Actor/Role tối thiểu chạm được code path, đối chiếu các lớp kiểm soát ngoài code (Cloudflare WAF, Bare ALB, Kong/KrakenD, VPC 10.x, mTLS, OT Interlock) và hiệu chuẩn rủi ro thực tế trên 5 trục S-F-O-P-C (overall_risk <= max_impact).
 ```
 
-👉 Tra cứu chi tiết từng sub-skill riêng lẻ (28 skills) và bảng lệnh CLI tại **[`.agents/README.md`](./.agents/README.md)**.
+👉 Tra cứu chi tiết từng sub-skill riêng lẻ (16 skills v3.0) và bảng lệnh CLI tại **[`.agents/README.md`](./.agents/README.md)**.
