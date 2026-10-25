@@ -1587,14 +1587,17 @@ DEPENDENCY_MANIFEST_NAMES = {
 
 
 CONTENT_ENTRYPOINT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
-    ("decorator_route", re.compile(r"@(?:app|router|api|bp|GetMapping|PostMapping|PutMapping|DeleteMapping|PatchMapping|RequestMapping|HttpGet|HttpPost|HttpPut|HttpDelete|KafkaListener|RabbitListener|GrpcService|Mutation|Query)\b")),
+    ("decorator_route", re.compile(r"@(?:app|router|api|bp|GetMapping|PostMapping|PutMapping|DeleteMapping|PatchMapping|RequestMapping|HttpGet|HttpPost|HttpPut|HttpDelete|GrpcService|Mutation|Query)\b")),
     ("nestjs_controller_or_route", re.compile(r"@Controller\s*\(|@(?:Get|Post|Put|Delete|Patch)\s*\(")),
     ("go_http_router", re.compile(r"\b(?:r|router|group|e|mux)\.(?:GET|POST|PUT|DELETE|PATCH|Use)\s*\(")),
     ("dotnet_endpoint", re.compile(r"\[(?:HttpGet|HttpPost|HttpPut|HttpDelete|HttpPatch|Route)\b|\bMap(?:Get|Post|Put|Delete|Patch|GrpcService)\s*\(")),
+    ("queue_consumer", re.compile(r"@(?:KafkaListener|RabbitListener|SqsListener|EventPattern|MessagePattern)\s*\(|\b(?:celery\.task|shared_task)\b")),
+    ("scheduler_or_cron", re.compile(r"@(?:Scheduled|Cron)\s*\(|\b(?:cron\.schedule|APScheduler|BackgroundScheduler)\b")),
     ("spring_scheduled_or_listener", re.compile(r"@Scheduled\s*\(|@KafkaListener\s*\(|@RabbitListener\s*\(")),
-    ("aws_lambda_handler", re.compile(r"def\s+lambda_handler\s*\(|exports\.handler\s*=")),
+    ("webhook_handler", re.compile(r"['\"][^'\"]*webhook[^'\"]*['\"]|\b(?:handle_webhook|verify_webhook|webhook_receiver)\b", re.IGNORECASE)),
+    ("aws_lambda_handler", re.compile(r"def\s+lambda_handler\s*\(|exports\.handler\s*=|@click\.command|\bargparse\.ArgumentParser\b|\bcobra\.Command\b")),
     ("ocpp_action", re.compile(r"@on\(\s*Action\.|\bon_(?:boot_notification|remote_start_transaction|remote_stop_transaction|start_transaction|stop_transaction|authorize|meter_values)\b")),
-    ("router_call", re.compile(r"\b(?:router|app|r|mux| server)\.(?:get|post|put|delete|patch|use|HandleFunc|Register\w*Server)\s*\(")),
+    ("router_call", re.compile(r"\b(?:router|app|r|mux|server)\.(?:get|post|put|delete|patch|use|HandleFunc|Register\w*Server)\s*\(")),
     ("zmq_or_ipc", re.compile(r"#include\s*<zmq\.h>|\bzmq_(?:recv|msg_recv|bind|connect)\b|\bhandle_zmq_frame\b")),
     ("ros2_node", re.compile(r"\b(?:create_subscription|create_service|create_action_server)\b")),
     ("mobile_bridge", re.compile(r"\bMethodChannel\s*\(|\bCFBundleURLSchemes\b|android:exported\s*=\s*\"true\"|<intent-filter")),
@@ -1783,11 +1786,12 @@ def _scan_external_tool_reports_detailed(
     project_root: Path,
     repo_root: Path,
     repo_name: str = "",
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], set[str]]:
-    """R3-A6: Scan <project_root>/reports/ and <repo_root>/reports/ for *.sarif, *trivy*.json, *gitleaks*.json.
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], set[str], list[dict[str, Any]]]:
+    """R3-A6 & R4-C5: Scan <project_root>/reports/ and <repo_root>/reports/ for *.sarif, *trivy*.json, *gitleaks*.json.
     Filters project-level reports by repo_name, extracts severity, groups CRITICAL/HIGH findings into
-    external_tool_leads, and places MEDIUM/LOW/INFO findings into deferred_external_tool_findings.
-    Returns (external_tool_leads, deferred_external_tool_findings, flagged_manifest_paths).
+    external_tool_leads, places MEDIUM/LOW/INFO findings into deferred_external_tool_findings,
+    and preserves project-level findings whose target cannot be mapped to any repo in unassigned_project_findings.
+    Returns (external_tool_leads, deferred_external_tool_findings, flagged_manifest_paths, unassigned_project_findings).
     """
     eff_repo_name = (repo_name or repo_root.name).strip()
     other_repo_names: set[str] = set()
@@ -1804,34 +1808,39 @@ def _scan_external_tool_reports_detailed(
         except OSError:
             pass
 
-    def _resolve_uri_for_repo(raw_uri: str, is_project_report: bool) -> str | None:
+    def _classify_uri_for_repo(raw_uri: str, is_project_report: bool) -> tuple[str | None, bool]:
+        """Return (resolved_uri_for_this_repo, is_unassigned_across_all_repos)."""
         loc_uri = raw_uri.strip().replace("\\", "/")
         if loc_uri.startswith("file://"):
             loc_uri = loc_uri[7:]
         loc_uri = loc_uri.lstrip("./")
         if eff_repo_name and loc_uri.startswith(f"{eff_repo_name}/"):
-            return loc_uri[len(eff_repo_name) + 1:]
+            return loc_uri[len(eff_repo_name) + 1:], False
         if not is_project_report:
-            return loc_uri
+            return loc_uri, False
         if not loc_uri:
-            return loc_uri if not other_repo_names else None
+            if not other_repo_names:
+                return loc_uri, False
+            return None, True
         if (repo_root / loc_uri).exists():
-            return loc_uri
+            return loc_uri, False
         first_seg = loc_uri.split("/", 1)[0]
         if first_seg in other_repo_names:
-            return None
+            return None, False
         for o_repo in other_repo_names:
             if (project_root / o_repo / loc_uri).exists():
-                return None
+                return None, False
+        if ":" in loc_uri or "/" in loc_uri:
+            if not (repo_root / first_seg).exists():
+                return None, True
         if other_repo_names:
-            return None
-        if "/" in loc_uri and not (repo_root / first_seg).exists():
-            return None
-        return loc_uri
+            return None, True
+        return loc_uri, False
 
     sev_rank = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "INFO": 0}
     grouped_leads: dict[str, dict[str, Any]] = {}
     deferred_findings: list[dict[str, Any]] = []
+    unassigned_findings: list[dict[str, Any]] = []
     flagged_manifests: set[str] = set()
 
     def _record_finding(
@@ -1844,8 +1853,21 @@ def _scan_external_tool_reports_detailed(
         report_file: str,
         severity: str,
         group_key: str,
+        unassigned: bool = False,
     ) -> None:
         sev_u = severity.upper() if severity.upper() in sev_rank else "HIGH"
+        if unassigned:
+            unassigned_findings.append({
+                "tool": tool,
+                "rule_id": rule_id,
+                "title": title[:200],
+                "target": path,
+                "line": line,
+                "report_file": report_file,
+                "severity": sev_u,
+                "group_key": group_key,
+            })
+            return
         if tool in {"trivy", "sarif"} and path:
             flagged_manifests.add(path)
         if tool == "gitleaks" or sev_u in {"CRITICAL", "HIGH"}:
@@ -1943,8 +1965,8 @@ def _scan_external_tool_reports_detailed(
                                     loc_uri = str(art.get("uri") or "")
                                 if isinstance(reg, dict) and reg.get("startLine"):
                                     start_line = int(reg["startLine"])
-                        resolved_uri = _resolve_uri_for_repo(loc_uri, is_proj_report)
-                        if resolved_uri is None:
+                        resolved_uri, is_unassigned = _classify_uri_for_repo(loc_uri, is_proj_report)
+                        if resolved_uri is None and not is_unassigned:
                             continue
                         props = res.get("properties", {}) if isinstance(res.get("properties"), dict) else {}
                         sarif_sev = ""
@@ -1961,26 +1983,29 @@ def _scan_external_tool_reports_detailed(
                             sarif_sev = "HIGH" if lvl == "error" else ("MEDIUM" if lvl == "warning" else ("LOW" if lvl == "note" else "INFO"))
                         if not sarif_sev:
                             sarif_sev = rule_sev_map.get(rule_id, "HIGH")
-                        module_dir = "/".join(resolved_uri.split("/")[:-1]) if "/" in resolved_uri else "."
+                        eff_path = resolved_uri if resolved_uri is not None else loc_uri
+                        module_dir = "/".join(eff_path.split("/")[:-1]) if "/" in eff_path else "."
                         g_key = f"sarif:{rule_id}:{module_dir}"
                         _record_finding(
                             tool="sarif",
                             rule_id=rule_id,
                             title=text,
-                            path=resolved_uri,
+                            path=eff_path,
                             line=start_line,
                             report_file=f.name,
                             severity=sarif_sev,
                             group_key=g_key,
+                            unassigned=is_unassigned,
                         )
             elif "trivy" in lname and isinstance(data, dict):
                 for r_item in data.get("Results", data.get("results", [])):
                     if not isinstance(r_item, dict):
                         continue
                     target = str(r_item.get("Target") or r_item.get("target") or "")
-                    resolved_target = _resolve_uri_for_repo(target, is_proj_report)
-                    if resolved_target is None:
+                    resolved_target, is_unassigned = _classify_uri_for_repo(target, is_proj_report)
+                    if resolved_target is None and not is_unassigned:
                         continue
+                    eff_target = resolved_target if resolved_target is not None else target
                     for vuln in list(r_item.get("Vulnerabilities") or []) + list(r_item.get("Misconfigurations") or []):
                         if not isinstance(vuln, dict):
                             continue
@@ -1990,16 +2015,17 @@ def _scan_external_tool_reports_detailed(
                         vsev = raw_sev if raw_sev in sev_rank else ("LOW" if raw_sev == "UNKNOWN" else "HIGH")
                         pkg_name = str(vuln.get("PkgName") or vuln.get("pkgName") or vuln.get("Type") or vid).strip()
                         installed_ver = str(vuln.get("InstalledVersion") or vuln.get("installedVersion") or "").strip()
-                        g_key = f"trivy:{resolved_target}:{pkg_name}@{installed_ver}"
+                        g_key = f"trivy:{eff_target}:{pkg_name}@{installed_ver}"
                         _record_finding(
                             tool="trivy",
                             rule_id=vid,
                             title=vtitle,
-                            path=resolved_target,
+                            path=eff_target,
                             line=1,
                             report_file=f.name,
                             severity=vsev,
                             group_key=g_key,
+                            unassigned=is_unassigned,
                         )
             elif "gitleaks" in lname:
                 items = data if isinstance(data, list) else (data.get("findings", []) if isinstance(data, dict) else [])
@@ -2010,26 +2036,28 @@ def _scan_external_tool_reports_detailed(
                         rid = str(g_item.get("RuleID") or g_item.get("rule_id") or "GITLEAKS_RULE")
                         desc = str(g_item.get("Description") or g_item.get("description") or rid)
                         gfile = str(g_item.get("File") or g_item.get("file") or "")
-                        resolved_gfile = _resolve_uri_for_repo(gfile, is_proj_report)
-                        if resolved_gfile is None:
+                        resolved_gfile, is_unassigned = _classify_uri_for_repo(gfile, is_proj_report)
+                        if resolved_gfile is None and not is_unassigned:
                             continue
+                        eff_gfile = resolved_gfile if resolved_gfile is not None else gfile
                         gline = int(g_item.get("StartLine") or g_item.get("line") or 1)
                         _record_finding(
                             tool="gitleaks",
                             rule_id=rid,
                             title=desc,
-                            path=resolved_gfile,
+                            path=eff_gfile,
                             line=gline,
                             report_file=f.name,
                             severity="HIGH",
-                            group_key=f"gitleaks:{rid}:{resolved_gfile}:{gline}:{g_idx}",
+                            group_key=f"gitleaks:{rid}:{eff_gfile}:{gline}:{g_idx}",
+                            unassigned=is_unassigned,
                         )
-    return list(grouped_leads.values()), deferred_findings, flagged_manifests
+    return list(grouped_leads.values()), deferred_findings, flagged_manifests, unassigned_findings
 
 
 def _scan_external_tool_reports(project_root: Path, repo_root: Path, repo_name: str = "") -> list[dict[str, Any]]:
     """Scan <project_root>/reports/ and <repo_root>/reports/ for *.sarif, *trivy*.json, *gitleaks*.json."""
-    leads, _, _ = _scan_external_tool_reports_detailed(project_root, repo_root, repo_name=repo_name)
+    leads, _, _, _ = _scan_external_tool_reports_detailed(project_root, repo_root, repo_name=repo_name)
     return leads
 
 
@@ -2182,7 +2210,7 @@ def inventory_repo(
                             })
 
     _walk(repo_root)
-    external_tool_leads, deferred_external_tool_findings, flagged_manifests = _scan_external_tool_reports_detailed(
+    external_tool_leads, deferred_external_tool_findings, flagged_manifests, unassigned_project_findings = _scan_external_tool_reports_detailed(
         project_root,
         repo_root,
         repo_name=repo_name,
@@ -2256,6 +2284,8 @@ def inventory_repo(
         "external_tool_leads": external_tool_leads,
         "deferred_external_tool_findings": deferred_external_tool_findings,
         "deferred_external_tool_findings_count": len(deferred_external_tool_findings),
+        "unassigned_project_external_findings": unassigned_project_findings,
+        "unassigned_project_external_findings_count": len(unassigned_project_findings),
         "recommended_tier": recommended_tier,
         "recommended_tier_number": recommended_tier_num,
         "operator_tier": norm_op_tier,
@@ -2264,6 +2294,16 @@ def inventory_repo(
 
     run_dir = project_root / ".localsec" / "runs" / run_id / repo_name
     write_json(run_dir / "inventory_repo.json", result)
+    if unassigned_project_findings:
+        analysis_dir = project_root / ".localsec" / "runs" / run_id / "_analysis"
+        write_json(
+            analysis_dir / "unassigned_external_tool_findings.json",
+            {
+                "run_id": run_id,
+                "unassigned_findings_count": len(unassigned_project_findings),
+                "unassigned_findings": unassigned_project_findings,
+            },
+        )
     return result
 
 
@@ -2348,8 +2388,10 @@ def audit_visibility_and_coverage(
     vis = workspace.compute_visibility_report(scout_map)
     visited_set = {p.split(":", 1)[1] if ":" in p else p for p in vis.get("visited_files", [])}
 
-    # Build endpoint -> file lookup from surface_map.entrypoints[] so clusters using member_endpoints resolve to files
+    # Build endpoint -> file and endpoint -> line span / evidence_ids lookup from surface_map.entrypoints[]
     ep_to_file: dict[str, str] = {}
+    ep_to_span: dict[str, tuple[str, int, int]] = {}
+    ep_to_eids: dict[str, list[str]] = {}
     all_clusters: list[dict[str, Any]] = []
     if isinstance(surface_map, dict):
         s_res = surface_map.get("result", surface_map) if isinstance(surface_map.get("result"), dict) else surface_map
@@ -2357,16 +2399,29 @@ def audit_visibility_and_coverage(
             for ep in s_res.get("entrypoints", []):
                 if not isinstance(ep, dict):
                     continue
-                ep_file = str(ep.get("file") or ep.get("source_file") or "").strip()
+                ep_file = str(ep.get("file") or ep.get("source_file") or "").strip().lstrip("./")
                 if not ep_file:
                     continue
+                raw_ls = ep.get("line_start") or ep.get("line")
+                raw_le = ep.get("line_end") or raw_ls
+                span_tuple: tuple[str, int, int] | None = None
+                if isinstance(raw_ls, int) and raw_ls >= 1:
+                    span_tuple = (ep_file, int(raw_ls), max(int(raw_ls), int(raw_le) if isinstance(raw_le, int) else int(raw_ls)))
+                ep_eids = [str(e) for e in (ep.get("evidence_ids") or []) if isinstance(e, str) and e.startswith("ev_")]
+                keys_for_ep: list[str] = []
                 for k in ("id", "path", "route", "endpoint"):
                     val = str(ep.get(k) or "").strip()
                     if val:
-                        ep_to_file[val] = ep_file
+                        keys_for_ep.append(val)
                 method_path = f"{str(ep.get('method') or '').strip()} {str(ep.get('path') or ep.get('route') or '').strip()}".strip()
                 if method_path:
-                    ep_to_file[method_path] = ep_file
+                    keys_for_ep.append(method_path)
+                for kval in keys_for_ep:
+                    ep_to_file[kval] = ep_file
+                    if span_tuple is not None:
+                        ep_to_span[kval] = span_tuple
+                    if ep_eids:
+                        ep_to_eids[kval] = ep_eids
             for cl in (s_res.get("semantic_clusters") or s_res.get("equivalence_clusters") or []):
                 if isinstance(cl, dict):
                     all_clusters.append(cl)
@@ -2394,6 +2449,12 @@ def audit_visibility_and_coverage(
     spot_check_violations: list[str] = []
     for idx, cl in enumerate(all_clusters):
         cid = str(cl.get("cluster_id") or f"cluster_{idx + 1}")
+        raw_rep_ep = str(
+            cl.get("representative_endpoint")
+            or cl.get("representative_file")
+            or cl.get("representative_path")
+            or ""
+        ).strip()
         raw_rep = str(
             cl.get("representative_file")
             or cl.get("representative_path")
@@ -2401,55 +2462,105 @@ def audit_visibility_and_coverage(
             or ""
         ).strip()
         rep = _resolve_cluster_ref_to_file(raw_rep)
+        rep_eids_list = [
+            str(e) for e in (cl.get("representative_deep_read_evidence_ids") or [])
+            if isinstance(e, str) and e.startswith("ev_")
+        ]
         if not rep:
-            rep_eids = cl.get("representative_deep_read_evidence_ids", [])
-            if isinstance(rep_eids, list):
-                for eid in rep_eids:
-                    rec = workspace.evidence.get(str(eid))
-                    if isinstance(rec, dict) and rec.get("path"):
-                        rep = str(rec["path"]).strip()
-                        break
+            for eid in rep_eids_list:
+                rec = workspace.evidence.get(str(eid))
+                if isinstance(rec, dict) and rec.get("path"):
+                    rep = str(rec["path"]).strip()
+                    break
         raw_members = (
-            cl.get("member_files")
+            cl.get("member_endpoints")
             or cl.get("members")
-            or cl.get("member_endpoints")
+            or cl.get("member_files")
             or []
         )
-        raw_member_count = len(raw_members) if isinstance(raw_members, list) else 0
+        raw_member_files_only = cl.get("member_files") or []
+        raw_member_count = max(
+            len(raw_members) if isinstance(raw_members, list) else 0,
+            len(raw_member_files_only) if isinstance(raw_member_files_only, list) else 0,
+        )
         members: list[str] = []
-        if isinstance(raw_members, list):
-            for m in raw_members:
-                m_str = ""
-                if isinstance(m, str) and m.strip():
-                    m_str = _resolve_cluster_ref_to_file(m.strip())
-                elif isinstance(m, dict):
-                    m_str = _resolve_cluster_ref_to_file(str(m.get("path") or m.get("file") or m.get("endpoint") or ""))
-                if m_str and m_str not in members:
-                    members.append(m_str)
+        member_refs: list[str] = []
+        for src_list in (raw_members, raw_member_files_only):
+            if isinstance(src_list, list):
+                for m in src_list:
+                    m_ref = ""
+                    m_str = ""
+                    if isinstance(m, str) and m.strip():
+                        m_ref = m.strip()
+                        m_str = _resolve_cluster_ref_to_file(m_ref)
+                    elif isinstance(m, dict):
+                        m_ref = str(m.get("endpoint") or m.get("id") or m.get("path") or m.get("file") or "").strip()
+                        m_str = _resolve_cluster_ref_to_file(str(m.get("path") or m.get("file") or m.get("endpoint") or ""))
+                    if m_ref and m_ref not in member_refs:
+                        member_refs.append(m_ref)
+                    if m_str and m_str not in members:
+                        members.append(m_str)
         for m in members:
             if not rep or rep in visited_set:
                 clustered_files.add(m)
-        effective_member_count = max(len(members), raw_member_count)
+        effective_member_count = max(len(members), len(member_refs), raw_member_count)
         if effective_member_count >= 5:
-            non_rep = sorted(m for m in members if m != rep)
+            non_rep_files = sorted(m for m in members if m != rep)
+            non_rep_refs = sorted(
+                r for r in member_refs
+                if r not in {raw_rep, raw_rep_ep, rep}
+            )
+            spot_ep = ""
             spot_file = ""
-            if non_rep:
-                pick_idx = int(hashlib.sha256(cid.encode("utf-8")).hexdigest(), 16) % len(non_rep)
-                spot_file = non_rep[pick_idx]
-            elif rep:
-                spot_file = rep
-            if spot_file:
-                spot_read = spot_file in visited_set
+            if non_rep_refs:
+                pick_ep_idx = int(hashlib.sha256(cid.encode("utf-8")).hexdigest(), 16) % len(non_rep_refs)
+                spot_ep = non_rep_refs[pick_ep_idx]
+                spot_file = _resolve_cluster_ref_to_file(spot_ep)
+            if not spot_file:
+                if non_rep_files:
+                    pick_idx = int(hashlib.sha256(cid.encode("utf-8")).hexdigest(), 16) % len(non_rep_files)
+                    spot_file = non_rep_files[pick_idx]
+                elif rep:
+                    spot_file = rep
+            if not spot_ep:
+                spot_ep = spot_file
+
+            if spot_file or spot_ep:
+                # C3: Verify handler-level spot-check!
+                # If spot_file != rep (multi-file cluster), require spot_file to be directly read (and if line_start is known, covered).
+                # If spot_file == rep (multiple endpoints in a single shared controller file), merely reading the representative
+                # handler in rep is NOT sufficient: require spot_ep to have a covered line_start/line_end in entrypoints[]
+                # or distinct handler evidence_ids in workspace.evidence!
+                file_ranges = workspace.read_ranges.get(spot_file, []) if spot_file else []
+                span_info = ep_to_span.get(spot_ep)
+                if span_info is not None:
+                    sf, l_start, l_end = span_info
+                    eff_ranges = workspace.read_ranges.get(sf, file_ranges)
+                    spot_read = any(r_s <= l_start and r_e >= l_start for r_s, r_e in eff_ranges)
+                elif spot_file and spot_file != rep:
+                    spot_read = spot_file in visited_set
+                else:
+                    # Single-file multi-endpoint cluster without line_start on spot_ep:
+                    # Check if spot_ep has its own distinct valid evidence_id in workspace.evidence
+                    ep_specific_eids = [
+                        e for e in ep_to_eids.get(spot_ep, [])
+                        if e in workspace.evidence and e not in set(rep_eids_list)
+                    ]
+                    spot_read = len(ep_specific_eids) > 0
+
                 spot_check_clusters.append({
                     "cluster_id": cid,
                     "member_count": effective_member_count,
                     "representative_file": rep,
+                    "representative_endpoint": raw_rep_ep or rep,
+                    "required_spot_check_endpoint": spot_ep,
                     "required_spot_check_file": spot_file,
                     "spot_check_read": spot_read,
                 })
                 if not spot_read:
                     spot_check_violations.append(
-                        f"Cluster {cid!r} has {effective_member_count} members (>=5); spot-check member {spot_file!r} must be directly read"
+                        f"Cluster {cid!r} has {effective_member_count} members (>=5); spot-check handler/endpoint "
+                        f"{spot_ep!r} (file {spot_file!r}) must be directly read with line coverage"
                     )
 
     # Check ignored/waived modules from scout_map
@@ -2942,9 +3053,36 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
         matched_files: list[str] = []
         signal_keywords: tuple[str, ...] = ()
         path_keywords: tuple[str, ...] = ()
-        if st_low == "websocket_mqtt_ocpp":
+        http_route_signals = (
+            "decorator_route",
+            "nestjs_controller_or_route",
+            "go_http_router",
+            "dotnet_endpoint",
+            "router_call",
+            "mulesoft_http_listener",
+            "sap_abap_rfc",
+        )
+        if st_low == "public_http":
+            signal_keywords = http_route_signals
+            path_keywords = ("controller", "router", "routes", "endpoint")
+        elif st_low == "internal_or_admin_http":
+            signal_keywords = ("sap_abap_rfc", "mulesoft_http_listener", "grpc_service")
+            path_keywords = ("admin", "internal", "backoffice", "management", "rfc_")
+        elif st_low == "queue_or_event_consumer":
+            signal_keywords = ("queue_consumer", "kafkalistener", "rabbitlistener", "sqslistener", "celery", "shared_task", "nats", "pubsub")
+            path_keywords = ("consumer", "subscriber", "kafka", "rabbit", "sqs", "event_handler")
+        elif st_low == "scheduler_or_batch":
+            signal_keywords = ("scheduler_or_cron", "@scheduled", "@cron", "cron.schedule", "apscheduler", "quartz")
+            path_keywords = ("cron", "scheduler", "scheduled", "batch_job")
+        elif st_low == "webhook_or_callback":
+            signal_keywords = ("webhook_handler", "webhook", "callback")
+            path_keywords = ("webhook", "callback")
+        elif st_low == "websocket_mqtt_ocpp":
             signal_keywords = ("ocpp", "mqtt", "zmq", "websocket")
             path_keywords = ("ocpp", "mqtt", "websocket", "ws_")
+        elif st_low == "cli_or_maintenance_job":
+            signal_keywords = ("aws_lambda_handler", "lambda_handler", "click.command", "argumentparser", "cobra.command", "typer")
+            path_keywords = ("cli", "command", "lambda_handler", "manage.py")
         elif st_low == "mobile_deeplink_or_exported_component":
             signal_keywords = ("mobile_bridge", "mobile_manifest", "flutter_method_channel", "methodchannel", "deeplink")
             path_keywords = ("androidmanifest.xml", "info.plist", "deeplink", "method_channel")
@@ -2956,11 +3094,17 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
         for fpath, sigs in inv_signals.items():
             sig_list = [str(s).lower() for s in (sigs if isinstance(sigs, list) else [sigs])]
             fl = str(fpath).lower()
+            if st_low == "public_http":
+                # Exclude files that are purely internal/admin if internal_or_admin_http covers them
+                if any(k in fl for k in ("admin", "internal", "backoffice")):
+                    continue
             if any(any(k in s for k in signal_keywords) for s in sig_list) or any(pk in fl for pk in path_keywords):
                 if str(fpath) not in matched_files:
                     matched_files.append(str(fpath))
         for fpath in all_inv_files:
             fl = str(fpath).lower()
+            if st_low == "public_http" and any(k in fl for k in ("admin", "internal", "backoffice")):
+                continue
             if any(pk in fl for pk in path_keywords) and str(fpath) not in matched_files:
                 matched_files.append(str(fpath))
         return matched_files
@@ -3612,6 +3756,19 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
     challenger = _load("blinded_counterevidence_challenger.json")
     ev_gate = _load("analysis_evidence_gate.json")
 
+    ws_evidence_ids: set[str] = set()
+    for ev_fname in ("workspace_state.json", "evidence.json"):
+        ev_fp = run_dir / ev_fname
+        if ev_fp.is_file():
+            try:
+                ev_raw = json.loads(ev_fp.read_text(encoding="utf-8", errors="replace"))
+                if isinstance(ev_raw, dict):
+                    ev_map = ev_raw.get("evidence", ev_raw)
+                    if isinstance(ev_map, dict):
+                        ws_evidence_ids.update(str(k) for k in ev_map.keys() if str(k).startswith("ev_"))
+            except Exception:
+                pass
+
     challenger_by_id: dict[str, dict[str, Any]] = {}
     raw_challenges = (
         challenger.get("challenged_chains")
@@ -3646,7 +3803,11 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
 
     for unexp in deep_trace.get("unexploitable_candidates", []):
         if isinstance(unexp, dict):
-            unexp_eids = [str(e) for e in (unexp.get("evidence_ids") or []) if str(e).startswith("ev_")]
+            unexp_eids = [
+                str(e)
+                for e in (unexp.get("evidence_ids") or [])
+                if str(e).startswith("ev_") and (not ws_evidence_ids or str(e) in ws_evidence_ids)
+            ]
             unexp_reason = str(unexp.get("reason") or unexp.get("rationale") or "").strip()
             if unexp_eids and len(unexp_reason) >= 10:
                 for k in ("candidate_id", "id", "chain_id"):
@@ -3713,20 +3874,65 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
                 reconciled_status = CHALLENGER_RECONCILIATION_MATRIX[ch_verdict]
 
             checklist = ch_entry.get("control_search_checklist")
+            checklist_entries: list[dict[str, Any]] = []
             if isinstance(checklist, list):
                 seen_locs = {
                     str(c.get("location") or c.get("control_location") or "").strip()
                     for c in checklist
                     if isinstance(c, dict)
                 }
+                checklist_entries = [c for c in checklist if isinstance(c, dict)]
                 if not required_6_locations.issubset(seen_locs):
                     incomplete_checklist_chains.append(chain_id or cand_id)
             elif isinstance(checklist, dict):
                 seen_locs = {str(k).strip() for k in checklist.keys()}
+                checklist_entries = [v for v in checklist.values() if isinstance(v, dict)]
                 if not required_6_locations.issubset(seen_locs):
                     incomplete_checklist_chains.append(chain_id or cand_id)
             elif "control_search_checklist" in ch_entry:
                 incomplete_checklist_chains.append(chain_id or cand_id)
+
+            if checklist_entries:
+                na_count = 0
+                checklist_invalid = False
+                for c_item in checklist_entries:
+                    cst = str(c_item.get("status") or "").strip().lower()
+                    if cst == "not_applicable":
+                        na_count += 1
+                        na_reason = str(c_item.get("reason") or c_item.get("rationale") or c_item.get("notes") or "").strip()
+                        if len(na_reason) < 20:
+                            checklist_invalid = True
+                    elif cst in {"checked_found", "checked_not_found"}:
+                        c_eids = [
+                            str(e)
+                            for e in (c_item.get("evidence_ids") or [])
+                            if str(e).startswith("ev_") and (not ws_evidence_ids or str(e) in ws_evidence_ids)
+                        ]
+                        if not c_eids:
+                            checklist_invalid = True
+                if na_count >= len(required_6_locations) or checklist_invalid:
+                    if (chain_id or cand_id) not in incomplete_checklist_chains:
+                        incomplete_checklist_chains.append(chain_id or cand_id)
+
+            # C8: Re-verify refutation counterevidence directly in finalize_v3_phase2 (never fall back to chain.evidence_ids)
+            if reconciled_status == "REFUTED_FALSE_POSITIVE":
+                raw_counter_eids = list(
+                    ch_entry.get("counter_evidence_ids")
+                    or ch_entry.get("counterevidence_ids")
+                    or []
+                )
+                for c_item in checklist_entries:
+                    if str(c_item.get("status") or "").strip().lower() == "checked_found":
+                        raw_counter_eids.extend(c_item.get("evidence_ids") or [])
+                valid_counter_eids = [
+                    str(e)
+                    for e in raw_counter_eids
+                    if isinstance(e, str) and str(e).startswith("ev_") and (not ws_evidence_ids or str(e) in ws_evidence_ids)
+                ]
+                if not valid_counter_eids or (chain_id or cand_id) in incomplete_checklist_chains:
+                    reconciled_status = "UNCHALLENGED_BLOCKED"
+                    if (chain_id or cand_id) not in unchallenged_chains:
+                        unchallenged_chains.append(chain_id or cand_id)
 
         reconciled_item = {
             **chain,
@@ -3755,8 +3961,6 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
                 "counterevidence_ids": list(
                     (ch_entry or {}).get("counter_evidence_ids")
                     or (ch_entry or {}).get("counterevidence_ids")
-                    or (ch_entry or {}).get("evidence_ids")
-                    or chain.get("evidence_ids")
                     or []
                 ),
             })
@@ -3920,12 +4124,17 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
     sfop = _load("sfop_risk_calibrator.json")
 
     ws_evidence_ids: set[str] = set()
-    if (run_dir / "workspace_state.json").is_file():
-        try:
-            ws_data = json.loads((run_dir / "workspace_state.json").read_text(encoding="utf-8", errors="replace"))
-            ws_evidence_ids = set(ws_data.get("evidence", {}).keys())
-        except Exception:
-            ws_evidence_ids = set()
+    for ev_fname in ("workspace_state.json", "evidence.json"):
+        ev_fp = run_dir / ev_fname
+        if ev_fp.is_file():
+            try:
+                ev_raw = json.loads(ev_fp.read_text(encoding="utf-8", errors="replace"))
+                if isinstance(ev_raw, dict):
+                    ev_map = ev_raw.get("evidence", ev_raw)
+                    if isinstance(ev_map, dict):
+                        ws_evidence_ids.update(str(k) for k in ev_map.keys() if str(k).startswith("ev_"))
+            except Exception:
+                pass
 
     confirmed_runtime_controls: set[str] = set()
     blocked_by_runtime_controls: set[str] = set()
@@ -3973,10 +4182,11 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
                 pst = _pre_status(pre)
                 cond_desc = str(pre.get("condition") or pre.get("description") or pre.get("precondition") or "unknown precondition")
                 if pst == "no":
+                    # C8: Require non-empty ws_evidence_ids and membership in ws_evidence_ids for repo-evidenced 'no' preconditions
                     pre_eids = [
                         str(e)
                         for e in (pre.get("evidence_ids") or [])
-                        if str(e).startswith("ev_") and (not ws_evidence_ids or str(e) in ws_evidence_ids)
+                        if str(e).startswith("ev_") and bool(ws_evidence_ids and str(e) in ws_evidence_ids)
                     ]
                     ans_val = str(runtime_answers.get(cond_desc) or runtime_answers.get(aid) or "").strip().lower()
                     has_no_fact = ans_val in {"no", "false", "unsatisfied", "impossible"}
@@ -4134,7 +4344,7 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
             cf["derived_risk_rating"] = max_impact_str
             cf["provisional"] = False
 
-        # Deterministic contextual_risk_rating enforcement (R3-A5):
+        # Deterministic contextual_risk_rating enforcement (R3-A5 & C6):
         # contextual_risk_rating == derived_risk_rating unless risk_override_rationale (>=80 chars) + valid risk_override_evidence_ids
         derived_rank = rank_map.get(str(cf["derived_risk_rating"]).lower(), max_axis_rank)
         override_rationale = str(cf.get("risk_override_rationale") or "").strip()
@@ -4148,10 +4358,28 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
         cur_rank = rank_map.get(cur_risk, derived_rank)
         if not has_valid_override:
             cf["contextual_risk_rating"] = cf["derived_risk_rating"]
+            cf["risk_override_applied"] = False
         else:
             min_allowed_rank = max(0, derived_rank - 1)
             clamped_rank = min(derived_rank, max(min_allowed_rank, cur_rank))
             cf["contextual_risk_rating"] = inv_rank.get(clamped_rank, cf["derived_risk_rating"])
+            cf["risk_override_applied"] = bool(cf["contextual_risk_rating"] != cf["derived_risk_rating"])
+
+        # C2: Default missing owner_role to 'unassigned_pending_roster' (never 'dev_team') and emit KQ-OWNER question
+        owner_role_val = str(cf.get("owner_role") or "").strip()
+        if not owner_role_val or owner_role_val == "unassigned_pending_roster":
+            cf["owner_role"] = "unassigned_pending_roster"
+            key_questions.append({
+                "question_id": f"KQ-OWNER-{len(key_questions) + 1:02d}",
+                "chain_id": fid or "repo_wide",
+                "question_kind": "owner_assignment",
+                "target_team": "security_governance",
+                "question": f"Assign concrete remediation owner_role from project roster for {fid or repo_name} (currently 'unassigned_pending_roster').",
+                "searched_paths": [],
+                "outcome_if_yes": "Remediation owner_role assigned from project roster and SLA tracking activated.",
+                "outcome_if_no": "Finding remains 'unassigned_pending_roster' and blocks final governance sign-off.",
+                "status": "pending_operator",
+            })
 
         # Check Safety axis for HSE/Functional Safety handoff question (DEPTH-4.4b)
         s_axis = axes.get("safety") if isinstance(axes, dict) else None

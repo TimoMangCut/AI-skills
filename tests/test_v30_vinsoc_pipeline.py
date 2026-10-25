@@ -1812,9 +1812,316 @@ class LocalSecV30VinSOCPipelineTests(unittest.TestCase):
             self.assertIn("CHAIN-HYP", top_exec)
             self.assertIn("CHAIN-HYP", top_qa)
 
+    def test_v30_round4_c1_to_c8_and_phase4_export(self):
+        import json
+        from localsec.claude_subagent_guard import evaluate_tool_use
+        from localsec.orchestrator import (
+            audit_visibility_and_coverage,
+            build_v3_candidate_queue,
+            finalize_v3_phase1,
+            finalize_v3_phase2,
+            finalize_v3_phase3,
+            inventory_repo,
+        )
+        from localsec.reporting import export_final_phase_inputs, render_v3_reports
+        from localsec.validators import _normalize_v30_aliases
+
+        # C1: Blinded challenger PreToolUse hook whitelist & fail-closed behavior
+        self.assertEqual(
+            evaluate_tool_use(
+                {"tool_name": "Read", "tool_input": {"file_path": "src/controller.py"}},
+                mode="blinded_challenger",
+            )["decision"],
+            "block",
+        )
+        self.assertEqual(
+            evaluate_tool_use(
+                {"tool_name": "Read", "tool_input": {"file_path": ".localsec/tmp/blinded_chains_svc.json"}},
+                mode="blinded_challenger",
+            )["decision"],
+            "approve",
+        )
+        self.assertEqual(
+            evaluate_tool_use(
+                {"tool_name": "Bash", "tool_input": {"command": "python -m localsec.manual_session list_evidence svc | cat"}},
+                mode="blinded_challenger",
+            )["decision"],
+            "block",
+        )
+        self.assertEqual(
+            evaluate_tool_use(
+                {"tool_name": "Bash", "tool_input": {"command": "python -m localsec.manual_session read_file svc src/controller.py --skill blinded_counterevidence_challenger"}},
+                mode="blinded_challenger",
+            )["decision"],
+            "approve",
+        )
+        # In auto mode without subagent/skill markers, normal Read is not blocked
+        self.assertEqual(
+            evaluate_tool_use(
+                {"tool_name": "Read", "tool_input": {"file_path": "src/controller.py"}},
+                mode="auto",
+            )["decision"],
+            "approve",
+        )
+
+        # C2: Missing owner_role defaults to 'unassigned_pending_roster', never 'dev_team'
+        sfop_input = {"calibrated_findings": [{"finding_id": "F1", "impact_axes": {"safety": "low"}, "max_impact": "low", "contextual_risk_rating": "low", "risk_owner": "pending"}]}
+        _normalize_v30_aliases("sfop_risk_calibrator", sfop_input)
+        self.assertEqual(sfop_input["calibrated_findings"][0]["owner_role"], "unassigned_pending_roster")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp)
+            svc = proj / "svc-main"
+            (svc / "src").mkdir(parents=True)
+            controller_lines = [f"# line {i}" for i in range(1, 70)]
+            controller_lines[4] = "@app.post('/api/v1/orders/{id}')"
+            controller_lines[25] = "@KafkaListener(topics='orders')"
+            controller_lines[45] = "@Scheduled(cron='0 0 * * *')"
+            (svc / "src" / "controller.py").write_text("\n".join(controller_lines) + "\n", encoding="utf-8")
+
+            # C5: Unassigned project-level scanner finding preserved
+            (proj / "reports").mkdir()
+            (proj / "reports" / "trivy-scan.json").write_text(
+                json.dumps({
+                    "Results": [
+                        {
+                            "Target": "unmapped-legacy-image:latest",
+                            "Vulnerabilities": [
+                                {"VulnerabilityID": "CVE-2026-7777", "PkgName": "openssl", "InstalledVersion": "1.1.1", "Severity": "CRITICAL", "Title": "Unmapped image vuln"}
+                            ],
+                        }
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            inv = inventory_repo(proj, "svc-main", run_id="default")
+            self.assertEqual(inv["unassigned_project_external_findings_count"], 1)
+            self.assertTrue((proj / ".localsec" / "runs" / "default" / "_analysis" / "unassigned_external_tool_findings.json").is_file())
+
+            # C3: Single-file multi-endpoint spot-check requires reading the selected endpoint's line span
+            ws = ManualWorkspace(svc, "svc-main", dict(self.cfg), "default", project_root=proj)
+            ev1 = ws.read_file("unified_surface_mapper", "src/controller.py", 1, 12)["evidence_id"]
+            surf_payload = {
+                "surface_checklist": {
+                    "public_http": {"status": "absent"},
+                    "queue_or_event_consumer": {"status": "absent"},
+                    "scheduler_or_batch": {"status": "absent"},
+                },
+                "entrypoints": [
+                    {"id": "EP-1", "path": "/e1", "file": "src/controller.py", "line_start": 1, "line_end": 10, "evidence_ids": [ev1]},
+                    {"id": "EP-2", "path": "/e2", "file": "src/controller.py", "line_start": 15, "line_end": 24, "evidence_ids": []},
+                    {"id": "EP-3", "path": "/e3", "file": "src/controller.py", "line_start": 25, "line_end": 34, "evidence_ids": []},
+                    {"id": "EP-4", "path": "/e4", "file": "src/controller.py", "line_start": 35, "line_end": 44, "evidence_ids": []},
+                    {"id": "EP-5", "path": "/e5", "file": "src/controller.py", "line_start": 45, "line_end": 55, "evidence_ids": []},
+                ],
+                "semantic_clusters": [
+                    {
+                        "cluster_id": "CL-SINGLE-FILE",
+                        "representative_endpoint": "EP-1",
+                        "representative_file": "src/controller.py",
+                        "representative_deep_read_evidence_ids": [ev1],
+                        "member_endpoints": ["EP-1", "EP-2", "EP-3", "EP-4", "EP-5"],
+                        "member_files": ["src/controller.py"],
+                        "outliers": [],
+                    }
+                ],
+            }
+            vis_fail = audit_visibility_and_coverage(
+                workspace=ws,
+                scout_map={"target_modules": ["src"]},
+                coverage_ledger={"records": [], "semantic_clusters": surf_payload["semantic_clusters"]},
+                inventory=inv,
+                surface_map=surf_payload,
+            )
+            # Because only lines 1-12 (EP-1) were read, the non-representative spot-check endpoint (EP-2..EP-5) is NOT read yet!
+            self.assertFalse(vis_fail["gate_passed"])
+            # Now read the rest of src/controller.py covering all endpoints
+            ev2 = ws.read_file("unified_surface_mapper", "src/controller.py", 13, 65)["evidence_id"]
+            vis_ok = audit_visibility_and_coverage(
+                workspace=ws,
+                scout_map={"target_modules": ["src"]},
+                coverage_ledger={"records": [], "semantic_clusters": surf_payload["semantic_clusters"]},
+                inventory=inv,
+                surface_map=surf_payload,
+            )
+            self.assertTrue(vis_ok["gate_passed"])
+
+            # C4: Surface checklist 'absent' contradicted by inventory signals across HTTP, Queue, and Scheduler
+            run_dir = proj / ".localsec" / "runs" / "default" / "svc-main"
+            (run_dir / "unified_surface_mapper.json").write_text(json.dumps(surf_payload), encoding="utf-8")
+            cands = build_v3_candidate_queue(run_dir, "svc-main")
+            contra_titles = [c["title"] for c in cands["candidates"] if "Contradicted Surface Checklist" in c["title"]]
+            self.assertGreaterEqual(len(contra_titles), 3)
+
+            # Save workspace_state.json for C8 & Phase 4 tests
+            (run_dir / "workspace_state.json").write_text(
+                json.dumps({"repo_name": "svc-main", "run_id": "default", "evidence": ws.evidence, "tool_log": [], "read_ranges": {"src/controller.py": [[1, 65]]}}),
+                encoding="utf-8",
+            )
+            (run_dir / "codebase_scout.json").write_text(
+                json.dumps({"repo_tier": "tier_1", "product_archetypes": ["internal_enterprise_b2b"], "target_modules": ["src"], "ignored_modules": []}),
+                encoding="utf-8",
+            )
+            (run_dir / "intent_invariant_modeler.json").write_text(
+                json.dumps({"invariants": [{"invariant_id": "INV-1", "axis": "financial", "statement": "Order owner check", "source_type": "authoritative_doc", "status": "confirmed", "evidence_ids": [ev1]}], "self_challenged_gaps": []}),
+                encoding="utf-8",
+            )
+            p1_cert = finalize_v3_phase1(proj, "svc-main", run_id="default")
+            self.assertTrue(p1_cert["gate_passed"])
+
+            # C8: finalize_v3_phase2 blocks refutation without counter_evidence_ids
+            cand_ids = [c["candidate_id"] for c in json.loads((run_dir / "candidate_queue.json").read_text(encoding="utf-8"))["candidates"]]
+            (run_dir / "deep_trace_chain_analyst.json").write_text(
+                json.dumps({
+                    "chains": [
+                        {
+                            "chain_id": "CHAIN-MAIN-01",
+                            "candidate_ids": cand_ids,
+                            "title": "Order BOLA",
+                            "chain_verdict": "code_supported",
+                            "code_verified_severity": "high",
+                            "hops": [{"hop_id": "H1", "hop_kind": "in_process", "file": "src/controller.py", "evidence_ids": [ev1]}],
+                            "root_cause": "Missing owner check",
+                            "remediation": "Verify user_id == order.owner_id",
+                            "request_plan": {"execution_status": "not_executed", "discriminating_requests": ["GET /api/v1/orders/2"]},
+                            "evidence_ids": [ev1],
+                        }
+                    ],
+                    "unexploitable_candidates": [],
+                }),
+                encoding="utf-8",
+            )
+            six_locs = (
+                "global_middleware_or_filter",
+                "gateway_or_ingress_config",
+                "service_or_domain_guard",
+                "orm_global_filter_or_scoped_query",
+                "db_constraint_rls_or_trigger",
+                "upstream_caller_validation",
+            )
+            valid_checklist = {
+                loc: {"status": "checked_not_found", "searched_paths": ["src/controller.py"], "evidence_ids": [ev1]}
+                for loc in six_locs
+            }
+            # Direct write of 'refuted' WITHOUT counter_evidence_ids must fail gate in finalize_v3_phase2 (C8)
+            (run_dir / "blinded_counterevidence_challenger.json").write_text(
+                json.dumps({
+                    "challenged_chains": [
+                        {
+                            "chain_id": "CHAIN-MAIN-01",
+                            "challenge_verdict": "refuted",
+                            "control_search_checklist": valid_checklist,
+                            "counter_evidence_ids": [],
+                        }
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            p2_bad = finalize_v3_phase2(proj, "svc-main", run_id="default")
+            self.assertFalse(p2_bad["gate_passed"])
+            self.assertIn("CHAIN-MAIN-01", p2_bad["unchallenged_chains"])
+
+            # Now set confirmed_exploit_chain so Phase 2 passes
+            (run_dir / "blinded_counterevidence_challenger.json").write_text(
+                json.dumps({
+                    "challenged_chains": [
+                        {
+                            "chain_id": "CHAIN-MAIN-01",
+                            "challenge_verdict": "confirmed_exploit_chain",
+                            "control_search_checklist": valid_checklist,
+                            "counter_evidence_ids": [],
+                        }
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            p2_ok = finalize_v3_phase2(proj, "svc-main", run_id="default")
+            self.assertTrue(p2_ok["gate_passed"])
+
+            # C6 & C2: Valid 1-rank risk override + unassigned_pending_roster emits KQ-OWNER question
+            (run_dir / "actor_and_feasibility_assessor.json").write_text(
+                json.dumps({
+                    "actor_assessments": [
+                        {
+                            "chain_id": "CHAIN-MAIN-01",
+                            "minimum_actor": "authenticated_user",
+                            "identity_acquisition_cost": "low",
+                            "preconditions": [
+                                {"precondition_id": "P1", "description": "Valid user JWT", "precondition_status": "yes", "evidence_ids": [ev1], "searched_paths": ["src/controller.py"]}
+                            ],
+                            "evidence_ids": [ev1],
+                        }
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            (run_dir / "beyond_code_control_mapper.json").write_text(
+                json.dumps({"beyond_code_controls": []}),
+                encoding="utf-8",
+            )
+            (run_dir / "sfop_risk_calibrator.json").write_text(
+                json.dumps({
+                    "calibrated_findings": [
+                        {
+                            "finding_id": "FIND-MAIN-01",
+                            "chain_id": "CHAIN-MAIN-01",
+                            "impact_axes": {
+                                "safety": "negligible",
+                                "financial": "high",
+                                "operational": "medium",
+                                "privacy": "low",
+                                "compliance": "low",
+                            },
+                            "max_impact": "high",
+                            "contextual_risk_rating": "medium",
+                            "risk_override_rationale": "Rate limiting and per-day transaction cap in src/controller.py bound financial exposure to a single order.",
+                            "risk_override_evidence_ids": [ev1, ev2],
+                            "owner_role": "unassigned_pending_roster",
+                            "risk_owner": "unassigned_pending_roster",
+                            "safety_owner": "N/A",
+                            "evidence_ids": [ev1],
+                        }
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            p3_ok = finalize_v3_phase3(proj, "svc-main", run_id="default")
+            self.assertTrue(p3_ok["gate_passed"])
+            sfop_after = json.loads((run_dir / "sfop_risk_calibrator.json").read_text(encoding="utf-8"))["calibrated_findings"][0]
+            self.assertEqual(sfop_after["derived_risk_rating"], "high")
+            self.assertEqual(sfop_after["contextual_risk_rating"], "medium")
+            self.assertTrue(sfop_after["risk_override_applied"])
+
+            kq_after = json.loads((run_dir / "key_questions.json").read_text(encoding="utf-8"))
+            self.assertTrue(any(q.get("question_kind") == "owner_assignment" for q in kq_after["questions"]))
+
+            # Phase 4: export_final_phase_inputs / finalize_v3_phase4
+            p4_res = export_final_phase_inputs(proj, run_id="default")
+            self.assertTrue(p4_res["gate_passed"])
+            self.assertTrue(p4_res["risk_parity_verified"])
+            self.assertTrue((proj / "documents" / "svc-main" / "01_repo_profile.md").is_file())
+            self.assertTrue((proj / "documents" / "svc-main" / "12_analysis_status.json").is_file())
+            cov_16 = json.loads((proj / "documents" / "svc-main" / "16_code_coverage.json").read_text(encoding="utf-8"))
+            self.assertEqual(cov_16["coverage_semantics"], "file_touched")
+            self.assertTrue((proj / "documents" / "svc-main" / "basv" / "19_basv_epistemic_and_contradiction_diagnostics.json").is_file())
+            self.assertTrue((proj / "documents" / "_report" / "work" / "risk" / "F-01.json").is_file())
+            f01_risk = json.loads((proj / "documents" / "_report" / "work" / "risk" / "F-01.json").read_text(encoding="utf-8"))
+            self.assertTrue(f01_risk["parity_verified"])
+            self.assertEqual(f01_risk["muc_rui_ro_suy_ra"], "high")
+            self.assertEqual(f01_risk["muc_rui_ro_cuoi"], "medium")
+            self.assertTrue((proj / "documents" / "_report" / "00_manifest.md").is_file())
+            self.assertTrue((proj / "documents" / "_report" / "BAO_CAO_TONG_HOP_BAO_MAT.md").is_file())
+            self.assertTrue((proj / "documents" / "_report" / "DANH_GIA_RUI_RO.md").is_file())
+
+            # C6 & C5 in rendered Executive report
+            exec_md = (proj / "documents" / "02_executive_risk_and_key_questions.md").read_text(encoding="utf-8")
+            self.assertIn("MEDIUM (derived: HIGH)", exec_md)
+            self.assertIn("unassigned_project_external_findings", exec_md)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

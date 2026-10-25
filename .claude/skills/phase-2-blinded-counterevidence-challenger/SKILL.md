@@ -3,6 +3,7 @@ name: phase-2-blinded-counterevidence-challenger
 description: >-
   Phase 2.3 — Xác minh độc lập từng mắt xích chuỗi tấn công trong chế độ Mù Kết luận (Context-Blinded) và chủ động săn tìm bằng chứng phản bác hoặc kiểm soát bù trừ trong code (blinded_counterevidence_challenger). Kích hoạt ở Bước 2.3 hoặc khi gọi /phase-2-blinded-counterevidence-challenger.
 context: fork
+agent: localsec-blinded-challenger
 ---
 
 # Phase 2.3: Context-Blinded Step Verifier & Counterevidence Challenger (`blinded_counterevidence_challenger`)
@@ -22,7 +23,7 @@ Theo nguyên lý **Refute-First (Bác bỏ trước, khẳng định sau)**: m�
    - Đầu tiên, Orchestrator chạy `PYTHONPATH=AI-skills:. python3 -m localsec.manual_session prepare_blinded_chain_verifier <repo_name>` để sinh gói `.localsec/tmp/blinded_chains_<repo_name>.json`.
    - Lệnh này áp dụng **Strict Whitelist (`R3-A7`)**: loại bỏ hoàn toàn `title`, `root_cause`, `severity`, `chain_verdict`, `expected_vulnerable_behavior`, **`preconditions`**, **`hops[].action`**, và mọi kết luận văn xuôi của Bước 2.2; trong mỗi bước nhảy `hops[]` chỉ giữ lại các định vị mã nguồn trung lập (`hop_id`, `hop_kind`, `repo_name`, `file`, `path`, `function_or_symbol`, `line_start`, `line_end`) kèm danh sách **`control_search_paths`** trích xuất từ `inventory_repo.json`.
    - Bước 2.3 **BẮT BUỘC chạy trong Subagent cô lập / Fresh Context** chỉ nhận duy nhất `.localsec/tmp/blinded_chains_<repo_name>.json`:
-     - Trên Claude Code, `.claude/skills/phase-2-blinded-counterevidence-challenger/SKILL.md` khai báo **`context: fork`** trong YAML frontmatter và được bảo vệ bởi PreToolUse hook guard **`localsec/claude_subagent_guard.py`** (chặn mọi thao tác đọc `deep_trace_chain_analyst.json` hoặc các artifact kết luận của Bước 2.2).
+     - Trên Claude Code, `.claude/skills/phase-2-blinded-counterevidence-challenger/SKILL.md` khai báo **`context: fork`** và **`agent: localsec-blinded-challenger`** trong YAML frontmatter (gắn với `.claude/agents/localsec-blinded-challenger.md`) và được bảo vệ bởi PreToolUse hook guard **`localsec/claude_subagent_guard.py --mode blinded_challenger`** (chặn mọi thao tác đọc `deep_trace_chain_analyst.json` hoặc các artifact kết luận của Bước 2.2 — `R4-C1`).
 2. **Tên Trường Chuẩn `challenged_chains`, `challenge_verdict` & Luật Fail-Closed khi Bác bỏ (`R2-P0-01`, `R3-A4`)**:
    - Đặt danh sách kết quả vào trường **`"challenged_chains"`** (TUYỆT ĐỐI KHÔNG dùng `"chain_challenges"`).
    - Mỗi phần tử dùng trường **`"challenge_verdict"`** thuộc enum: `"confirmed_exploit_chain" | "sustained" | "upheld" | "mitigated_by_existing_control" | "refuted" | "broken_link" | "needs_runtime_verification" | "partially_mitigated"` (TUYỆT ĐỐI KHÔNG dùng `"overall_challenge_outcome"`).

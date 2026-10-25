@@ -21,32 +21,71 @@ FORBIDDEN_BLINDED_PATH_FRAGMENTS = (
     "coverage_and_evidence_auditor.json",
     "candidate_intake_planner.json",
     "analysis_evidence_gate.json",
+    "phase3_verified_queue.json",
     "workspace_state.json",
+    "evidence.json",
 )
 
-NATIVE_READ_OR_SEARCH_TOOLS = {
-    "read",
+NATIVE_SEARCH_TOOLS = {
     "grep",
     "glob",
     "ls",
-    "view",
-    "view_file",
     "grep_search",
     "find_by_name",
+    "search",
+    "find",
+}
+
+NATIVE_READ_TOOLS = {
+    "read",
+    "view",
+    "view_file",
     "cat",
 }
 
 BLINDED_AGENT_IDENTIFIERS = {
+    "localsec-blinded-challenger",
     "blinded_counterevidence_challenger",
     "phase-2-blinded-counterevidence-challenger",
     "counterevidence_challenger",
+    "blinded_challenger",
 }
 
+# Strict whitelist regex for Read in blinded challenger mode:
+# Allows ONLY toolkit read-only directories (skills, schemas, contracts) and .localsec/tmp/*.json
+WHITELIST_READ_PATH_RE = re.compile(
+    r"(?:^|/)(?:"
+    r"\.localsec/tmp/[A-Za-z0-9_.-]+\.json$"
+    r"|(?:AI-skills|localsec-antigravity-skills)/"
+    r"|\.(?:agents|claude)/(?:skills|agents)/"
+    r"|schemas/v3/[A-Za-z0-9_.-]+\.json$"
+    r"|contracts/[A-Za-z0-9_./-]+\.(?:json|md)$"
+    r")"
+)
 
-def _is_blinded_context(payload: dict[str, Any]) -> bool:
+# Strict whitelist regex for Bash in blinded challenger mode:
+# Allows ONLY `python -m localsec.manual_session <read_file|show_evidence|list_evidence|submit_skill> ...`
+WHITELIST_BASH_CMD_RE = re.compile(
+    r"^(?:PYTHONPATH=[A-Za-z0-9_./:-]+\s+)?"
+    r"python(?:3(?:\.\d+)?)?\s+-m\s+localsec\.manual_session\s+"
+    r"(?P<subcmd>read_file|show_evidence|list_evidence|submit_skill)\b(?P<rest>.*)$"
+)
+
+# Shell metacharacters forbidden in blinded Bash commands
+FORBIDDEN_SHELL_METACHARS_RE = re.compile(r"[|;&<>$`\n\r]")
+
+
+def _is_blinded_context(payload: dict[str, Any], mode: str = "auto") -> bool:
     """Determine if the PreToolUse invocation is inside a context-blinded challenger session.
-    Defaults to True (fail-closed) when invoked without an explicit non-blinded subagent identifier.
+    - When invoked with `--mode blinded_challenger` (registered in `.claude/agents/localsec-blinded-challenger.md`),
+      unconditionally returns True.
+    - When invoked in `auto` mode without `--mode blinded_challenger`, returns True ONLY if the environment
+      or payload explicitly identifies the blinded challenger subagent/skill (never blocks the main session
+      when subagent_name is absent).
     """
+    if str(mode or "").strip().lower() in {"blinded_challenger", "blinded", "force_blinded"}:
+        return True
+
     env_skill = (
         os.environ.get("LOCALSEC_ACTIVE_SKILL")
         or os.environ.get("CLAUDE_SUBAGENT_NAME")
@@ -59,6 +98,7 @@ def _is_blinded_context(payload: dict[str, Any]) -> bool:
     raw_agent = str(
         payload.get("subagent_name")
         or payload.get("agent_name")
+        or payload.get("agent")
         or payload.get("subagent_type")
         or payload.get("skill")
         or payload.get("session_role")
@@ -66,13 +106,9 @@ def _is_blinded_context(payload: dict[str, Any]) -> bool:
     ).strip().lower()
 
     if raw_agent:
-        return raw_agent in BLINDED_AGENT_IDENTIFIERS or "blinded" in raw_agent or "challenger" in raw_agent
+        return raw_agent in BLINDED_AGENT_IDENTIFIERS
 
-    # When Claude Code PreToolUse hook invokes this guard without subagent_name in payload,
-    # treat as blinded if env is unset (fail-closed for PreToolUse subagent guard).
-    if env_skill and env_skill not in BLINDED_AGENT_IDENTIFIERS:
-        return False
-    return True
+    return False
 
 
 def _extract_target_strings(tool_input: Any) -> list[str]:
@@ -115,9 +151,21 @@ def _references_forbidden_blinded_artifact(text: str) -> str | None:
     return None
 
 
-def evaluate_tool_use(payload: Any) -> dict[str, Any]:
+def _is_whitelisted_read_path(raw_path: str) -> bool:
+    norm = raw_path.replace("\\", "/").strip()
+    if not norm:
+        return False
+    parts = [p for p in norm.split("/") if p]
+    if ".." in parts:
+        return False
+    if _references_forbidden_blinded_artifact(norm) is not None:
+        return False
+    return bool(WHITELIST_READ_PATH_RE.search(norm))
+
+
+def evaluate_tool_use(payload: Any, *, mode: str = "auto") -> dict[str, Any]:
     """Evaluate a Claude Code PreToolUse payload and return {'decision': 'approve'|'block', 'reason': ...}.
-    Enforces ARCH-3E / R3-A7 Context-Blinded Challenger isolation fail-closed.
+    Enforces ARCH-3E / R3-A7 / R4-C1 Context-Blinded Challenger isolation via strict Whitelist.
     """
     if not isinstance(payload, dict):
         return {
@@ -139,85 +187,127 @@ def evaluate_tool_use(payload: Any) -> dict[str, Any]:
             "reason": "Fail-closed: PreToolUse guard payload missing tool_name.",
         }
 
-    is_blinded = _is_blinded_context(payload)
     targets = _extract_target_strings(tool_input)
     combined_blob = " ".join(targets)
 
-    # Check if command itself invokes blinded_counterevidence_challenger
+    is_blinded = _is_blinded_context(payload, mode=mode)
     if "blinded_counterevidence_challenger" in combined_blob.lower():
         is_blinded = True
 
     if not is_blinded:
         return {
             "decision": "approve",
-            "reason": "Non-blinded subagent context.",
+            "reason": "Non-blinded session context.",
         }
 
-    # Rule 1: In blinded context, ANY access to .localsec/runs/ or documents/ or unblinded JSON artifacts is strictly blocked.
+    # Rule 1: In blinded context, ANY reference to .localsec/runs/, documents/, or unblinded JSON artifacts is blocked.
     for t in targets:
         hit = _references_forbidden_blinded_artifact(t)
         if hit:
             return {
                 "decision": "block",
                 "reason": (
-                    f"Context-Blinded Violation (R3-A7): blinded_counterevidence_challenger is forbidden from accessing "
+                    f"Context-Blinded Violation (C1): blinded_counterevidence_challenger is forbidden from accessing "
                     f"{hit!r} via {tool_name!r}. Read only .localsec/tmp/blinded_chains_<repo>.json and use "
-                    f"`python -m localsec.manual_session read_file --skill blinded_counterevidence_challenger`."
-                ),
-            }
-
-    # Rule 2: Native Read/Grep/Glob tools cannot be used to bypass ManualWorkspace read_file exact_paths enforcement,
-    # except reading the prepared .localsec/tmp/blinded_chains_<repo>.json input file.
-    if tool_low in NATIVE_READ_OR_SEARCH_TOOLS:
-        if tool_low in {"grep", "glob", "grep_search", "find_by_name"}:
-            return {
-                "decision": "block",
-                "reason": (
-                    f"Context-Blinded Violation (R3-A7): native search tool {tool_name!r} is blocked during "
-                    f"blinded_counterevidence_challenger to enforce exact_paths allow-list and prevent unblinded artifact discovery."
-                ),
-            }
-        # For Read / View: only allow .localsec/tmp/blinded_chains_*.json
-        for t in targets:
-            norm_t = t.replace("\\", "/")
-            if ".localsec/tmp/blinded_chains_" in norm_t and norm_t.endswith(".json"):
-                continue
-            return {
-                "decision": "block",
-                "reason": (
-                    f"Context-Blinded Violation (R3-A7): native {tool_name!r} on {t!r} is blocked. "
-                    f"blinded_counterevidence_challenger must read source files exclusively via "
                     f"`python -m localsec.manual_session read_file <repo> <path> --skill blinded_counterevidence_challenger`."
                 ),
             }
 
-    # Rule 3: For Bash / run_command in blinded context, only allow localsec.manual_session commands
-    # with --skill blinded_counterevidence_challenger (or write_output / prepare_blinded_chain_verifier)
-    if tool_low in {"bash", "run_command", "sh", "zsh"}:
+    # Rule 2: Native search tools (Grep, Glob, LS, Find) are unconditionally blocked in blinded context.
+    if tool_low in NATIVE_SEARCH_TOOLS:
+        return {
+            "decision": "block",
+            "reason": (
+                f"Context-Blinded Violation (C1): native search tool {tool_name!r} is blocked during "
+                f"blinded_counterevidence_challenger to enforce exact_paths allow-list and prevent unblinded artifact discovery."
+            ),
+        }
+
+    # Rule 3: Native Read / View tools use a strict Whitelist (only toolkit dirs + .localsec/tmp/*.json).
+    if tool_low in NATIVE_READ_TOOLS:
+        if not targets:
+            return {
+                "decision": "block",
+                "reason": f"Fail-closed: native {tool_name!r} called without an explicit whitelisted file_path.",
+            }
+        for t in targets:
+            if not _is_whitelisted_read_path(t):
+                return {
+                    "decision": "block",
+                    "reason": (
+                        f"Context-Blinded Violation (C1): native {tool_name!r} on {t!r} is not on the blinded Read whitelist. "
+                        f"Only toolkit files and `.localsec/tmp/*.json` may be read natively; repository source files must be read via "
+                        f"`python -m localsec.manual_session read_file <repo> <path> --skill blinded_counterevidence_challenger`."
+                    ),
+                }
+        return {
+            "decision": "approve",
+            "reason": "Whitelisted Read path permitted in blinded_counterevidence_challenger.",
+        }
+
+    # Rule 4: Bash / RunCommand uses a strict Whitelist:
+    # ONLY `python -m localsec.manual_session <read_file|show_evidence|list_evidence|submit_skill>` with no shell metacharacters.
+    if tool_low in {"bash", "run_command", "sh", "zsh", "powershell", "cmd"}:
         cmd_str = combined_blob.strip()
         if not cmd_str:
             return {
                 "decision": "block",
                 "reason": "Fail-closed: empty Bash command in blinded_counterevidence_challenger.",
             }
-        hit = _references_forbidden_blinded_artifact(cmd_str)
-        if hit:
+        if FORBIDDEN_SHELL_METACHARS_RE.search(cmd_str):
             return {
                 "decision": "block",
                 "reason": (
-                    f"Context-Blinded Violation (R3-A7): Bash command references forbidden unblinded path {hit!r} "
-                    f"during blinded_counterevidence_challenger."
+                    "Context-Blinded Violation (C1): Bash command contains forbidden shell metacharacters "
+                    "(`|`, `;`, `&`, `<`, `>`, `$`, backtick, or newline). Execute a single whitelisted "
+                    "`python -m localsec.manual_session` command."
                 ),
             }
-        if "localsec.manual_session" in cmd_str and "read_file" in cmd_str:
-            if "blinded_counterevidence_challenger" not in cmd_str:
+        m = WHITELIST_BASH_CMD_RE.match(cmd_str)
+        if not m:
+            return {
+                "decision": "block",
+                "reason": (
+                    f"Context-Blinded Violation (C1): Bash command {cmd_str!r} is not on the blinded whitelist. "
+                    f"Only `python -m localsec.manual_session <read_file|show_evidence|list_evidence|submit_skill>` is allowed."
+                ),
+            }
+        subcmd = m.group("subcmd")
+        rest = m.group("rest") or ""
+        if ".." in rest.replace("\\", "/").split("/"):
+            return {
+                "decision": "block",
+                "reason": "Context-Blinded Violation (C1): parent directory traversal ('..') is forbidden in blinded Bash command.",
+            }
+        if subcmd == "read_file":
+            if not re.search(r"--skill(?:\s+|=)blinded_counterevidence_challenger\b", rest):
                 return {
                     "decision": "block",
                     "reason": (
-                        "Context-Blinded Violation (R3-A7): manual_session read_file in blinded challenger must pass "
+                        "Context-Blinded Violation (C1): `manual_session read_file` in blinded challenger must pass "
                         "`--skill blinded_counterevidence_challenger` so exact_paths enforcement is active."
                     ),
                 }
+        elif subcmd == "submit_skill":
+            if "blinded_counterevidence_challenger" not in rest:
+                return {
+                    "decision": "block",
+                    "reason": (
+                        "Context-Blinded Violation (C1): `manual_session submit_skill` in blinded challenger may only submit "
+                        "`blinded_counterevidence_challenger`."
+                    ),
+                }
+        return {
+            "decision": "approve",
+            "reason": f"Whitelisted manual_session {subcmd} command permitted in blinded_counterevidence_challenger.",
+        }
+
+    # Any other unexpected file/execution tool in blinded mode is blocked fail-closed
+    if tool_low not in {"write", "edit", "todowrite", "task"}:
+        return {
+            "decision": "block",
+            "reason": f"Context-Blinded Violation (C1): tool {tool_name!r} is not whitelisted in blinded_counterevidence_challenger.",
+        }
 
     return {
         "decision": "approve",
@@ -225,20 +315,38 @@ def evaluate_tool_use(payload: Any) -> dict[str, Any]:
     }
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        prog="python -m localsec.claude_subagent_guard",
-        description="Claude Code PreToolUse hook guard enforcing Context-Blinded Challenger isolation (R3-A7).",
-    )
-    parser.add_argument(
-        "--payload",
-        default=None,
-        help="Optional JSON string or path to JSON file (defaults to reading stdin).",
-    )
-    args = parser.parse_args(argv)
+def _emit_and_exit(verdict: dict[str, Any]) -> int:
+    decision = str(verdict.get("decision") or "block")
+    reason = str(verdict.get("reason") or "Blocked by LocalSec PreToolUse guard.")
+    if decision != "approve":
+        # Claude Code reads stderr when PreToolUse exits with code 2
+        sys.stderr.write(f"[LocalSec Blinded Guard BLOCKED] {reason}\n")
+        sys.stderr.flush()
+    sys.stdout.write(json.dumps(verdict, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+    return 0 if decision == "approve" else 2
 
-    raw_text = ""
+
+def main(argv: list[str] | None = None) -> int:
     try:
+        parser = argparse.ArgumentParser(
+            prog="python -m localsec.claude_subagent_guard",
+            description="Claude Code PreToolUse hook guard enforcing Context-Blinded Challenger isolation (R3-A7 / R4-C1).",
+        )
+        parser.add_argument(
+            "--mode",
+            choices=("auto", "blinded_challenger"),
+            default="auto",
+            help="Guard enforcement mode ('blinded_challenger' forces blinded whitelist enforcement).",
+        )
+        parser.add_argument(
+            "--payload",
+            default=None,
+            help="Optional JSON string or path to JSON file (defaults to reading stdin).",
+        )
+        args = parser.parse_args(argv)
+
+        raw_text = ""
         if args.payload is not None:
             cand_path = Path(args.payload)
             if cand_path.is_file():
@@ -248,26 +356,24 @@ def main(argv: list[str] | None = None) -> int:
         else:
             if not sys.stdin.isatty():
                 raw_text = sys.stdin.read()
+
+        if not raw_text.strip():
+            return _emit_and_exit({"decision": "block", "reason": "Fail-closed: empty PreToolUse hook input."})
+
+        try:
+            payload = json.loads(raw_text)
+        except Exception as exc:
+            return _emit_and_exit(
+                {"decision": "block", "reason": f"Fail-closed: invalid JSON in PreToolUse hook input ({type(exc).__name__})."}
+            )
+
+        verdict = evaluate_tool_use(payload, mode=args.mode)
+        return _emit_and_exit(verdict)
     except Exception as exc:
-        out = {"decision": "block", "reason": f"Fail-closed: error reading PreToolUse input ({type(exc).__name__})."}
-        print(json.dumps(out, ensure_ascii=False))
-        return 2
-
-    if not raw_text.strip():
-        out = {"decision": "block", "reason": "Fail-closed: empty PreToolUse hook input."}
-        print(json.dumps(out, ensure_ascii=False))
-        return 2
-
-    try:
-        payload = json.loads(raw_text)
-    except Exception as exc:
-        out = {"decision": "block", "reason": f"Fail-closed: invalid JSON in PreToolUse hook input ({type(exc).__name__})."}
-        print(json.dumps(out, ensure_ascii=False))
-        return 2
-
-    verdict = evaluate_tool_use(payload)
-    print(json.dumps(verdict, ensure_ascii=False))
-    return 0 if verdict.get("decision") == "approve" else 2
+        # Fail-closed on any unexpected internal exception
+        return _emit_and_exit(
+            {"decision": "block", "reason": f"Fail-closed: internal guard exception ({type(exc).__name__}: {exc})."}
+        )
 
 
 if __name__ == "__main__":

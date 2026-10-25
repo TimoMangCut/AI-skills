@@ -124,9 +124,12 @@ def _update_git_exclude(root: Path, skill_folder: str, remove: bool = False) -> 
         "/.agents/skills/phase-1-*",
         "/.agents/skills/phase-2-*",
         "/.agents/skills/phase-3-*",
+        "/.agents/skills/phase-4-*",
         "/.claude/skills/phase-1-*",
         "/.claude/skills/phase-2-*",
         "/.claude/skills/phase-3-*",
+        "/.claude/skills/phase-4-*",
+        "/.claude/agents/localsec-*",
         "/.localsec/",
         "/documents/",
     ]
@@ -170,6 +173,14 @@ if mode in ("--uninstall", "--clean", "uninstall", "clean"):
                     shutil.rmtree(target_sp)
         if not any((claude_dir / "skills").iterdir()):
             (claude_dir / "skills").rmdir()
+    if (claude_dir / "agents").is_dir() and (skill_dir / ".claude" / "agents").is_dir():
+        for ap in (skill_dir / ".claude" / "agents").iterdir():
+            if ap.is_file():
+                target_ap = claude_dir / "agents" / ap.name
+                if target_ap.is_file():
+                    target_ap.unlink()
+        if not any((claude_dir / "agents").iterdir()):
+            (claude_dir / "agents").rmdir()
     if claude_dir.is_dir() and not any(claude_dir.iterdir()):
         claude_dir.rmdir()
 
@@ -181,29 +192,35 @@ if mode in ("--uninstall", "--clean", "uninstall", "clean"):
     print(f"[✓] Đã gỡ cài đặt các file AI-skills khỏi {project_root} (giữ nguyên mọi nội dung gốc của dự án).")
     sys.exit(0)
 
-# 1. Sync .agents/ (Antigravity) and .claude/skills/ (Claude Code)
+# 1. Sync .agents/ (Antigravity) and .claude/skills/ + .claude/agents/ (Claude Code)
 agents_dst = project_root / ".agents"
 claude_dst = project_root / ".claude"
 (agents_dst / "skills").mkdir(parents=True, exist_ok=True)
 (agents_dst / "rules").mkdir(parents=True, exist_ok=True)
 (claude_dst / "skills").mkdir(parents=True, exist_ok=True)
+(claude_dst / "agents").mkdir(parents=True, exist_ok=True)
 shutil.copy2(skill_dir / ".agents" / "README.md", agents_dst / "README.md")
 if (skill_dir / ".agents" / "rules" / "soul.md").is_file():
     shutil.copy2(skill_dir / ".agents" / "rules" / "soul.md", agents_dst / "rules" / "soul.md")
+if (skill_dir / ".claude" / "agents").is_dir():
+    for ap in sorted((skill_dir / ".claude" / "agents").iterdir()):
+        if ap.is_file() and not ap.name.startswith("._"):
+            shutil.copy2(ap, claude_dst / "agents" / ap.name)
 
 copied_skills = 0
 for sp in sorted((skill_dir / ".agents" / "skills").iterdir()):
     if sp.is_dir() and not sp.name.startswith("._"):
-        for dst_root in (agents_dst / "skills", claude_dst / "skills"):
+        cl_src = skill_dir / ".claude" / "skills" / sp.name
+        for dst_root, src_dir in ((agents_dst / "skills", sp), (claude_dst / "skills", cl_src if cl_src.is_dir() else sp)):
             target_sp = dst_root / sp.name
             if target_sp.exists():
                 shutil.rmtree(target_sp)
-            shutil.copytree(sp, target_sp, ignore=shutil.ignore_patterns("._*"))
+            shutil.copytree(src_dir, target_sp, ignore=shutil.ignore_patterns("._*"))
         copied_skills += 1
 
-# 2. If cloned under a custom folder name != AI-skills, rewrite references in copied .agents/ and .claude/skills/
+# 2. If cloned under a custom folder name != AI-skills, rewrite references in copied .agents/ and .claude/
 if folder_name != "AI-skills":
-    for root_target in (agents_dst, claude_dst / "skills"):
+    for root_target in (agents_dst, claude_dst / "skills", claude_dst / "agents"):
         for md in root_target.rglob("*.md"):
             if md.name.startswith("._"):
                 continue
