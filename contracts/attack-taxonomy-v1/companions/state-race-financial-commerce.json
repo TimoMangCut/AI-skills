@@ -3,82 +3,82 @@
   "companion_id": "state-race-financial-commerce",
   "file": "state-race-financial-commerce.md",
   "companion_json": "companions/state-race-financial-commerce.json",
-  "group": "I. Web, Mobile & API Core",
-  "title": "State Machines, Race Conditions (TOCTOU), Payments, Billing & E-Commerce",
+  "group": "I. Client, Web, Mobile & Core Application Logic",
+  "title": "State Machines, Concurrency / Race Conditions & Financial / Commerce Logic",
   "always_inject": true,
   "triggers": [
+    "always",
     "payment",
-    "billing",
-    "invoice",
-    "order",
-    "cart",
-    "checkout",
+    "wallet",
     "voucher",
     "coupon",
-    "wallet",
     "refund",
-    "deposit",
-    "subscription",
-    "idempotency",
-    "lock",
-    "transaction"
+    "order",
+    "inventory",
+    "checkout",
+    "tariff",
+    "billing",
+    "subscription"
   ],
   "trigger_signals": [
+    "always",
     "payment",
-    "billing",
-    "invoice",
-    "order",
-    "cart",
-    "checkout",
+    "wallet",
     "voucher",
     "coupon",
-    "wallet",
     "refund",
-    "deposit",
+    "order",
+    "inventory",
+    "checkout",
+    "tariff",
+    "billing",
     "subscription",
-    "idempotency",
-    "lock",
-    "transaction",
-    "payment_billing_service",
-    "ecommerce_portal",
-    "subscription_ota_commerce"
+    "commerce_loyalty_billing",
+    "ev_charging_ocpp_ocpi_bess"
   ],
   "archetypes": [
-    "Payment_Billing_Service",
-    "Ecommerce_Portal",
-    "Subscription_OTA_Commerce"
+    "ALL",
+    "Commerce_Loyalty_Billing"
+  ],
+  "coverage_matrix_classes": [
+    "RACE_CONDITION_TOCTOU",
+    "STATE_MACHINE_BYPASS",
+    "BOPLA_MASS_ASSIGNMENT"
   ],
   "blocks": [
     "toctou-race-and-idempotency",
-    "payment-webhook-and-ota-entitlement",
-    "asvs-v7-otp-rate-limit-and-voucher-replay"
+    "state-machine-skip-and-replay",
+    "financial-precision-tariff-and-webhook-forgery"
   ],
   "standard_mappings": [
-    "OWASP-API4:2023",
     "OWASP-API6:2023",
-    "ASVS-V4",
-    "ASVS-V7",
-    "ASVS-V11",
+    "ASVS-5.0-V15-Business-Logic-Race",
+    "ASVS-5.0-V2-Validation",
+    "ASVS-5.0-V11-Cryptography",
     "CWE-362",
+    "CWE-367",
+    "CWE-840",
     "CWE-841"
   ],
   "safe_patterns": [
-    "Pessimistic row locking (SELECT ... FOR UPDATE) or single atomic conditional UPDATE (WHERE status = 'PENDING' AND balance >= :amount)",
-    "Idempotency key bound to (user_id, endpoint, request_payload_hash) stored atomically with the state transition",
-    "Cryptographic HMAC/RSA signature verification and strict state-machine transition guards on payment gateway webhooks"
+    "Spring Data JPA @Lock(LockModeType.PESSIMISTIC_WRITE) / FastAPI SQLAlchemy select(Wallet).where(...).with_for_update() or atomic SQL UPDATE wallets SET balance = balance - $1 WHERE id = $2 AND balance >= $1",
+    "Unique database constraint on idempotency_key / payment_txn_id with Redis Redlock distributed mutex around multi-step checkout/refund flows",
+    "Atomic compare-and-swap state transitions UPDATE orders SET status = 'REFUNDED' WHERE id = $1 AND status = 'PAID' with rowCount == 1 assertion",
+    "Payment/charging webhook verification via HMAC-SHA256 (crypto.timingSafeEqual / hmac.compare_digest) over raw request bytes plus server-side price/tariff recalculation using Decimal/BigDecimal"
   ],
   "vulnerable_patterns": [
-    "Read-modify-write balance/voucher check in application memory followed by a separate non-locking save/update",
-    "Payment webhook handler updating order status to PAID without verifying gateway signature or checking prior terminal state",
-    "Missing validation against negative quantities, negative transfer amounts, or currency mismatch between order creation and settlement"
+    "Read-modify-write TOCTOU: NestJS const w = await prisma.wallet.findUnique(...); if (w.balance >= amt) await prisma.wallet.update({ data: { balance: w.balance - amt } }) without row lock or atomic decrement",
+    "State transition handler setting order.status = req.body.status or processing refund/cancel without asserting current status == 'PAID' atomically",
+    "Trusting client-supplied price, discount_amount, tariff_rate, or negative quantity/amount in checkout, charging session CDR, or wallet transfer payloads",
+    "Payment gateway or OCPI CDR settlement callback processed without verifying cryptographic signature header or checking replay of transaction_id"
   ],
   "required_evidence": [
-    "ev_... excerpt of the transaction/service method performing state check and balance/order mutation",
-    "ev_... excerpt of the database locking, idempotency middleware, or webhook signature verification logic"
+    "ev_... excerpt of transaction/lock boundaries in service or repository layer",
+    "ev_... excerpt of state transition check, price calculation, or webhook signature verification"
   ],
   "questions_when_unclear": [
-    "Does a distributed lock (Redis Redlock) or database unique constraint / serializable isolation level prevent concurrent duplicate execution?",
-    "Is payment webhook authenticity verified by an upstream payment gateway adapter before reaching this service?"
+    "Is database transaction isolation configured at SERIALIZABLE / REPEATABLE READ globally, or default READ COMMITTED?",
+    "Are payment/settlement webhooks restricted at the firewall/ALB level to verified payment provider IP ranges + mTLS?"
   ],
-  "markdown": "# State Machines, Race Conditions (TOCTOU), Payments, Billing & E-Commerce (`state-race-financial-commerce`)\n\n> **Group:** I. Web, Mobile & API Core\n> **Product Archetypes:** Payment_Billing_Service, Ecommerce_Portal, Subscription_OTA_Commerce\n> **Trigger Signals:** payment, billing, invoice, order, cart, checkout, voucher, coupon, wallet, refund, deposit, subscription, idempotency, lock, transaction\n\n## [ BLOCK: toctou-race-and-idempotency ]\n### Concurrent State Mutation (TOCTOU), Double-Spend & Missing Idempotency\n- Inspect balance/voucher redemptions, refund triggers, OTP verifications, and ownership transfers for read-modify-write without `SELECT ... FOR UPDATE`, atomic conditional update, or distributed lock.\n- Verify whether idempotency keys are scoped to `(userId, endpoint, payload_hash)` and cannot be replayed across different parameters.\n\n## [ BLOCK: payment-webhook-and-ota-entitlement ]\n### Payment Callback Forgery, Price/Currency Tampering & Paid OTA Entitlement\n- Verify cryptographic signature validation and state transition ordering on payment gateway webhooks.\n- In paid FOTA/SOTA or e-commerce flows, check whether an attacker can trigger fulfillment/installation before payment settlement completes.\n\n## [ BLOCK: asvs-v7-otp-rate-limit-and-voucher-replay ]\n### OTP/PIN Brute-Force, Coupon/Voucher Replay & Partial Refund Loops\n- Verify strict attempt counters, exponential backoff, and single-use atomic invalidation on OTP, PIN, gift card, and promo code redemption endpoints.\n- Check whether partial refunds, split payments, or negative quantity/amount values cause arithmetic underflow or double-crediting.\n\n### Standard Mappings\n- OWASP-API4:2023, OWASP-API6:2023, ASVS-V4, ASVS-V7, ASVS-V11, CWE-362, CWE-841\n\n### Safe Patterns (Refutation Anchors)\n- Pessimistic row locking (SELECT ... FOR UPDATE) or single atomic conditional UPDATE (WHERE status = 'PENDING' AND balance >= :amount)\n- Idempotency key bound to (user_id, endpoint, request_payload_hash) stored atomically with the state transition\n- Cryptographic HMAC/RSA signature verification and strict state-machine transition guards on payment gateway webhooks\n\n### Vulnerable Patterns\n- Read-modify-write balance/voucher check in application memory followed by a separate non-locking save/update\n- Payment webhook handler updating order status to PAID without verifying gateway signature or checking prior terminal state\n- Missing validation against negative quantities, negative transfer amounts, or currency mismatch between order creation and settlement\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of the transaction/service method performing state check and balance/order mutation\n- ev_... excerpt of the database locking, idempotency middleware, or webhook signature verification logic\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Does a distributed lock (Redis Redlock) or database unique constraint / serializable isolation level prevent concurrent duplicate execution?\n- Is payment webhook authenticity verified by an upstream payment gateway adapter before reaching this service?\n"
+  "markdown": "# State Machines, Concurrency / Race Conditions & Financial / Commerce Logic (`state-race-financial-commerce`)\n\n> **Group:** I. Client, Web, Mobile & Core Application Logic\n> **Product Archetypes:** ALL, Commerce_Loyalty_Billing\n> **Trigger Signals:** always, payment, wallet, voucher, coupon, refund, order, inventory, checkout, tariff, billing, subscription\n\n## [ BLOCK: toctou-race-and-idempotency ]\n### TOCTOU Race Conditions, Double-Spend & Missing Idempotency\n- Inspect read-modify-write flows on balances, loyalty points, vouchers/coupons, inventory reservations, charging session credits, or refund requests.\n- Verify whether concurrent requests can bypass checks (`if balance >= amount` followed by `UPDATE`) due to missing `SELECT ... FOR UPDATE`, atomic SQL `UPDATE ... WHERE balance >= :amount`, optimistic locking (`version`), or Redis distributed locks.\n- Check whether state-changing payment/order/command endpoints enforce unique `Idempotency-Key` constraints.\n\n## [ BLOCK: state-machine-skip-and-replay ]\n### State-Machine Transition Bypass & Lifecycle Replay\n- Map the intended lifecycle state machine (e.g., `CREATED -> PENDING_PAYMENT -> PAID -> FULFILLED -> REFUNDED`, or `IDLE -> PREPARING -> CHARGING -> FINISHED`).\n- Check if an actor can jump states (e.g., triggering fulfillment/charging before payment confirmation, cancelling an already-fulfilled order to trigger auto-refund, or replaying a terminal transition).\n\n## [ BLOCK: financial-precision-tariff-and-webhook-forgery ]\n### Price/Tariff Manipulation, Negative Quantities, Rounding & Payment Webhook Forgery\n- Check if item price, discount rate, charging tariff, currency, or tax is accepted from client payloads instead of recalculated server-side.\n- Test boundary values: negative quantities/amounts (`-1`), zero amounts, integer overflow, floating-point rounding drift (`float` instead of `Decimal`/`BigInt`), and currency mismatch.\n- Verify cryptographic HMAC/signature validation, timestamp replay protection, and idempotency on payment gateway and settlement webhooks.\n\n### Standard Mappings\n- OWASP-API6:2023, ASVS-5.0-V15-Business-Logic-Race, ASVS-5.0-V2-Validation, ASVS-5.0-V11-Cryptography, CWE-362, CWE-367, CWE-840, CWE-841\n\n### Safe Patterns (Refutation Anchors)\n- Spring Data JPA @Lock(LockModeType.PESSIMISTIC_WRITE) / FastAPI SQLAlchemy select(Wallet).where(...).with_for_update() or atomic SQL UPDATE wallets SET balance = balance - $1 WHERE id = $2 AND balance >= $1\n- Unique database constraint on idempotency_key / payment_txn_id with Redis Redlock distributed mutex around multi-step checkout/refund flows\n- Atomic compare-and-swap state transitions UPDATE orders SET status = 'REFUNDED' WHERE id = $1 AND status = 'PAID' with rowCount == 1 assertion\n- Payment/charging webhook verification via HMAC-SHA256 (crypto.timingSafeEqual / hmac.compare_digest) over raw request bytes plus server-side price/tariff recalculation using Decimal/BigDecimal\n\n### Vulnerable Patterns\n- Read-modify-write TOCTOU: NestJS const w = await prisma.wallet.findUnique(...); if (w.balance >= amt) await prisma.wallet.update({ data: { balance: w.balance - amt } }) without row lock or atomic decrement\n- State transition handler setting order.status = req.body.status or processing refund/cancel without asserting current status == 'PAID' atomically\n- Trusting client-supplied price, discount_amount, tariff_rate, or negative quantity/amount in checkout, charging session CDR, or wallet transfer payloads\n- Payment gateway or OCPI CDR settlement callback processed without verifying cryptographic signature header or checking replay of transaction_id\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of transaction/lock boundaries in service or repository layer\n- ev_... excerpt of state transition check, price calculation, or webhook signature verification\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Is database transaction isolation configured at SERIALIZABLE / REPEATABLE READ globally, or default READ COMMITTED?\n- Are payment/settlement webhooks restricted at the firewall/ALB level to verified payment provider IP ranges + mTLS?\n"
 }

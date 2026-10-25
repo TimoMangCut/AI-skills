@@ -6,10 +6,12 @@ description: >-
 
 # Phase 2.1: Candidate Intake & Attack Companion Planner (`candidate_intake_planner`)
 
+> **Subagent Isolation Directive**: Start Phase 2 in a fresh session per repository, reading `.localsec/runs/default/<repo_name>/candidate_queue.json` produced by `finalize_v3_phase1`.
+
 Bạn đang thực thi **Bước 2.1 (`candidate_intake_planner`)** trong **Phase 2: Deep Analysis & Falsification (LocalSec v3.0)**.
 Trước khi nộp kết quả, hãy đối chiếu hợp đồng điều phối `AI-skills/contracts/v3-orchestration.json` và schema mục tiêu `AI-skills/schemas/v3/candidate_intake_planner.schema.json`.
 
-Thay vì quét lại toàn bộ mã nguồn từ đầu, Phase 2 **đọc trực tiếp `.localsec/runs/default/<repo_name>/candidate_queue.json` do `finalize_v3_phase1` sinh ra (`ARCH-3G`)** và nạp các mô-đun `Attack-Class Companion` tương ứng.
+Thay vì quét lại toàn bộ mã nguồn từ đầu, Phase 2 **đọc trực tiếp `.localsec/runs/default/<repo_name>/candidate_queue.json` do `finalize_v3_phase1` sinh ra (`ARCH-3G`)**, gom nhóm vào `deduplicated_batches[]` và nạp các mô-đun `Attack-Class Companion` tương ứng.
 
 ---
 
@@ -17,17 +19,17 @@ Thay vì quét lại toàn bộ mã nguồn từ đầu, Phase 2 **đọc trực
 
 1. **Đọc `candidate_queue.json` & Không Bỏ rơi Ứng viên (`ARCH-3G`)**:
    - Đọc danh sách ứng viên từ `.localsec/runs/default/<repo_name>/candidate_queue.json`.
-   - Bảo toàn 100% mã `candidate_id` từ Phase 1: xếp hạng ưu tiên `P0` (Safety/Financial/BOLA/RCE), `P1` (Privilege Escalation/SSRF/Deserialization), `P2` (Defense-in-Depth).
+   - Bảo toàn 100% mã `candidate_id` từ Phase 1 (định dạng `cand_<12-hex>`) vào các lô `deduplicated_batches[]` để phân tích ở Bước 2.2.
    - Sử dụng `python -m localsec.manual_session show_evidence <repo_name> <ev_id>` để xem lại các trích đoạn bằng chứng Phase 1 mà không cần mở đọc lại toàn bộ file (`DEPTH-4.5`).
 2. **Tiêm Nguyên văn Khối `Attack-Class Companion` (`selected_attack_companions.json` — `DEPTH-4.5`)**:
    - Chạy `python -m localsec.manual_session select_attack_companions <repo_name> --archetypes ...` để nạp nguyên văn các khối kiểm tra chuyên sâu từ `AI-skills/contracts/attack-taxonomy-v1/manifest.json` (16 mô-đun) và tự động lưu vào `.localsec/runs/default/<repo_name>/selected_attack_companions.json`.
-   - **CẤM tóm tắt hoặc viết lại nội dung bên trong khối `## [ BLOCK: ... ]`**. Nếu loại trừ bất kỳ khối nào, phải ghi rõ lý do trong `excluded_blocks`.
+   - **CẤM tóm tắt hoặc viết lại nội dung bên trong khối `## [ BLOCK: ... ]`**. Khai báo danh sách mô-đun đã chọn trong trường `selected_companions`.
 
 ---
 
 ## 2. Giao thức Thực thi CLI
 
-```bash
+```powershell
 # 1. Xem lại trích đoạn bằng chứng từ Phase 1 mà không cần đọc lại file
 python -m localsec.manual_session show_evidence <repo_name> <ev_id>
 
@@ -40,23 +42,34 @@ python -m localsec.manual_session submit_skill <repo_name> candidate_intake_plan
 
 ---
 
-## 3. Định dạng Đầu ra JSON (`AI-skills/schemas/v3/candidate_intake_planner.schema.json`)
+## 3. Định dạng Đầu ra JSON Chuẩn (`AI-skills/schemas/v3/candidate_intake_planner.schema.json`)
 
 ```json
 {
-  "intake_candidates": [
-    {
-      "candidate_id": "CAND-OCPP-BOLA-01",
-      "priority": "P0",
-      "affected_axis": "O",
-      "hypothesis": "Authenticated B2C user can call POST /api/v1/sessions/{sessionId}/remote-stop with another user's sessionId to terminate active charging",
-      "selected_companion_modules": [
-        "authz-bola-bfla-multitenant",
-        "ev-charging-ocpp-ocpi-battery"
-      ],
-      "evidence_ids": ["ev_..."]
-    }
-  ],
-  "excluded_blocks": []
+  "status": "ok",
+  "result": {
+    "selected_companions": [
+      "ev-charging-ocpp-ocpi-battery",
+      "authz-bola-bfla-multitenant"
+    ],
+    "deduplicated_batches": [
+      {
+        "batch_id": "BATCH-01",
+        "candidate_ids": [
+          "cand_111122223333"
+        ],
+        "attack_classes": [
+          "BOLA_IDOR"
+        ],
+        "target_repos": [
+          "csms-service"
+        ],
+        "priority_severity": "high",
+        "rationale": "Group OCPP remote-start BOLA and safety invariant candidates sharing src/ocpp_controller.py"
+      }
+    ],
+    "dismissed_candidates": [],
+    "summary": "Grouped 1 candidate (cand_111122223333) into BATCH-01 with 2 verbatim Attack-Class Companions."
+  }
 }
 ```

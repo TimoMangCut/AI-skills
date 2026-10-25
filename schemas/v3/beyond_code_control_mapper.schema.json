@@ -2,7 +2,6 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "LocalSec v3.0 Phase 3.2 Beyond-Code Control Mapper Schema",
   "type": "object",
-  "required": [],
   "properties": {
     "beyond_code_controls": {
       "type": "array",
@@ -43,18 +42,17 @@
             "enum": [
               "confirmed",
               "hypothesis",
-              "absent",
-              "observed",
-              "derived",
-              "unknown"
+              "absent"
             ]
+          },
+          "verified": {
+            "type": "string"
           },
           "mitigation_effect": {
             "type": "string",
             "enum": [
               "blocks_exploit",
               "reduces_likelihood",
-              "limits_blast_radius",
               "partial_mitigation",
               "none"
             ]
@@ -127,6 +125,7 @@
                     "blocks_exploit",
                     "reduces_likelihood",
                     "limits_blast_radius",
+                    "partial_mitigation",
                     "none"
                   ]
                 },

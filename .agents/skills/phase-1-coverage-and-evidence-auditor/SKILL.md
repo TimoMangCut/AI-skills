@@ -6,62 +6,64 @@ description: >-
 
 # Phase 1.6: Coverage Ledger & Evidence Auditor (`coverage_and_evidence_auditor`)
 
+> **Subagent Isolation Directive**: Execute `finalize_v3_phase1` as the authoritative script-enforced gate to close Phase 1 before starting Phase 2 in a fresh session.
+
 Bạn đang thực thi **Bước 1.6 (`coverage_and_evidence_auditor`)** — Cổng chặn cuối cùng của **Phase 1: Unified Reconnaissance (LocalSec v3.0)** trước khi chuyển `Candidate Queue` sang Phase 2.
 Trước khi nộp kết quả, hãy đối chiếu hợp đồng điều phối `AI-skills/contracts/v3-orchestration.json` và schema mục tiêu `AI-skills/schemas/v3/coverage_and_evidence_auditor.schema.json`.
 
 ---
 
-## 1. Hai Cổng Kiểm toán & Khóa sổ Tất định (`finalize_v3_phase1` — `ARCH-3D`, `ARCH-3G`, `DEPTH-4.3a`)
+## 1. Cổng Kiểm toán Thực thi Bằng Script (`finalize_v3_phase1` — `ARCH-3D`, `ARCH-3G`, `R2-P1-04`)
 
-### Cổng 1: Kiểm toán Độ phủ Vật lý & Chống "Giả vờ Đủ Coverage" (`Visibility Tracker` & `Coverage Ledger`)
-1. Chạy lệnh `python -m localsec.manual_session audit_visibility <repo_name>`.
-2. Công cụ Python sẽ đối chiếu khách quan nhật ký `read_file` thực tế với `target_modules` (`codebase_scout.json`) và `mandatory_files` (`inventory_repo.json`):
-   - **`unvisited_target_modules`**: Nếu còn bất kỳ module mục tiêu nào có tỷ lệ đọc `0%`, cổng sẽ **FAIL**. AI bắt buộc phải quay lại Bước 1.4 đọc module bị bỏ quên đó.
-   - **`unvisited_mandatory_files`**: Mọi file thuộc nhóm `entrypoint` và `security` trong `inventory_repo.json` phải được đọc thực chất.
-   - **`shallow_grazing_files` (Anti-Grazing)**: Nếu AI chỉ mở đọc lướt `<= 8` dòng đầu (chỉ xem `import` hoặc khai báo class) của một file có độ dài `> 25` dòng để lấy mã `ev_...` giả tạo, cổng sẽ **FAIL**.
-   - **Kiểm tra `coverage_ledger.json` & Safe Clustering (`ARCH-3F`)**: Mọi bản ghi phải tuân thủ định dạng `coverage_id` RFC 3986 (4–5 phân đoạn `surface::boundary::subsystem::attack_class[::lifecycle]`), không có entrypoint chứa `object_id_params` nào bị gom cụm ngầm, và các cụm `>= 5` thành viên đều có `spot_check_evidence_ids`.
-
-### Cổng 2: Kiểm toán Bằng chứng Độc lập & Tự động Sinh `coverage_matrix.json` + `candidate_queue.json`
-1. Chạy lệnh `python -m localsec.manual_session verify_semantic_claims <repo_name>` để phát hiện mâu thuẫn ngữ nghĩa giữa tuyên bố và trích đoạn code thực tế.
-2. Nộp `coverage_and_evidence_auditor` và chạy lệnh khóa sổ tất định:
-   `python -m localsec.manual_session finalize_v3_phase1 <repo_name>`
-3. Lệnh `finalize_v3_phase1` sẽ thực thi tự động:
-   - Kiểm tra `audit_visibility` và `verify_semantic_claims`.
-   - Tự động hạ cấp **Fail-Closed** mọi tuyên bố `observed`/`derived` thiếu bằng chứng hoặc lệch ngữ nghĩa xuống `hypothesis`.
-   - Xuất bảng đối soát `.localsec/runs/default/<repo_name>/coverage_matrix.json` (`DEPTH-4.3a`) và hàng đợi ứng viên `.localsec/runs/default/<repo_name>/candidate_queue.json` (`ARCH-3G`) để bàn giao sang Phase 2.
+1. **`finalize_v3_phase1` là Cổng Chặn Tất định Có Thẩm quyền Cuối cùng (`R2-P1-04`)**:
+   - Lệnh `python -m localsec.manual_session finalize_v3_phase1 <repo_name>` là cổng kiểm toán thực thi bằng script có thẩm quyền cao nhất của Phase 1.
+   - Khi chạy `finalize_v3_phase1 <repo_name>`, engine tự động thực hiện toàn bộ chuỗi kiểm định:
+     - Tính toán độ phủ vật lý **Visibility Tracker** đối chiếu với `target_modules` (`codebase_scout.json`) và `mandatory_files` (`inventory_repo.json`): chặn mọi `unvisited_target_modules`, `unvisited_mandatory_files`, `shallow_grazing_files` (Anti-Grazing `<= 8` dòng trên file `> 25` dòng), và `spot_check_violations`.
+     - Chạy kiểm chứng ngữ nghĩa **Semantic Claim-to-Excerpt Verifier** (`verify_semantic_claims`) và tự động hạ cấp **Fail-Closed** mọi tuyên bố thiếu bằng chứng hoặc lệch ngữ nghĩa xuống `hypothesis`.
+     - Tự động sinh bảng đối soát `.localsec/runs/default/<repo_name>/coverage_matrix.json` (mặc định đánh dấu `"unassessed"` cho các ô chưa được kiểm tra trực tiếp trong `coverage_ledger.json`) và hàng đợi ứng viên `.localsec/runs/default/<repo_name>/candidate_queue.json` từ 7 nguồn ứng viên.
+     - Tự động ghi nhận `.localsec/runs/default/<repo_name>/coverage_and_evidence_auditor.json` cùng biên nhận khóa sổ `.localsec/runs/default/<repo_name>/phase1_gate_receipt.json` (và `phase1_gate_Certificate.json`).
 
 ---
 
 ## 2. Giao thức Thực thi CLI
 
-```bash
+```powershell
 # 1. Chạy cổng kiểm tra Visibility Tracker + Anti-Grazing + Coverage Ledger
 python -m localsec.manual_session audit_visibility <repo_name>
 
 # 2. Chạy cổng kiểm tra ngữ nghĩa Claim-to-Excerpt
 python -m localsec.manual_session verify_semantic_claims <repo_name>
 
-# 3. Lưu kết quả kiểm toán Phase 1 (đối chiếu AI-skills/schemas/v3/coverage_and_evidence_auditor.schema.json)
+# 3. (Tùy chọn) Lưu kết quả kiểm toán Phase 1 thủ công trước khi khóa sổ
 python -m localsec.manual_session submit_skill <repo_name> coverage_and_evidence_auditor .localsec/tmp/coverage_and_evidence_auditor_<repo_name>.json
 
-# 4. Khóa sổ Phase 1 tất định: hạ cấp Fail-Closed và xuất coverage_matrix.json + candidate_queue.json
+# 4. Chạy cổng khóa sổ tất định Phase 1 (tự động xuất coverage_matrix.json, candidate_queue.json, coverage_and_evidence_auditor.json và phase1_gate_receipt.json)
 python -m localsec.manual_session finalize_v3_phase1 <repo_name>
 ```
 
 ---
 
-## 3. Định dạng Đầu ra JSON (`AI-skills/schemas/v3/coverage_and_evidence_auditor.schema.json`)
+## 3. Định dạng Đầu ra JSON Chuẩn (`AI-skills/schemas/v3/coverage_and_evidence_auditor.schema.json`)
 
 ```json
 {
-  "visibility_gate_passed": true,
-  "unvisited_target_modules": [],
-  "shallow_grazing_files": [],
-  "semantic_verification_passed": true,
-  "downgraded_claims": [],
-  "approved_candidate_ids": [
-    "CAND-OCPP-BOLA-01"
-  ],
-  "audit_summary": "All target_modules and mandatory entrypoint/security files visited without shallow grazing; 1 P0 candidate exported to candidate_queue.json."
+  "status": "ok",
+  "result": {
+    "visibility_audit_passed": true,
+    "gate_passed": true,
+    "audited_claims": [
+      {
+        "claim_id": "CLM-01",
+        "claim_ref": "unified_surface_mapper:entrypoints[1]",
+        "verdict": "supported",
+        "evidence_ids": [
+          "ev_001"
+        ],
+        "reason": "Excerpt in src/ocpp_controller.py confirms missing session ownership check"
+      }
+    ],
+    "downgraded_claims": [],
+    "summary": "All target_modules and mandatory entrypoint/security files visited without shallow grazing; candidate_queue.json and phase1_gate_receipt.json generated."
+  }
 }
 ```

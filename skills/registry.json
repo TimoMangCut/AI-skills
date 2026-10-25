@@ -1,5 +1,6 @@
 {
   "registry_version": "2.0.0",
+  "v3_default_flow": "contracts/v3-orchestration.json",
   "execution_model": "isolated specialist AI sessions with iterative read-only filesystem tool use; no static analyzers or parsers",
   "orchestration_policy": {
     "dynamic_skill_selection": false,

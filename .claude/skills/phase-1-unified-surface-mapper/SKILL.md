@@ -6,17 +6,19 @@ description: >-
 
 # Phase 1.4: Unified Surface, Dataflow & Implementation Mapper (`unified_surface_mapper`)
 
+> **Subagent Isolation Directive**: Perform single-pass manual code reading across all `target_modules` after `intent_invariant_modeler` (Step 1.3) and `extractor_tailor` (Step 1.2) have completed.
+
 Bạn đang thực thi **Bước 1.4 (`unified_surface_mapper`)** trong **Phase 1: Unified Reconnaissance (LocalSec v3.0)**.
 Trước khi nộp kết quả, hãy đối chiếu hợp đồng điều phối `AI-skills/contracts/v3-orchestration.json` và hai schema mục tiêu: `AI-skills/schemas/v3/unified_surface_mapper.schema.json` cùng `AI-skills/schemas/v3/coverage_ledger.schema.json`.
 
-Đây là bước trọng tâm kết hợp đọc mã nguồn một lượt duy nhất (**Single-Pass Manual Code Reading**), kiểm kê đầy đủ 9 loại bề mặt, đối sánh bất biến từ Bước 1.3 và gom cụm ngữ nghĩa an toàn (**Safe Semantic Clustering**):
+Đây là bước trọng tâm kết hợp đọc mã nguồn một lượt duy nhất (**Single-Pass Manual Code Reading**), kiểm kê đầy đủ 9 loại bề mặt, đối sánh bất biến từ Bước 1.3 và gom cụm ngữ nghĩa an toàn (**Safe Semantic Clustering**).
 
 ---
 
-## 1. Năm Yêu cầu Kỹ thuật Bắt buộc (`DEPTH-4.1a..d`, `ARCH-3F`, `DEPTH-4.2a`)
+## 1. Năm Yêu cầu Kỹ thuật Bắt buộc (`DEPTH-4.1a..d`, `ARCH-3F`, `DEPTH-4.2a`, `R2-P0-01`)
 
 1. **Danh sách Kiểm tra 9 Loại Bề mặt Tấn công (`surface_checklist` — `DEPTH-4.1a`)**:
-   - Bắt buộc đánh giá đầy đủ 9 loại bề mặt (ghi rõ `present`: `true`/`false`, số lượng và `evidence_ids` hoặc `searched_paths`):
+   - Bắt buộc đánh giá đầy đủ 9 loại bề mặt với trường **`"status": "present" | "absent" | "unknown"`** (TUYỆT ĐỐI KHÔNG dùng `"present": true/false`):
      1. `public_http`
      2. `internal_or_admin_http`
      3. `queue_or_event_consumer`
@@ -26,29 +28,34 @@ Trước khi nộp kết quả, hãy đối chiếu hợp đồng điều phối
      7. `cli_or_maintenance_job`
      8. `mobile_deeplink_or_exported_component`
      9. `ble_or_hardware_bus`
+   - Mọi bề mặt có `"status": "unknown"` sẽ được `finalize_v3_phase1` tự động đưa vào `candidate_queue` để điều tra ở Phase 2.
 2. **Kiểm kê `entrypoints[]` Giàu Ngữ cảnh (`DEPTH-4.1b`)**:
-   - Mỗi entrypoint trong `entrypoints[]` phải khai báo rõ các trường:
-     `id`, `surface_type`, `method`, `path`, `file`, `authn`, `authz`, `object_id_params` (danh sách tham số định danh đối tượng như `{id}`, `orderId`, `vin`, `stationId`, `session_id`), `ownership_check`, `input_binding`, `response_shape`, `rate_limit`, `status` và `evidence_ids`.
+   - Mỗi entrypoint trong `entrypoints[]` phải khai báo rõ các trường chuẩn:
+     - `id`, `method`, `path`, `file`, `authn`, `authz`, `object_id_params` (mảng tham số định danh đối tượng như `["sessionId"]` hoặc `[]`).
+     - `ownership_check`: bắt buộc thuộc enum **`"present" | "missing" | "partial" | "not_applicable" | "unknown"`** (nếu `object_id_params` khác rỗng và `ownership_check != "present"`, tự động sinh ứng viên BOLA/IDOR).
+     - `input_binding`: bắt buộc thuộc enum **`"dto_whitelist" | "raw_entity_or_map" | "unvalidated_json" | "none"`** (nếu `"raw_entity_or_map"`, tự động sinh ứng viên BOPLA/Mass-Assignment).
+     - `response_shape`, `rate_limit`, `status` và `evidence_ids`.
 3. **Luật Gom cụm Ngữ nghĩa An toàn (`Safe Clustering Rule` — `ARCH-3F` & `DEPTH-4.2a`)**:
-   - **Cấm gom cụm mù với `object_id_params` (`ARCH-3F`)**: Bất kỳ entrypoint nào có `object_id_params` khác rỗng (`non-empty`) **TUYỆT ĐỐI KHÔNG ĐƯỢC** làm thành viên gom cụm ngầm chưa kiểm chứng (`implicit unverified cluster member`). Bạn bắt buộc phải đọc trực tiếp kiểm tra quyền sở hữu (`ownership_check`) của nó kèm `ev_...` hoặc đưa nó vào danh sách **`outliers`** để điều tra BOLA/IDOR.
-   - **Kiểm tra xác suất cụm lớn (`spot_check_clusters` — `DEPTH-4.2a`)**: Với bất kỳ `semantic_cluster` nào có `>= 5` thành viên (`member_endpoints`), bắt buộc đọc sâu thêm ít nhất 1 thành viên thứ hai và ghi mã bằng chứng vào `spot_check_evidence_ids` để chứng minh tính đồng nhất của cụm.
-4. **Đối sánh Bất biến (`invariant_checks[]` — `DEPTH-4.1d`) & Luồng Dữ liệu (`data_flows[]`, `sensitive_data[]` — `DEPTH-4.1c`)**:
-   - Mọi `invariant_id` từ Bước 1.3 (`intent_invariant_modeler`) phải được đối chiếu thực tế triển khai trong `invariant_checks[]` (`enforced`, `violated_or_missing`, `partial`) kèm `evidence_ids`.
-   - Khai báo đầy đủ `data_flows[]` (inbound/outbound qua HTTP, gRPC, Kafka, MQTT, ZeroMQ, DB) và `sensitive_data[]` (PII, token, khóa, tọa độ GPS, lệnh điều khiển vật lý).
+   - Trong `semantic_clusters[]`, khai báo cả **`"representative_file"` + `"member_files"`** (cấp độ file cho Visibility Tracker) lẫn **`"representative_endpoint"` + `"member_endpoints"`** (cấp độ API), kèm `"representative_deep_read_evidence_ids"` và `"outliers"`.
+   - **Cấm gom cụm mù với `object_id_params` (`ARCH-3F`)**: Bất kỳ entrypoint nào có `object_id_params` khác rỗng **TUYỆT ĐỐI KHÔNG ĐƯỢC** làm thành viên gom cụm ngầm chưa kiểm chứng. Nó bắt buộc phải có `ownership_check: "present"` kèm `evidence_ids`, hoặc phải được đưa vào **`outliers`** / **`candidate_queue`**.
+   - **Kiểm tra xác suất cụm lớn (`spot_check_clusters` — `DEPTH-4.2a`)**: Với cụm có `>= 5` thành viên, bắt buộc đọc sâu thêm ít nhất 1 thành viên thứ hai ngoài `representative_file`.
+4. **Đối sánh Bất biến (`invariant_checks[]` — `DEPTH-4.1d`) & Luồng Dữ liệu (`data_flows[]` — `DEPTH-4.1c`)**:
+   - Mọi `invariant_id` từ Bước 1.3 phải được đối chiếu trong `invariant_checks[]` với `enforcement_status`: `"enforced" | "missing" | "partial" | "unknown"`.
+   - Trong `data_flows[]`, bắt buộc khai báo trường **`"identity_forwarding"`** thuộc enum: `"jwt_forwarded" | "mtls_client_cert" | "internal_header_signed" | "internal_header_unsigned" | "none" | "unknown"`.
+   - Đặt danh sách ứng viên vào trường **`"candidate_queue"`** (TUYỆT ĐỐI KHÔNG dùng tên cũ `"candidates"`).
 5. **Ghi sổ `coverage_ledger.json` & Tuân thủ `Anti-Grazing`**:
-   - Mọi module trong `target_modules` và mọi file `entrypoint` / `security` bắt buộc trong `inventory_repo.json` phải được mở đọc thực chất (cấm đọc lướt `<= 8` dòng đầu của file dài `> 25` dòng).
-   - Mỗi bản ghi `coverage_id` tuân thủ chuẩn RFC 3986 (4–5 phân đoạn `surface::boundary::subsystem::attack_class[::lifecycle]`).
+   - Mỗi bản ghi trong `records[]` tuân thủ định dạng `coverage_id` 4–5 phân đoạn `surface::boundary::subsystem::attack_class[::lifecycle]` (ví dụ `"http_api::csms_edge::src::bola_idor::active"`) và `status` thuộc `"covered_clean" | "covered_finding" | "reopened" | "deferred_out_of_budget"`.
 
 ---
 
 ## 2. Giao thức Thực thi CLI
 
-```bash
+```powershell
 # 1. Lấy các khối Attack-Class Companion nguyên văn từ AI-skills/contracts/attack-taxonomy-v1/manifest.json
 python -m localsec.manual_session select_attack_companions <repo_name>
 
 # 2. Đọc mã nguồn thực chất trên từng target_module và mandatory_files (tránh đọc <=8 dòng gây lỗi Anti-Grazing)
-python -m localsec.manual_session read_file <repo_name> <path> 1 160 --skill unified_surface_mapper
+python -m localsec.manual_session read_file <repo_name> src/ocpp_controller.py 1 160 --skill unified_surface_mapper
 
 # 3. Lưu kết quả unified_surface_mapper và coverage_ledger
 python -m localsec.manual_session submit_skill <repo_name> unified_surface_mapper .localsec/tmp/unified_surface_mapper_<repo_name>.json
@@ -57,122 +64,219 @@ python -m localsec.manual_session submit_skill <repo_name> coverage_ledger .loca
 
 ---
 
-## 3. Định dạng Đầu ra JSON (`unified_surface_mapper.json` & `coverage_ledger.json`)
-
-### 3.1. Mẫu `unified_surface_mapper.json` (`AI-skills/schemas/v3/unified_surface_mapper.schema.json`)
+## 3. Định dạng Đầu ra JSON Chuẩn (`unified_surface_mapper.schema.json` & `coverage_ledger.schema.json`)
 
 ```json
 {
-  "surface_checklist": {
-    "public_http": {"present": true, "count": 4, "evidence_ids": ["ev_..."]},
-    "internal_or_admin_http": {"present": true, "count": 2, "evidence_ids": ["ev_..."]},
-    "queue_or_event_consumer": {"present": false, "count": 0, "searched_paths": ["src/"]},
-    "scheduler_or_batch": {"present": false, "count": 0, "searched_paths": ["src/"]},
-    "webhook_or_callback": {"present": false, "count": 0, "searched_paths": ["src/"]},
-    "websocket_mqtt_ocpp": {"present": true, "count": 3, "evidence_ids": ["ev_..."]},
-    "cli_or_maintenance_job": {"present": false, "count": 0, "searched_paths": ["src/"]},
-    "mobile_deeplink_or_exported_component": {"present": false, "count": 0, "searched_paths": ["src/"]},
-    "ble_or_hardware_bus": {"present": false, "count": 0, "searched_paths": ["src/"]}
-  },
-  "entrypoints": [
-    {
-      "id": "EP-STOP-SESSION",
-      "surface_type": "public_http",
-      "method": "POST",
-      "path": "/api/v1/sessions/{sessionId}/remote-stop",
-      "file": "src/controllers/charging.controller.ts",
-      "authn": "JwtAuthGuard",
-      "authz": "Authenticated B2C User",
-      "object_id_params": ["sessionId"],
-      "ownership_check": "missing_or_unverified",
-      "input_binding": "@Param('sessionId') + @Body() StopSessionDto",
-      "response_shape": "SessionCommandAckDto",
-      "rate_limit": "none_observed",
-      "status": "observed",
-      "evidence_ids": ["ev_..."]
-    }
-  ],
-  "invariant_checks": [
-    {
-      "invariant_id": "INV-OCPP-STOP-01",
-      "enforcement_status": "violated_or_missing",
-      "notes": "Controller dispatches RemoteStopTransaction by sessionId without checking session.userId == req.user.id",
-      "evidence_ids": ["ev_..."]
-    }
-  ],
-  "data_flows": [
-    {
-      "flow_id": "DF-CSMS-TO-CHARGER",
-      "direction": "outbound",
-      "source": "src/controllers/charging.controller.ts",
-      "destination": "ocpp-ws-gateway:/ocpp/remote-stop",
-      "protocol": "WebSocket/OCPP-1.6J",
-      "data_types": ["charging_command", "session_id"],
-      "trust_boundary": "cloud_csms_to_station",
-      "auth_or_integrity": "station_basic_auth",
-      "status": "observed",
-      "evidence_ids": ["ev_..."]
-    }
-  ],
-  "sensitive_data": [
-    {
-      "data_class": "charging_session_control_token",
-      "storage_or_sink": "Redis + OCPP WebSocket payload",
-      "protection": "TLS in transit, no per-user ownership binding on stop command",
-      "status": "observed",
-      "evidence_ids": ["ev_..."]
-    }
-  ],
-  "candidates": [
-    {
-      "candidate_id": "CAND-OCPP-BOLA-01",
-      "title": "BOLA on POST /api/v1/sessions/{sessionId}/remote-stop allows arbitrary charging session termination",
-      "priority": "P0",
-      "affected_axis": "O",
-      "entrypoint_id": "EP-STOP-SESSION",
-      "violated_invariant_id": "INV-OCPP-STOP-01",
-      "file": "src/controllers/charging.controller.ts",
-      "evidence_ids": ["ev_..."]
-    }
-  ]
-}
-```
-
-### 3.2. Mẫu `coverage_ledger.json` (`AI-skills/schemas/v3/coverage_ledger.schema.json`)
-
-```json
-{
-  "records": [
-    {
-      "coverage_id": "http_api::b2c_mobile_edge::charging_controller::bola_tenant_isolation::active",
-      "status": "covered_finding",
-      "evidence_ids": ["ev_..."],
-      "attempts": [
-        {
-          "attempt_number": 1,
-          "skill": "unified_surface_mapper",
-          "outcome": "Mismatch found: stopSession endpoint checks JWT validity but does not verify session.userId == currentUser.id"
-        }
-      ]
-    }
-  ],
-  "semantic_clusters": [
-    {
-      "cluster_id": "CLUST-READONLY-CATALOG",
-      "shared_control_signature": "JwtAuthGuard + TenantReadOnlyInterceptor with parameterized TypeORM findByTenant() and zero object_id_params",
-      "representative_deep_read_evidence_ids": ["ev_..."],
-      "spot_check_evidence_ids": ["ev_..."],
-      "member_endpoints": [
-        "GET /api/v1/stations",
-        "GET /api/v1/tariffs",
-        "GET /api/v1/connectors",
-        "GET /api/v1/amenities",
-        "GET /api/v1/regions"
-      ],
-      "outliers": [
-        "POST /api/v1/sessions/{sessionId}/remote-stop"
-      ]
-    }
-  ]
+  "status": "ok",
+  "result": {
+    "surface_checklist": [
+      {
+        "surface_type": "public_http",
+        "status": "present",
+        "evidence_ids": [
+          "ev_001"
+        ]
+      },
+      {
+        "surface_type": "internal_or_admin_http",
+        "status": "absent",
+        "searched_paths": [
+          "src"
+        ]
+      },
+      {
+        "surface_type": "queue_or_event_consumer",
+        "status": "absent",
+        "searched_paths": [
+          "src"
+        ]
+      },
+      {
+        "surface_type": "scheduler_or_batch",
+        "status": "absent",
+        "searched_paths": [
+          "src"
+        ]
+      },
+      {
+        "surface_type": "webhook_or_callback",
+        "status": "absent",
+        "searched_paths": [
+          "src"
+        ]
+      },
+      {
+        "surface_type": "websocket_mqtt_ocpp",
+        "status": "present",
+        "evidence_ids": [
+          "ev_001"
+        ]
+      },
+      {
+        "surface_type": "cli_or_maintenance_job",
+        "status": "absent",
+        "searched_paths": [
+          "src"
+        ]
+      },
+      {
+        "surface_type": "mobile_deeplink_or_exported_component",
+        "status": "absent",
+        "searched_paths": [
+          "src"
+        ]
+      },
+      {
+        "surface_type": "ble_or_hardware_bus",
+        "candidate_id": "cand_111122223333",
+        "status": "unknown",
+        "searched_paths": [
+          "src"
+        ]
+      }
+    ],
+    "entrypoints": [
+      {
+        "id": "EP-STATION-LIST",
+        "method": "GET",
+        "path": "/api/v1/stations",
+        "file": "src/ocpp_controller.py",
+        "authn": "require_jwt",
+        "authz": "authenticated_user",
+        "object_id_params": [],
+        "ownership_check": "not_applicable",
+        "input_binding": "none",
+        "response_shape": "StationListDto",
+        "rate_limit": "none",
+        "status": "observed",
+        "evidence_ids": [
+          "ev_001"
+        ]
+      },
+      {
+        "id": "EP-REMOTE-START",
+        "candidate_id": "cand_111122223333",
+        "method": "POST",
+        "path": "/api/v1/sessions/{sessionId}/remote-start",
+        "file": "src/ocpp_controller.py",
+        "authn": "require_jwt",
+        "authz": "authenticated_user",
+        "object_id_params": [
+          "sessionId"
+        ],
+        "ownership_check": "missing",
+        "input_binding": "raw_entity_or_map",
+        "response_shape": "SessionCommandAckDto",
+        "rate_limit": "none",
+        "status": "observed",
+        "evidence_ids": [
+          "ev_001"
+        ]
+      }
+    ],
+    "semantic_clusters": [
+      {
+        "cluster_id": "CLUST-PUBLIC-CATALOG",
+        "shared_control_signature": "require_jwt + read-only station query with empty object_id_params",
+        "shared_guard_signature": "require_jwt",
+        "representative_file": "src/ocpp_controller.py",
+        "member_files": [
+          "src/ocpp_controller.py"
+        ],
+        "representative_endpoint": "GET /api/v1/stations",
+        "member_endpoints": [
+          "GET /api/v1/stations"
+        ],
+        "representative_deep_read_evidence_ids": [
+          "ev_001"
+        ],
+        "outliers": [
+          {
+            "candidate_id": "cand_111122223333",
+            "id": "EP-REMOTE-START",
+            "method": "POST",
+            "path": "/api/v1/sessions/{sessionId}/remote-start",
+            "file": "src/ocpp_controller.py",
+            "evidence_ids": [
+              "ev_001"
+            ]
+          }
+        ]
+      }
+    ],
+    "invariant_checks": [
+      {
+        "invariant_id": "INV-SAFE-01",
+        "candidate_id": "cand_111122223333",
+        "enforcement_status": "missing",
+        "status": "observed",
+        "intent_evidence_ids": [
+          "ev_001"
+        ],
+        "implementation_evidence_ids": [
+          "ev_001"
+        ],
+        "evidence_ids": [
+          "ev_001"
+        ],
+        "notes": "RemoteStartTransaction handler does not verify session ownership before energizing connector"
+      }
+    ],
+    "data_flows": [
+      {
+        "source": "src/ocpp_controller.py",
+        "destination": "ocpp://charger/RemoteStartTransaction",
+        "protocol": "websocket_ocpp",
+        "identity_forwarding": "internal_header_unsigned",
+        "status": "observed",
+        "evidence_ids": [
+          "ev_001"
+        ]
+      }
+    ],
+    "sensitive_data": [
+      {
+        "data_class": "charging_session_command_token",
+        "path": "src/ocpp_controller.py",
+        "status": "observed",
+        "evidence_ids": [
+          "ev_001"
+        ]
+      }
+    ],
+    "candidate_queue": [
+      {
+        "candidate_id": "cand_111122223333",
+        "title": "BOLA and BOPLA on POST /api/v1/sessions/{sessionId}/remote-start",
+        "target_paths": [
+          "src/ocpp_controller.py"
+        ],
+        "attack_classes": [
+          "BOLA_IDOR"
+        ],
+        "severity": "high",
+        "evidence_ids": [
+          "ev_001"
+        ]
+      }
+    ],
+    "records": [
+      {
+        "coverage_id": "http_api::csms_edge::src::bola_idor::active",
+        "status": "covered_finding",
+        "evidence_ids": [
+          "ev_001"
+        ],
+        "attempts": [
+          {
+            "attempt_number": 1,
+            "skill": "unified_surface_mapper",
+            "outcome": "Identified missing ownership_check and raw_entity_or_map binding on remote-start endpoint"
+          }
+        ]
+      }
+    ]
+  }
 }
 ```

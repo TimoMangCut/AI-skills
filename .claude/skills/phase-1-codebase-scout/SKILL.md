@@ -6,10 +6,12 @@ description: >-
 
 # Phase 1.1 Micro-Skill: Codebase & Convention Scout (`codebase_scout`)
 
+> **Subagent Isolation Directive**: Run this skill in the Phase 1 reconnaissance context for the target repository before reading implementation code.
+
 Bạn đang thực thi **Micro-Skill `phase-1-codebase-scout` (Bước 1.1)** trong bộ kỹ năng **LocalSec v3.0**.
 Trước khi nộp kết quả, hãy đối chiếu hợp đồng điều phối `AI-skills/contracts/v3-orchestration.json` và schema mục tiêu `AI-skills/schemas/v3/codebase_scout.schema.json`.
 
-Mục tiêu của bước này là **định vị chính xác mẫu số kiểm toán tất định** kết hợp khảo sát cấu trúc bằng AI: chạy `inventory_repo` trước để lấy danh sách `mandatory_files` và `scan_repo_leads`, sau đó dùng `list_dir` và đọc lướt các file manifest/wiring mẫu để phân loại **Product Archetype**, xếp hạng **Repo Tier (1/2/3)** và khóa **Target Modules Map** trước khi chuyển sang Bước 1.3 (`intent_invariant_modeler`).
+Mục tiêu của bước này là **định vị chính xác mẫu số kiểm toán tất định** kết hợp khảo sát cấu trúc bằng AI: chạy `inventory_repo` trước để lấy danh sách `mandatory_files` và `scan_repo_leads`, sau đó dùng `list_dir` và đọc lướt các file manifest/wiring mẫu để phân loại **Product Archetype**, xếp hạng **Repo Tier (`tier_1` / `tier_2` / `tier_3`)** và khóa **Target Modules Map** trước khi chuyển sang Bước 1.3 (`intent_invariant_modeler`).
 
 ---
 
@@ -20,21 +22,20 @@ Mục tiêu của bước này là **định vị chính xác mẫu số kiểm 
    - File `.localsec/runs/default/<repo_name>/inventory_repo.json` cung cấp danh sách tất định `mandatory_files` (phân loại theo `entrypoint`, `security`, `wiring_config`, `outbound`, `data_access`) cùng các dấu vết nhạy cảm/phụ thuộc (`scan_repo_leads`).
 2. **Độ phủ Bắt buộc của `target_modules` & Enum `ignored_modules`**:
    - `target_modules` **BẮT BUỘC phải bao phủ 100% các thư mục có chứa file `entrypoint` hoặc `security`** trong `inventory_repo.json`.
-   - Nếu loại trừ bất kỳ thư mục nào vào `ignored_modules`, mỗi mục **BẮT BUỘC** phải khai báo `reason` thuộc đúng tập enum chuẩn:
+   - Nếu loại trừ bất kỳ thư mục nào vào `ignored_modules`, mỗi mục **BẮT BUỘC** phải khai báo `path` và `reason` thuộc đúng tập enum chuẩn trong `contracts/v3-orchestration.json`:
      - `test_or_mock`
      - `generated_code`
      - `third_party_vendor`
      - `deprecated_dead_code`
      - `docs_or_assets`
-     kèm theo giải trình `notes` / `justification` cụ thể.
 3. **Tuân thủ Thứ tự `Intent Before Code` (`ARCH-3K`)**:
-   - Ở Bước 1.1, chỉ duyệt cấu trúc thư mục (`list_dir --depth 2`) và đọc các file manifest/build/wiring (`package.json`, `go.mod`, `pom.xml`, `CMakeLists.txt`, `Dockerfile`, `localsec.toml`, config định tuyến) để lập bản đồ module mà chưa đọc sâu logic nghiệp vụ, nhằm giữ nguyên tính độc lập cho Bước 1.3 (`intent_invariant_modeler`).
+   - Ở Bước 1.1, chỉ duyệt cấu trúc thư mục (`list_dir --depth 2`) và đọc các file manifest/build/wiring (`package.json`, `go.mod`, `pom.xml`, `CMakeLists.txt`, `Dockerfile`, `localsec.toml`, config định tuyến) để lập bản đồ module và chọn `canary_files`, giữ nguyên tính độc lập cho Bước 1.3 (`intent_invariant_modeler`).
 
 ---
 
 ## 2. Phân loại Product Archetypes & Repo Tier
 
-### 2.1. Product Archetypes (Chọn tất cả nhãn phù hợp với Repo)
+### 2.1. Product Archetypes (`product_archetypes` & `detected_archetypes`)
 - `automotive_connected_car_ota_tbox` (VinFast ECU/T-Box, Uptane/OTA, CAN/UDS, SOME/IP, DoIP, eSIM)
 - `ev_charging_ocpp_ocpi_bess` (V-Green CSMS, OCPP 1.6J/2.0.1, OCPI, ISO 15118 Plug&Charge)
 - `robotics_cpp_ros2_ot_scada_bess` (VinRobotics `vla.cpp`, C++/ZeroMQ/GGUF, ROS2/DDS, VinEnergo BESS Modbus/OPC-UA/IEC-104, VinMetal ISA-95)
@@ -50,8 +51,8 @@ Mục tiêu của bước này là **định vị chính xác mẫu số kiểm 
 - `data_kafka_flink_doris_superset_airflow` (Kafka, Flink, Spark, Apache Doris, Superset, Airflow DAGs)
 - `ai_llm_vla_model_serving_datasets` (LLM/RAG, MCP tools, PyTorch/ONNX/TensorRT/GGUF, Triton/vLLM)
 
-### 2.2. Phân hạng Repo Tier (Adaptive Cost-Efficiency)
-- **`tier_1` (Critical Production / Safety / Core Auth / Financial / Gateway / OT Control)**: Cần đọc sâu đầy đủ và kiểm chứng mọi bất biến S-F-O-P-C.
+### 2.2. Phân hạng Repo Tier
+- **`tier_1` (Critical Production / Safety / Core Auth / Financial / Gateway / OT Control)**: Đọc sâu đầy đủ và kiểm chứng mọi bất biến S-F-O-P-C.
 - **`tier_2` (Standard Internal Backend / B2B Service / Data Pipeline / Supporting App)**: Tập trung vào trust boundary, authz, đầu vào/đầu ra nhạy cảm.
 - **`tier_3` (Static UI Library / SDK Wrapper / Documentation / Prototype / Test Utility)**: Chế độ khảo sát nhẹ (Lightweight Recon), kiểm tra hardcoded secrets, dependency/supply-chain và cấu hình.
 
@@ -59,7 +60,7 @@ Mục tiêu của bước này là **định vị chính xác mẫu số kiểm 
 
 ## 3. Giao thức Thực thi CLI
 
-```bash
+```powershell
 # 1. Chạy kiểm kê tất định để lấy mandatory_files (entrypoint, security, wiring_config, outbound, data_access) và scan_repo_leads
 python -m localsec.manual_session inventory_repo <repo_name> --tier 1
 
@@ -75,46 +76,38 @@ python -m localsec.manual_session register_scout_map <repo_name> .localsec/tmp/c
 
 ---
 
-## 4. Định dạng Đầu ra JSON (`AI-skills/schemas/v3/codebase_scout.schema.json`)
+## 4. Định dạng Đầu ra JSON Chuẩn (`AI-skills/schemas/v3/codebase_scout.schema.json`)
 
 ```json
 {
-  "repo_tier": "tier_1",
-  "product_archetypes": [
-    "api_rest_graphql_grpc_websocket",
-    "ev_charging_ocpp_ocpi_bess"
-  ],
-  "target_modules": [
-    "src/controllers",
-    "src/ocpp/handlers",
-    "src/middlewares",
-    "src/services"
-  ],
-  "ignored_modules": [
-    {
-      "path": "src/migrations",
-      "reason": "generated_code",
-      "notes": "Autogenerated schema migrations; inspected only if schema drift is suspected"
+  "status": "ok",
+  "result": {
+    "repo_tier": "tier_1",
+    "product_archetypes": [
+      "ev_charging_ocpp_ocpi_bess"
+    ],
+    "detected_archetypes": [
+      "ev_charging_ocpp_ocpi_bess"
+    ],
+    "coding_conventions": {
+      "framework": "FastAPI + OCPP",
+      "auth_guard": "require_jwt"
     },
-    {
-      "path": "test/fixtures",
-      "reason": "test_or_mock",
-      "notes": "Static unit test fixtures without production wiring"
-    }
-  ],
-  "coding_conventions": {
-    "language": "TypeScript",
-    "framework": "NestJS",
-    "routing_style": "Decorator-based (@Controller, @Post, @MessagePattern)",
-    "auth_guard_style": "Custom @UseGuards(JwtAuthGuard, RolesGuard) with @Public() opt-out",
-    "data_access_style": "TypeORM repositories + raw queryRunner.query in billing module",
-    "canary_sample_files": [
-      "src/controllers/charging.controller.ts",
-      "src/ocpp/handlers/boot-notification.handler.ts"
+    "target_modules": [
+      "src"
+    ],
+    "ignored_modules": [
+      {
+        "path": "docs",
+        "reason": "docs_or_assets"
+      }
+    ],
+    "canary_files": [
+      "src/ocpp_controller.py"
+    ],
+    "sample_evidence_ids": [
+      "ev_001"
     ]
-  },
-  "sample_evidence_ids": [
-    "ev_..."
-  ]
+  }
 }
 ```

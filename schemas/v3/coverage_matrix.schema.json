@@ -12,6 +12,25 @@
       "type": "string",
       "minLength": 1
     },
+    "generated_by": {
+      "type": "string"
+    },
+    "target_modules": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "attack_classes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "record_count": {
+      "type": "integer",
+      "minimum": 0
+    },
     "cells": {
       "type": "array",
       "items": {
@@ -33,6 +52,9 @@
             "type": "string",
             "minLength": 1
           },
+          "target_module": {
+            "type": "string"
+          },
           "attack_class": {
             "type": "string",
             "minLength": 1
@@ -44,6 +66,11 @@
           "status": {
             "type": "string",
             "enum": [
+              "unassessed",
+              "covered_safe",
+              "flagged_for_phase_2",
+              "deferred",
+              "verified_safe",
               "observed",
               "derived",
               "hypothesis",
@@ -67,6 +94,12 @@
             "type": "string"
           }
         }
+      }
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object"
       }
     },
     "summary": {

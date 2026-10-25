@@ -2,6 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "LocalSec v3.0 Phase 1.4 Unified Surface Mapper Schema",
   "type": "object",
+  "required": [
+    "surface_checklist",
+    "entrypoints",
+    "semantic_clusters",
+    "invariant_checks",
+    "candidate_queue"
+  ],
   "properties": {
     "repo_name": {
       "type": "string"
@@ -16,19 +23,31 @@
       "type": "array",
       "items": {
         "type": "object",
+        "required": [
+          "id",
+          "method",
+          "path",
+          "file",
+          "object_id_params",
+          "ownership_check",
+          "evidence_ids"
+        ],
         "properties": {
           "id": {
             "type": "string",
             "minLength": 1
           },
           "method": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "path": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "file": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1
           },
           "authn": {
             "type": "string"
@@ -37,16 +56,19 @@
             "type": "string"
           },
           "object_id_params": {
-            "type": [
-              "array",
-              "string"
-            ]
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "ownership_check": {
-            "type": [
-              "string",
-              "boolean",
-              "object"
+            "type": "string",
+            "enum": [
+              "present",
+              "missing",
+              "partial",
+              "not_applicable",
+              "unknown"
             ]
           },
           "ownership_evidence_ids": {
@@ -56,25 +78,19 @@
             }
           },
           "input_binding": {
-            "type": [
-              "string",
-              "object",
-              "array"
+            "type": "string",
+            "enum": [
+              "dto_whitelist",
+              "raw_entity_or_map",
+              "unvalidated_json",
+              "none"
             ]
           },
           "response_shape": {
-            "type": [
-              "string",
-              "object",
-              "array"
-            ]
+            "type": "string"
           },
           "rate_limit": {
-            "type": [
-              "string",
-              "boolean",
-              "object"
-            ]
+            "type": "string"
           },
           "status": {
             "type": "string"
@@ -95,6 +111,13 @@
       "type": "array",
       "items": {
         "type": "object",
+        "required": [
+          "cluster_id",
+          "representative_endpoint",
+          "representative_deep_read_evidence_ids",
+          "member_endpoints",
+          "outliers"
+        ],
         "properties": {
           "cluster_id": {
             "type": "string",
@@ -112,10 +135,17 @@
           "representative_endpoint": {
             "type": "string"
           },
-          "representative_Format": {
+          "representative_file": {
             "type": "string"
           },
           "representative_deep_read_evidence_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "member_files": {
             "type": "array",
             "items": {
               "type": "string"
@@ -168,6 +198,10 @@
       "type": "array",
       "items": {
         "type": "object",
+        "required": [
+          "invariant_id",
+          "enforcement_status"
+        ],
         "properties": {
           "invariant_id": {
             "type": "string",
@@ -212,7 +246,38 @@
     "data_flows": {
       "type": "array",
       "items": {
-        "type": "object"
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "destination": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "identity_forwarding": {
+            "type": "string",
+            "enum": [
+              "jwt_forwarded",
+              "mtls_client_cert",
+              "internal_header_signed",
+              "internal_header_unsigned",
+              "none",
+              "unknown"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       }
     },
     "sensitive_data": {
@@ -224,10 +289,53 @@
     "candidate_queue": {
       "type": "array",
       "items": {
-        "type": [
-          "object",
-          "string"
-        ]
+        "type": "object",
+        "required": [
+          "candidate_id",
+          "title",
+          "target_paths",
+          "attack_classes",
+          "evidence_ids"
+        ],
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "target_paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "attack_classes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "negligible",
+              "low",
+              "medium",
+              "high",
+              "critical",
+              "catastrophic"
+            ]
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       }
     },
     "records": {
@@ -245,27 +353,5 @@
     "summary": {
       "type": "string"
     }
-  },
-  "anyOf": [
-    {
-      "required": [
-        "entrypoints"
-      ]
-    },
-    {
-      "required": [
-        "surface_checklist"
-      ]
-    },
-    {
-      "required": [
-        "semantic_clusters"
-      ]
-    },
-    {
-      "required": [
-        "candidate_queue"
-      ]
-    }
-  ]
+  }
 }

@@ -3,11 +3,13 @@
   "title": "LocalSec v3.0 Phase 1.2 Extractor Tailor Schema",
   "type": "object",
   "required": [
-    "canary_verified",
-    "rationale"
+    "mode",
+    "rationale",
+    "canary_files",
+    "canary_verified"
   ],
   "properties": {
-    "extractor_decision": {
+    "mode": {
       "type": "string",
       "enum": [
         "USE_STANDARD_EXTRACTOR",
@@ -16,7 +18,7 @@
         "SKIP_EXTRACTOR_DIRECT_READ"
       ]
     },
-    "mode": {
+    "extractor_decision": {
       "type": "string",
       "enum": [
         "USE_STANDARD_EXTRACTOR",
@@ -35,7 +37,8 @@
     "canary_files": {
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1
       }
     },
     "expected_canary_hits": {
@@ -51,6 +54,9 @@
       "minimum": 0
     },
     "script_path": {
+      "type": "string"
+    },
+    "patterns_file": {
       "type": "string"
     },
     "evidence_ids": {

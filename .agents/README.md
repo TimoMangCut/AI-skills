@@ -16,24 +16,26 @@ Hệ thống gồm **16 Skills thuần v3.0** đồng bộ 100% giữa `.agents/
 
 ---
 
-## 2. Cách 1 (Khuyên dùng): Chạy Trọn Bộ Từng Phase Chỉ Với 1 Lệnh
+## 2. Cách 1 (Khuyên dùng): Chạy Trọn Bộ Từng Phase Theo Ranh Giới Phiên `Repo x Phase`
+
+> **Kỷ luật Ranh giới Phiên (`Repo x Phase` Session Boundary):** Mỗi Phase (`Phase 1`, `Phase 2`, `Phase 3`) nên được chạy trong một phiên hội thoại mới (fresh session/context) để tránh tràn ngữ cảnh và nhiễm chéo thiên kiến giữa các Phase. Cuối mỗi Phase, Orchestrator bắt buộc chạy cổng khóa sổ (`finalize_v3_phase1` / `finalize_v3_phase2` / `finalize_v3_phase3`) và in ra lệnh chính xác để khởi chạy Phase kế tiếp.
 
 ### Bước A — Chạy Toàn bộ Phase 1 (Unified Reconnaissance v3.0 — Intent Before Code)
 ```text
 /phase-1-orchestrator Thực hiện Phase 1 (Unified Reconnaissance v3.0) cho toàn bộ repositories theo đúng thứ tự Intent Before Code (1.1 -> 1.3 -> 1.2 -> 1.4 -> 1.5 -> 1.6).
-Áp dụng kỷ luật Refute-first: chạy inventory_repo + codebase_scout, tiếp theo chạy intent_invariant_modeler trước khi đọc code thực thi, chạy extractor_tailor, unified_surface_mapper, match_cross_repo_boundaries + cross_repo_and_arch_review, cuối cùng chạy coverage_and_evidence_auditor và finalize_v3_phase1.
+Áp dụng kỷ luật Refute-first: chạy inventory_repo + codebase_scout, tiếp theo chạy intent_invariant_modeler trước khi đọc code thực thi, chạy extractor_tailor, unified_surface_mapper, match_cross_repo_boundaries + cross_repo_and_arch_review, cuối cùng chạy coverage_and_evidence_auditor và cổng khóa sổ tất định finalize_v3_phase1.
 ```
 
-### Bước B — Chạy Toàn bộ Phase 2 (Deep Analysis & Falsification v3.0)
+### Bước B — Chạy Toàn bộ Phase 2 (Deep Analysis & Falsification v3.0 — Mở Phiên Mới)
 ```text
 /phase-2-orchestrator Thực hiện Phase 2 (Deep Analysis & Falsification v3.0) nối tiếp candidate_queue.json từ Phase 1.
-Chạy tuần tự 4 bước (2.1 -> 2.4): nạp nguyên văn các khối Attack-Class Companion, truy vết sâu hops[] (kèm hop_kind) + dựng chuỗi tấn công + tìm Root-Cause cho 100% candidate_id, khởi chạy Subagent cô lập để phản biện đối kháng ở chế độ Mù Kết luận trên 6 vị trí control_search_checklist, và khóa sổ qua analysis_evidence_gate cùng finalize_v3_phase2.
+Chạy tuần tự 4 bước (2.1 -> 2.4): nạp nguyên văn các khối Attack-Class Companion, truy vết sâu hops[] (kèm hop_kind) + dựng chuỗi tấn công + tìm Root-Cause cho 100% candidate_id, chạy prepare_blinded_chain_verifier và khởi chạy Subagent cô lập (chỉ truyền duy nhất file .localsec/tmp/blinded_chains_<repo_name>.json) để phản biện đối kháng ở chế độ Mù Kết luận trên 6 vị trí control_search_checklist, và khóa sổ qua analysis_evidence_gate cùng cổng tất định finalize_v3_phase2.
 ```
 
-### Bước C — Chạy Toàn bộ Phase 3 (Contextual Risk & Exploitability Assessment v3.0)
+### Bước C — Chạy Toàn bộ Phase 3 (Contextual Risk & Exploitability Assessment v3.0 — Mở Phiên Mới)
 ```text
 /phase-3-orchestrator Thực hiện Phase 3 (Contextual Risk & Exploitability Assessment v3.0) cho 100% các chain_id sống sót từ Phase 2.
-Chạy tuần tự 3 bước (3.1 -> 3.3): chứng minh Actor/Role tối thiểu và điều kiện tiên quyết yes/no/unknown, đối chiếu các lớp kiểm soát ngoài code (Cloudflare WAF vs Bare ALB, VPC 10.x, mTLS, OT Interlock), hiệu chuẩn rủi ro định lượng 5 trục S-F-O-P-C, sau đó chạy finalize_v3_phase3 và render_v3_report.
+Chạy tuần tự 3 bước (3.1 -> 3.3): chứng minh minimum_actor và điều kiện tiên quyết yes/no/unknown, đối chiếu các lớp kiểm soát ngoài code (Cloudflare WAF vs Bare ALB, VPC 10.x, mTLS, OT Interlock với status confirmed/hypothesis/absent), hiệu chuẩn rủi ro định lượng 5 trục impact_axes (S-F-O-P-C), sau đó chạy cổng tất định finalize_v3_phase3 và render_v3_report.
 ```
 
 ---
@@ -44,32 +46,32 @@ Chạy tuần tự 3 bước (3.1 -> 3.3): chứng minh Actor/Role tối thiểu
 
 | Thứ tự | Lệnh Skill | Schema Mục tiêu & Cổng kiểm định cốt lõi |
 |---|---|---|
-| **1.0** | `/phase-1-orchestrator` | Điều phối trọn bộ 6 bước Phase 1 Unified Reconnaissance v3.0 theo `AI-skills/contracts/v3-orchestration.json`. |
+| **1.0** | `/phase-1-orchestrator` | Điều phối trọn bộ 6 bước Phase 1 Unified Reconnaissance v3.0 theo `AI-skills/contracts/v3-orchestration.json`, kết thúc bằng `finalize_v3_phase1` và in lệnh chuyển sang Phase 2. |
 | **1.1** | `/phase-1-codebase-scout` | Chạy `inventory_repo` trước, khảo sát cấu trúc thư mục và lập `Target Modules Map` bao phủ 100% thư mục chứa `entrypoint`/`security` files (`AI-skills/schemas/v3/codebase_scout.schema.json`). |
 | **1.3** | `/phase-1-intent-invariant-modeler` | Chạy **TRƯỚC khi đọc code thực thi (`ARCH-3K`)**: dựng mô hình Ý định Nghiệp vụ & Bất biến S-F-O-P-C từ tài liệu/spec/manifest và tự rà soát phản biện bất biến (`AI-skills/schemas/v3/intent_invariant_modeler.schema.json`). |
 | **1.2** | `/phase-1-extractor-tailor` | Đánh giá/tinh chỉnh Python structural extractor trên `canary_files` với `--patterns-file` và `--expected-canary-hits` (`AI-skills/schemas/v3/extractor_tailor.schema.json`). |
-| **1.4** | `/phase-1-unified-surface-mapper` | Đọc mã nguồn 1 lượt (Single-Pass): kiểm kê 9 loại bề mặt (`surface_checklist`), `entrypoints[]` giàu ngữ cảnh, Safe Semantic Clustering (`ARCH-3F`), `invariant_checks[]`, `data_flows[]`, `sensitive_data[]` (`AI-skills/schemas/v3/unified_surface_mapper.schema.json` & `AI-skills/schemas/v3/coverage_ledger.schema.json`). |
+| **1.4** | `/phase-1-unified-surface-mapper` | Đọc mã nguồn 1 lượt (Single-Pass): kiểm kê 9 loại bề mặt (`surface_checklist`), `entrypoints[]` giàu ngữ cảnh, Safe Semantic Clustering (`ARCH-3F`), `invariant_checks[]`, `data_flows[]`, `sensitive_data[]`, `records[]` (`AI-skills/schemas/v3/unified_surface_mapper.schema.json` & `AI-skills/schemas/v3/coverage_ledger.schema.json`). |
 | **1.5** | `/phase-1-cross-repo-and-arch-review` | Chạy `match_cross_repo_boundaries` trước, phát hiện lệch giả định tin cậy xuyên repo và vẽ sơ đồ Mermaid (`AI-skills/schemas/v3/cross_repo_and_arch_review.schema.json`). |
-| **1.6** | `/phase-1-coverage-and-evidence-auditor` | Cổng kiểm toán độc lập và chạy `finalize_v3_phase1` để xuất `coverage_matrix.json` cùng `candidate_queue.json` (`AI-skills/schemas/v3/coverage_and_evidence_auditor.schema.json`). |
+| **1.6** | `/phase-1-coverage-and-evidence-auditor` | Cổng kiểm toán độc lập và chạy cổng khóa sổ tất định `finalize_v3_phase1` để xuất `coverage_matrix.json` cùng `candidate_queue.json` (`AI-skills/schemas/v3/coverage_and_evidence_auditor.schema.json`). |
 
 ### PHASE 2 — Deep Analysis & Falsification (`/phase-2-*` — 5 Skills)
 
 | Thứ tự | Lệnh Skill | Schema Mục tiêu & Cổng kiểm định cốt lõi |
 |---|---|---|
-| **2.0** | `/phase-2-orchestrator` | Điều phối trọn bộ 4 bước Phase 2 Deep Analysis & Falsification v3.0 trên `candidate_queue.json`. |
+| **2.0** | `/phase-2-orchestrator` | Điều phối trọn bộ 4 bước Phase 2 Deep Analysis & Falsification v3.0 trên `candidate_queue.json`, kết thúc bằng `finalize_v3_phase2` và in lệnh chuyển sang Phase 3. |
 | **2.1** | `/phase-2-candidate-intake-planner` | Đọc `candidate_queue.json`, chạy `select_attack_companions` xuất `selected_attack_companions.json` (`AI-skills/schemas/v3/candidate_intake_planner.schema.json`). |
 | **2.2** | `/phase-2-deep-trace-chain-analyst` | Hạch toán 100% `candidate_id` vào `chains[]` hoặc `unexploitable_candidates[]`, truy vết `hops[]` kèm `hop_kind` và bằng chứng hai đầu (`AI-skills/schemas/v3/deep_trace_chain_analyst.schema.json`). |
-| **2.3** | `/phase-2-blinded-counterevidence-challenger` | Chạy trong **Subagent cô lập (`ARCH-3E`)** với `.localsec/tmp/blinded_chains_<repo_name>.json`, kiểm tra đủ 6 vị trí `control_search_checklist` (`AI-skills/schemas/v3/blinded_counterevidence_challenger.schema.json`). |
-| **2.4** | `/phase-2-analysis-evidence-gate` | Cổng kiểm toán bằng chứng và chạy `finalize_v3_phase2` để bàn giao các chuỗi sống sót sang Phase 3 (`AI-skills/schemas/v3/analysis_evidence_gate.schema.json`). |
+| **2.3** | `/phase-2-blinded-counterevidence-challenger` | Chạy trong **Subagent cô lập / Fresh Context (`ARCH-3E`)** chỉ nhận duy nhất file Whitelist `.localsec/tmp/blinded_chains_<repo_name>.json` (gồm `control_search_paths`), kiểm tra đủ 6 vị trí `control_search_checklist` (`AI-skills/schemas/v3/blinded_counterevidence_challenger.schema.json`). |
+| **2.4** | `/phase-2-analysis-evidence-gate` | Cổng kiểm toán bằng chứng và chạy cổng khóa sổ tất định `finalize_v3_phase2` để bàn giao các chuỗi sống sót sang Phase 3 (`AI-skills/schemas/v3/analysis_evidence_gate.schema.json`). |
 
 ### PHASE 3 — Contextual Risk & Exploitability Assessment (`/phase-3-*` — 4 Skills)
 
 | Thứ tự | Lệnh Skill | Schema Mục tiêu & Cổng kiểm định cốt lõi |
 |---|---|---|
-| **3.0** | `/phase-3-orchestrator` | Điều phối trọn bộ Phase 3, `finalize_v3_phase3` và `render_v3_report`. |
-| **3.1** | `/phase-3-actor-and-feasibility-assessor` | Giữ nguyên `chain_id` từ Phase 2, chứng minh Actor/Role tối thiểu và lượng hóa điều kiện tiên quyết `yes`/`no`/`unknown` (`AI-skills/schemas/v3/actor_and_feasibility_assessor.schema.json`). |
-| **3.2** | `/phase-3-beyond-code-control-mapper` | Nạp `ingest_runtime_facts` (nếu có) và đánh giá kiểm soát ngoài mã nguồn với `present`: `yes`/`no`/`unknown`, `status`: `observed`/`hypothesis` (`AI-skills/schemas/v3/beyond_code_control_mapper.schema.json`). |
-| **3.3** | `/phase-3-sfop-risk-calibrator` | Hiệu chuẩn rủi ro 5 trục **S-F-O-P-C** theo rubric định lượng (`basis` + `blast_radius`, chỉ báo an toàn `actuator_command_path_without_interlock`, `owner_role`), chạy `finalize_v3_phase3` và `render_v3_report` (`AI-skills/schemas/v3/sfop_risk_calibrator.schema.json`). |
+| **3.0** | `/phase-3-orchestrator` | Điều phối trọn bộ Phase 3, cổng khóa sổ tất định `finalize_v3_phase3` và `render_v3_report`. |
+| **3.1** | `/phase-3-actor-and-feasibility-assessor` | Giữ nguyên `chain_id` từ Phase 2, chứng minh `minimum_actor` và lượng hóa `preconditions[]` với `precondition_status`: `yes`/`no`/`unknown` (`AI-skills/schemas/v3/actor_and_feasibility_assessor.schema.json`). |
+| **3.2** | `/phase-3-beyond-code-control-mapper` | Nạp `ingest_runtime_facts` (nếu có) và đánh giá kiểm soát ngoài mã nguồn với `present`: `yes`/`no`/`unknown`, `status`: `confirmed`/`hypothesis`/`absent` (`AI-skills/schemas/v3/beyond_code_control_mapper.schema.json`). |
+| **3.3** | `/phase-3-sfop-risk-calibrator` | Hiệu chuẩn rủi ro 5 trục `impact_axes` (**S-F-O-P-C**) theo rubric định lượng (`basis` + `blast_radius`, chỉ báo an toàn `actuator_command_path_without_interlock`, `risk_owner`/`safety_owner` với `owner_role`), chạy `finalize_v3_phase3` và `render_v3_report` (`AI-skills/schemas/v3/sfop_risk_calibrator.schema.json`). |
 
 ---
 

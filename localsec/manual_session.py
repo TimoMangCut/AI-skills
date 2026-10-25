@@ -36,7 +36,7 @@ from .reporting import (
 from .validators import OutputValidationError, validate_agent_output
 from .workspace import ManualWorkspace, write_json
 
-DEFAULT_RUN_ID = "manual-v0.2"
+DEFAULT_RUN_ID = "default"
 
 
 def _toolkit_root() -> Path:
@@ -67,10 +67,38 @@ def _resolve_config_path(project_root: Path) -> Path | None:
     return None
 
 
+def _resolve_run_id(
+    root: Path,
+    cfg: dict[str, Any] | None = None,
+    explicit_run_id: str | None = None,
+    repo_name: str | None = None,
+) -> str:
+    if explicit_run_id:
+        return str(explicit_run_id)
+    if repo_name:
+        safe_r = (
+            repo_name
+            if repo_name in {"_analysis", "_system"}
+            else (_safe_name(root.name) if repo_name == "." else _safe_name(repo_name))
+        )
+        for cand_r in (repo_name, safe_r):
+            if (root / ".localsec" / "runs" / "default" / cand_r).exists():
+                return "default"
+        for cand_r in (repo_name, safe_r):
+            if (root / ".localsec" / "runs" / "manual-v0.2" / cand_r).exists():
+                return "manual-v0.2"
+    if (root / ".localsec" / "runs" / "default").exists():
+        return "default"
+    if (root / ".localsec" / "runs" / "manual-v0.2").exists():
+        return "manual-v0.2"
+    cfg_default = (cfg or {}).get("analysis", {}).get("default_run_id")
+    return str(cfg_default) if cfg_default else DEFAULT_RUN_ID
+
+
 def _load_workspace(
     repo_name: str,
     cfg: dict[str, Any],
-    run_id: str = DEFAULT_RUN_ID,
+    run_id: str | None = None,
     allowed_read_paths: list[str] | None = None,
 ) -> tuple[ManualWorkspace, Path]:
     root = _project_root()
@@ -83,6 +111,7 @@ def _load_workspace(
     else:
         repo_path = (root / repo_name).resolve(strict=True)
         safe_name = _safe_name(repo_name)
+    effective_run_id = _resolve_run_id(root, cfg, explicit_run_id=run_id, repo_name=safe_name)
     analysis_cfg = dict(cfg.get("analysis", {}))
     ignored = list(analysis_cfg.get("ignored_dirs", []))
     extra_ignores = [
@@ -103,11 +132,11 @@ def _load_workspace(
         repo_path,
         safe_name,
         analysis_cfg,
-        run_id,
+        effective_run_id,
         allowed_read_paths=allowed_read_paths,
         project_root=root,
     )
-    run_dir = root / ".localsec" / "runs" / run_id / safe_name
+    run_dir = root / ".localsec" / "runs" / effective_run_id / safe_name
     run_dir.mkdir(parents=True, exist_ok=True)
     state_file = run_dir / "workspace_state.json"
     if state_file.is_file():
@@ -118,43 +147,58 @@ def _load_workspace(
             k: [(int(r[0]), int(r[1])) for r in v]
             for k, v in state.get("read_ranges", {}).items()
         }
+        ws.deferred_out_of_budget = list(state.get("deferred_out_of_budget", []))
+        setattr(ws, "_blinded_allowed_paths", state.get("blinded_allowed_paths"))
     return ws, run_dir
 
 
-def _all_project_evidence_ids(root: Path, run_id: str = DEFAULT_RUN_ID) -> dict[str, dict[str, Any]]:
-    run_root = root / ".localsec" / "runs" / run_id
+def _all_project_evidence_ids(root: Path, run_id: str | None = None) -> dict[str, dict[str, Any]]:
+    effective_run_id = _resolve_run_id(root, explicit_run_id=run_id)
+    candidate_roots = [root / ".localsec" / "runs" / effective_run_id]
+    for alt_id in ("default", "manual-v0.2"):
+        alt_root = root / ".localsec" / "runs" / alt_id
+        if alt_root not in candidate_roots:
+            candidate_roots.append(alt_root)
     out: dict[str, dict[str, Any]] = {}
-    if not run_root.is_dir():
-        return out
-    for child in sorted(run_root.iterdir()):
-        if not child.is_dir():
+    for run_root in candidate_roots:
+        if not run_root.is_dir():
             continue
-        sf = child / "workspace_state.json"
-        if sf.is_file():
-            try:
-                st = json.loads(sf.read_text(encoding="utf-8"))
-                rname = st.get("repo_name", child.name)
-                for eid, rec in st.get("evidence", {}).items():
-                    if isinstance(rec, dict) and "repo_name" not in rec:
-                        rec = {**rec, "repo_name": rname}
-                    out[eid] = rec
-            except Exception:
-                pass
+        for child in sorted(run_root.iterdir()):
+            if not child.is_dir():
+                continue
+            sf = child / "workspace_state.json"
+            if sf.is_file():
+                try:
+                    st = json.loads(sf.read_text(encoding="utf-8"))
+                    rname = st.get("repo_name", child.name)
+                    for eid, rec in st.get("evidence", {}).items():
+                        if isinstance(rec, dict) and "repo_name" not in rec:
+                            rec = {**rec, "repo_name": rname}
+                        out.setdefault(eid, rec)
+                except Exception:
+                    pass
     return out
 
 
 def _save_workspace(ws: ManualWorkspace, run_dir: Path) -> None:
     state_file = run_dir / "workspace_state.json"
-    write_json(
-        state_file,
-        {
-            "repo_name": ws.repo_name,
-            "run_id": ws.run_id,
-            "evidence": ws.evidence,
-            "tool_log": ws.tool_log,
-            "read_ranges": {k: [[s, e] for s, e in v] for k, v in ws.read_ranges.items()},
-        },
-    )
+    existing_blinded = getattr(ws, "_blinded_allowed_paths", None)
+    if existing_blinded is None and state_file.is_file():
+        try:
+            existing_blinded = json.loads(state_file.read_text(encoding="utf-8")).get("blinded_allowed_paths")
+        except Exception:
+            existing_blinded = None
+    payload: dict[str, Any] = {
+        "repo_name": ws.repo_name,
+        "run_id": ws.run_id,
+        "evidence": ws.evidence,
+        "tool_log": ws.tool_log,
+        "read_ranges": {k: [[s, e] for k, v_list in [(k, v)] for s, e in v_list] for k, v in ws.read_ranges.items()},
+        "deferred_out_of_budget": list(getattr(ws, "deferred_out_of_budget", [])),
+    }
+    if existing_blinded is not None:
+        payload["blinded_allowed_paths"] = existing_blinded
+    write_json(state_file, payload)
 
 
 def _resolve_json_arg(raw_path: str, root: Path) -> Path:
@@ -183,6 +227,7 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(prog="python -m localsec.manual_session")
     parser.add_argument("--project-root", default=None, help="Optional project root override")
+    parser.add_argument("--run-id", default=None, help="Optional run ID override (default: 'default')")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_ls = sub.add_parser("list_dir", help="List directory via ManualWorkspace")
@@ -349,27 +394,22 @@ def main(argv: list[str] | None = None) -> int:
     root = _project_root()
     (root / ".localsec" / "tmp").mkdir(parents=True, exist_ok=True)
     cfg = load_config(_resolve_config_path(root))
+    if args.run_id:
+        cfg.setdefault("analysis", {})["default_run_id"] = args.run_id
 
     def _effective_v3_run_id(repo_name: str | None = None) -> str:
-        if repo_name:
-            default_dir = root / ".localsec" / "runs" / "default" / repo_name
-            manual_dir = root / ".localsec" / "runs" / DEFAULT_RUN_ID / repo_name
-            if default_dir.is_dir() and not manual_dir.is_dir():
-                return "default"
-        return DEFAULT_RUN_ID
+        return _resolve_run_id(root, cfg, explicit_run_id=args.run_id, repo_name=repo_name)
 
     if args.cmd == "inventory_repo":
         from .orchestrator import inventory_repo
 
         eff_run = _effective_v3_run_id(args.repo_name)
         res = inventory_repo(root, args.repo_name, run_id=eff_run, operator_tier=args.tier)
-        if eff_run != DEFAULT_RUN_ID:
-            write_json(root / ".localsec" / "runs" / DEFAULT_RUN_ID / args.repo_name / "inventory_repo.json", res)
         print(json.dumps(res, ensure_ascii=False, indent=2))
         return 0
 
     if args.cmd == "show_evidence":
-        ws, _ = _load_workspace(args.repo_name, cfg)
+        ws, _ = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
         try:
             res = ws.show_evidence(
                 repo_name=ws.repo_name,
@@ -386,7 +426,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "select_attack_companions":
         from .prompts import select_companion_blocks
 
-        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        ws, run_dir = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
         scout_file = run_dir / "codebase_scout.json"
         archetypes = list(args.archetypes or [])
         techstack = list(args.techstack or [])
@@ -418,11 +458,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "register_scout_map":
         from .orchestrator import validate_scout_map_against_inventory
 
-        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        ws, run_dir = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
         payload = json.loads(_resolve_json_arg(args.json_file, root).read_text(encoding="utf-8"))
         if isinstance(payload, dict) and isinstance(payload.get("result"), dict) and "status" in payload:
             payload = payload["result"]
-        valid_eids = set(ws.evidence.keys()) | set(_all_project_evidence_ids(root).keys())
+        valid_eids = set(ws.evidence.keys()) | set(_all_project_evidence_ids(root, run_id=ws.run_id).keys())
         validate_agent_output("codebase_scout", payload, valid_eids, evidence_catalog=ws.evidence)
         inv_data = None
         if (run_dir / "inventory_repo.json").is_file():
@@ -442,7 +482,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "run_tailored_extractor":
         from .orchestrator import run_tailored_extractor_safely
 
-        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        ws, run_dir = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
         res = run_tailored_extractor_safely(
             repo_root=ws.root,
             mode=args.mode,
@@ -459,7 +499,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd in {"audit_visibility", "audit_visibility_tracker"}:
         from .orchestrator import audit_visibility_and_coverage
 
-        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        ws, run_dir = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
         scout_map = None
         if (run_dir / "codebase_scout.json").is_file():
             raw_s = json.loads((run_dir / "codebase_scout.json").read_text(encoding="utf-8"))
@@ -488,7 +528,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "generate_coverage_matrix":
         from .orchestrator import generate_coverage_matrix
 
-        _, run_dir = _load_workspace(args.repo_name, cfg)
+        _, run_dir = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
         res = generate_coverage_matrix(run_dir, args.repo_name)
         print(json.dumps(res, ensure_ascii=False, indent=2))
         return 0
@@ -496,7 +536,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "build_v3_candidate_queue":
         from .orchestrator import build_v3_candidate_queue
 
-        _, run_dir = _load_workspace(args.repo_name, cfg)
+        _, run_dir = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
         res = build_v3_candidate_queue(run_dir, args.repo_name)
         print(json.dumps(res, ensure_ascii=False, indent=2))
         return 0
@@ -504,7 +544,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "match_cross_repo_boundaries":
         from .orchestrator import match_cross_repo_boundaries
 
-        eff_run = "default" if (root / ".localsec" / "runs" / "default").is_dir() and not (root / ".localsec" / "runs" / DEFAULT_RUN_ID).is_dir() else DEFAULT_RUN_ID
+        eff_run = _effective_v3_run_id()
         res = match_cross_repo_boundaries(root, run_id=eff_run)
         print(json.dumps(res, ensure_ascii=False, indent=2))
         return 0
@@ -545,9 +585,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd in {"render_v3_report", "render_v3_reports"}:
         from .reporting import render_v3_reports
 
-        eff_run = _effective_v3_run_id(args.repo_name) if args.repo_name else (
-            "default" if (root / ".localsec" / "runs" / "default").is_dir() and not (root / ".localsec" / "runs" / DEFAULT_RUN_ID).is_dir() else DEFAULT_RUN_ID
-        )
+        eff_run = _effective_v3_run_id(args.repo_name)
         res = render_v3_reports(root, repo_name=args.repo_name, run_id=eff_run)
         print(json.dumps(res, ensure_ascii=False, indent=2))
         return 0
@@ -652,13 +690,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if not contradictions_found else 2
 
     if args.cmd == "list_dir":
-        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        ws, run_dir = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
         res = ws.execute_tool(
             args.skill,
             "list_dir",
             {"path": args.path, "depth": args.depth, "offset": args.offset, "limit": args.limit},
         )
-        ws.tool_log[-1]["skill"] = args.skill
+        if ws.tool_log:
+            ws.tool_log[-1]["skill"] = args.skill
         _save_workspace(ws, run_dir)
         print(json.dumps(res, ensure_ascii=False, indent=2))
         return 0 if res.get("ok") else 1
@@ -669,7 +708,22 @@ def main(argv: list[str] | None = None) -> int:
             if args.allowed_paths
             else None
         )
-        ws, run_dir = _load_workspace(args.repo_name, cfg, allowed_read_paths=allowed)
+        ws, run_dir = _load_workspace(args.repo_name, cfg, run_id=args.run_id, allowed_read_paths=allowed)
+        if allowed is None and args.skill == "blinded_counterevidence_challenger":
+            persisted_allowed = getattr(ws, "_blinded_allowed_paths", None)
+            if not persisted_allowed:
+                tmp_blinded = root / ".localsec" / "tmp" / f"blinded_chains_{_safe_name(args.repo_name)}.json"
+                if tmp_blinded.is_file():
+                    try:
+                        persisted_allowed = json.loads(tmp_blinded.read_text(encoding="utf-8")).get("exact_paths")
+                    except Exception:
+                        persisted_allowed = None
+            if isinstance(persisted_allowed, list) and persisted_allowed:
+                ws.allowed_read_paths = {
+                    str(p).replace("\\", "/").lstrip("./")
+                    for p in persisted_allowed
+                    if str(p).strip()
+                }
         s_line = args.opt_start_line if args.opt_start_line is not None else args.start_line
         e_line = args.opt_end_line if args.opt_end_line is not None else args.end_line
         res = ws.execute_tool(
@@ -677,13 +731,14 @@ def main(argv: list[str] | None = None) -> int:
             "read_file",
             {"path": args.path, "start_line": s_line, "end_line": e_line},
         )
-        ws.tool_log[-1]["skill"] = args.skill
+        if ws.tool_log:
+            ws.tool_log[-1]["skill"] = args.skill
         _save_workspace(ws, run_dir)
         print(json.dumps(res, ensure_ascii=False, indent=2))
         return 0 if res.get("ok") else 1
 
     if args.cmd == "list_evidence":
-        ws, _ = _load_workspace(args.repo_name, cfg)
+        ws, _ = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
         summary = [
             {
                 "evidence_id": rec["evidence_id"],
@@ -699,7 +754,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "extract_claims":
-        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        ws, run_dir = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
         all_claims: list[dict[str, Any]] = []
         for skill in SPECIALIST_ORDER:
             skill_file = run_dir / f"{skill}.json"
@@ -724,7 +779,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "extract_basv_claims":
-        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        ws, run_dir = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
         all_claims = []
         for skill in BASV_SPECIALIST_ORDER:
             skill_file = run_dir / f"{skill}.json"
@@ -749,7 +804,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "extract_aca_claims":
-        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        ws, run_dir = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
         all_claims = []
         aca_subdirs = {
             "code_trace_builder": "traces",
@@ -791,9 +846,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "phase_status":
-        ws, run_dir = _load_workspace(args.repo_name, cfg)
-        if not run_dir.is_dir() and (root / ".localsec" / "runs" / "default" / args.repo_name).is_dir():
-            run_dir = root / ".localsec" / "runs" / "default" / args.repo_name
+        ws, run_dir = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
         v2_indicators = ("repo_profile.json", "business_intent_modeler.json", "finding_intake.json", "attack_chain_constructor.json")
         v3_indicators = ("codebase_scout.json", "inventory_repo.json", "intent_invariant_modeler.json", "unified_surface_mapper.json", "deep_trace_chain_analyst.json", "sfop_risk_calibrator.json")
         if args.flow in {"v3", "v2"}:
@@ -929,6 +982,8 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps(
                 {
                     "repo_name": ws.repo_name,
+                    "run_id": ws.run_id,
+                    "run_dir": str(run_dir),
                     "flow": active_flow,
                     "phase": args.phase,
                     "completed_steps": completed,
@@ -951,7 +1006,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "submit_skill":
-        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        ws, run_dir = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
         if args.skill == "business_aware_synthesizer":
             if not (run_dir / "basv_evidence_auditor.json").is_file() and not (run_dir / "evidence_auditor.json").is_file():
                 print(
@@ -970,7 +1025,7 @@ def main(argv: list[str] | None = None) -> int:
         from .validators import V30_SKILLS
         if args.skill in V30_SKILLS and isinstance(payload, dict) and isinstance(payload.get("result"), dict) and "status" in payload:
             payload = payload["result"]
-        project_ev_map = _all_project_evidence_ids(root)
+        project_ev_map = _all_project_evidence_ids(root, run_id=ws.run_id)
         merged_catalog = dict(project_ev_map)
         merged_catalog.update(ws.evidence)
         valid_eids = set(merged_catalog.keys())
@@ -1023,7 +1078,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "prepare_blinded_challenger":
-        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        ws, run_dir = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
 
         def _unwrap_skill(skill_name: str) -> dict[str, Any]:
             sf = run_dir / f"{skill_name}.json"
@@ -1043,7 +1098,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "prepare_blinded_targeted_verifier":
-        ws, run_dir = _load_workspace(args.repo_name, cfg)
+        ws, run_dir = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
         planner_path = run_dir / "verification_planner.json"
         if not planner_path.is_file():
             print(f"MISSING_PREREQUISITE: verification_planner.json not found in {run_dir}", file=sys.stderr)
@@ -1088,52 +1143,110 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "prepare_blinded_chain_verifier":
-        stripped_keys = {
-            "chain_verdict",
-            "verdict",
-            "severity",
-            "confidence",
-            "verification_status",
-            "exploitability",
-            "overall_risk",
-            "recommended_verdict",
-            "recommended_conclusion",
+        allowed_chain_keys = {
+            "chain_id",
+            "candidate_ids",
+            "entrypoint",
+            "actor",
+            "preconditions",
+        }
+        allowed_hop_keys = {
+            "hop_id",
+            "hop_kind",
+            "repo_name",
+            "file",
+            "path",
+            "function_or_symbol",
+            "line_start",
+            "line_end",
+            "action",
         }
 
-        def _blind_v3_deep_trace(dt_payload: dict[str, Any], repo_label: str) -> dict[str, Any]:
+        def _blind_v3_deep_trace(
+            dt_payload: dict[str, Any],
+            repo_label: str,
+            target_run_dir: Path | None = None,
+        ) -> dict[str, Any]:
             exact_paths_set: set[str] = set()
             blinded_v3_chains: list[dict[str, Any]] = []
             raw_chains = dt_payload.get("chains") if isinstance(dt_payload.get("chains"), list) else dt_payload.get("verified_chains", [])
             for ch in raw_chains:
                 if not isinstance(ch, dict):
                     continue
-                clean_ch = {k: v for k, v in ch.items() if k not in stripped_keys}
-                if clean_ch.get("path"):
-                    exact_paths_set.add(str(clean_ch["path"]))
-                if clean_ch.get("file"):
-                    exact_paths_set.add(str(clean_ch["file"]))
+                if ch.get("path"):
+                    exact_paths_set.add(str(ch["path"]).strip())
+                if ch.get("file"):
+                    exact_paths_set.add(str(ch["file"]).strip())
+                clean_ch: dict[str, Any] = {}
+                for k in allowed_chain_keys:
+                    if k in ch:
+                        clean_ch[k] = ch[k]
+                if "candidate_ids" not in clean_ch and isinstance(ch.get("source_candidate_ids"), list):
+                    clean_ch["candidate_ids"] = ch["source_candidate_ids"]
                 clean_hops: list[dict[str, Any]] = []
                 for hp in ch.get("hops", []):
                     if isinstance(hp, dict):
-                        clean_hp = {k: v for k, v in hp.items() if k not in stripped_keys}
+                        clean_hp = {k: v for k, v in hp.items() if k in allowed_hop_keys}
                         hpath = str(clean_hp.get("path") or clean_hp.get("file") or "").strip()
                         if hpath:
                             exact_paths_set.add(hpath)
                         clean_hops.append(clean_hp)
                 clean_ch["hops"] = clean_hops
                 blinded_v3_chains.append(clean_ch)
+
+            control_search_paths: list[str] = []
+            inv_candidates: list[Path] = []
+            if target_run_dir is not None:
+                inv_candidates.append(target_run_dir / "inventory_repo.json")
+            eff_run = _effective_v3_run_id(repo_label)
+            inv_candidates.append(root / ".localsec" / "runs" / eff_run / _safe_name(repo_label) / "inventory_repo.json")
+            inv_candidates.append(root / ".localsec" / "runs" / "default" / _safe_name(repo_label) / "inventory_repo.json")
+            for inv_f in inv_candidates:
+                if inv_f.is_file():
+                    try:
+                        inv_obj = json.loads(inv_f.read_text(encoding="utf-8"))
+                        mf = inv_obj.get("mandatory_files", {})
+                        if isinstance(mf, dict):
+                            for cat in ("security", "wiring_config", "data_access"):
+                                for p in mf.get(cat, []):
+                                    if isinstance(p, str) and p.strip():
+                                        control_search_paths.append(p.strip())
+                        break
+                    except Exception:
+                        pass
+
+            sorted_control_paths = sorted(set(control_search_paths))
+            combined_exact_paths = sorted({p for p in exact_paths_set if p} | set(sorted_control_paths))
             tmp_out = root / ".localsec" / "tmp" / f"blinded_chains_{_safe_name(repo_label)}.json"
             out_obj = {
                 "repo_name": repo_label,
                 "context_blinding_policy": (
-                    "chain_verdict, severity, confidence, and verification_status are strictly stripped "
-                    "to prevent confirmation bias in blinded_counterevidence_challenger"
+                    "Strict whitelist enforced: only chain_id, candidate_ids, entrypoint, actor, preconditions, "
+                    "and hop structural locations are retained; title, root_cause, remediation, chain_verdict, "
+                    "severity, confidence, state_after, and expected_vulnerable_behavior are strictly stripped"
                 ),
-                "exact_paths": sorted(exact_paths_set),
+                "exact_paths": combined_exact_paths,
+                "control_search_paths": sorted_control_paths,
                 "blinded_chains": blinded_v3_chains,
                 "saved_to": str(tmp_out),
             }
             write_json(tmp_out, out_obj)
+            state_dir = target_run_dir or (root / ".localsec" / "runs" / eff_run / _safe_name(repo_label))
+            if state_dir.is_dir():
+                sf = state_dir / "workspace_state.json"
+                st_data: dict[str, Any] = {}
+                if sf.is_file():
+                    try:
+                        st_data = json.loads(sf.read_text(encoding="utf-8"))
+                    except Exception:
+                        st_data = {}
+                st_data.setdefault("repo_name", _safe_name(repo_label))
+                st_data.setdefault("run_id", eff_run)
+                st_data.setdefault("evidence", {})
+                st_data.setdefault("tool_log", [])
+                st_data.setdefault("read_ranges", {})
+                st_data["blinded_allowed_paths"] = combined_exact_paths
+                write_json(sf, st_data)
             return out_obj
 
         cand_path = _resolve_json_arg(args.chain_json, root)
@@ -1142,14 +1255,14 @@ def main(argv: list[str] | None = None) -> int:
             if isinstance(chain_data.get("result"), dict):
                 chain_data = chain_data["result"]
             if isinstance(chain_data, dict) and ("verified_chains" in chain_data or "chains" in chain_data):
-                out_obj = _blind_v3_deep_trace(chain_data, cand_path.parent.name or "repo")
+                out_obj = _blind_v3_deep_trace(chain_data, cand_path.parent.name or "repo", target_run_dir=cand_path.parent)
                 print(json.dumps(out_obj, ensure_ascii=False, indent=2))
                 return 0
             blinded = build_blinded_chain_verifier_context(attack_chain=chain_data)
             print(json.dumps(blinded, ensure_ascii=False, indent=2))
             return 0
 
-        _, run_dir = _load_workspace(args.chain_json, cfg)
+        _, run_dir = _load_workspace(args.chain_json, cfg, run_id=args.run_id)
         if not (run_dir / "deep_trace_chain_analyst.json").is_file() and (root / ".localsec" / "runs" / "default" / args.chain_json / "deep_trace_chain_analyst.json").is_file():
             run_dir = root / ".localsec" / "runs" / "default" / args.chain_json
 
@@ -1159,7 +1272,7 @@ def main(argv: list[str] | None = None) -> int:
             dt_raw = json.loads(dt_file.read_text(encoding="utf-8"))
             dt_payload = dt_raw["result"] if isinstance(dt_raw.get("result"), dict) else dt_raw
             if isinstance(dt_payload, dict):
-                out_obj = _blind_v3_deep_trace(dt_payload, args.chain_json)
+                out_obj = _blind_v3_deep_trace(dt_payload, args.chain_json, target_run_dir=run_dir)
                 print(json.dumps(out_obj, ensure_ascii=False, indent=2))
                 return 0
 
@@ -1608,14 +1721,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "finalize_basv_system":
-        run_root = root / ".localsec" / "runs" / DEFAULT_RUN_ID
+        eff_sys_run = _effective_v3_run_id()
+        run_root = root / ".localsec" / "runs" / eff_sys_run
         repo_basv_results: list[dict[str, Any]] = []
         if run_root.is_dir():
             for child in sorted(run_root.iterdir()):
                 if child.is_dir() and (child / "basv_repo_result.json").is_file():
                     rbr = json.loads((child / "basv_repo_result.json").read_text(encoding="utf-8"))
                     repo_basv_results.append(rbr)
-        all_eids = _all_project_evidence_ids(root)
+        all_eids = _all_project_evidence_ids(root, run_id=eff_sys_run)
         out_dir_name = args.output_dir or cfg.get("analysis", {}).get("output_dir", "documents")
         output_root = (root / out_dir_name).resolve()
         basv_sys_dir = output_root / "_system" / "basv"
@@ -1669,15 +1783,17 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "prepare_system_context":
-        run_root = root / ".localsec" / "runs" / DEFAULT_RUN_ID
+        eff_sys_run = _effective_v3_run_id()
+        run_root = root / ".localsec" / "runs" / eff_sys_run
         repo_results: list[dict[str, Any]] = []
         sys_evidence: dict[str, dict[str, Any]] = {}
-        for child in sorted(run_root.iterdir()):
-            if child.is_dir() and (child / "repo_result.json").is_file():
-                rr = json.loads((child / "repo_result.json").read_text(encoding="utf-8"))
-                repo_results.append(rr)
-                for rec in rr.get("evidence", []):
-                    sys_evidence[rec["evidence_id"]] = rec
+        if run_root.is_dir():
+            for child in sorted(run_root.iterdir()):
+                if child.is_dir() and (child / "repo_result.json").is_file():
+                    rr = json.loads((child / "repo_result.json").read_text(encoding="utf-8"))
+                    repo_results.append(rr)
+                    for rec in rr.get("evidence", []):
+                        sys_evidence[rec["evidence_id"]] = rec
         sys_catalog = _select_cross_repo_evidence(repo_results, sys_evidence, cfg)
         system_context_base = {
             "repositories": [
@@ -1714,15 +1830,17 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "finalize_system":
-        run_root = root / ".localsec" / "runs" / DEFAULT_RUN_ID
+        eff_sys_run = _effective_v3_run_id()
+        run_root = root / ".localsec" / "runs" / eff_sys_run
         repo_results = []
         sys_evidence: dict[str, dict[str, Any]] = {}
-        for child in sorted(run_root.iterdir()):
-            if child.is_dir() and (child / "repo_result.json").is_file():
-                rr = json.loads((child / "repo_result.json").read_text(encoding="utf-8"))
-                repo_results.append(rr)
-                for rec in rr.get("evidence", []):
-                    sys_evidence[rec["evidence_id"]] = rec
+        if run_root.is_dir():
+            for child in sorted(run_root.iterdir()):
+                if child.is_dir() and (child / "repo_result.json").is_file():
+                    rr = json.loads((child / "repo_result.json").read_text(encoding="utf-8"))
+                    repo_results.append(rr)
+                    for rec in rr.get("evidence", []):
+                        sys_evidence[rec["evidence_id"]] = rec
         valid_eids = set(sys_evidence.keys())
         cross_payload = json.loads(_resolve_json_arg(args.cross_repo, root).read_text(encoding="utf-8"))
         audit_payload = json.loads(_resolve_json_arg(args.sys_audit, root).read_text(encoding="utf-8"))
@@ -1788,7 +1906,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
 
         system_coverage = {
-            "run_id": DEFAULT_RUN_ID,
+            "run_id": eff_sys_run,
             "pipeline_version": "2.4.0-refute-first",
             "analysis_mode": "ai_manual_file_reading",
             "workflow_status": "completed",

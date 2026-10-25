@@ -3,91 +3,89 @@
   "companion_id": "robotics-cpp-ros2-ot-scada-bess",
   "file": "robotics-cpp-ros2-ot-scada-bess.md",
   "companion_json": "companions/robotics-cpp-ros2-ot-scada-bess.json",
-  "group": "IV. IoT, Automotive, Robotics & OT",
-  "title": "Robotics (C++/ZeroMQ/ROS2/MQTT), Energy BESS SCADA (OneATS) & Industrial OT (ISA-95 / ETCS)",
+  "group": "IV. Physical-Cyber: Automotive, EV Charging, Robotics & OT",
+  "title": "Robotics (C++/ROS2/DDS/ZMQ), Humanoid/AGV, OT/SCADA (Modbus/OPC-UA) & BESS",
   "always_inject": false,
   "triggers": [
-    "zeromq",
-    "zmq",
     "ros2",
+    "rclcpp",
+    "rclpy",
     "dds",
-    "ethercat",
+    "zmq",
+    "zeromq",
     "modbus",
     "opcua",
-    "iec61850",
-    "scada",
-    "bess",
-    "ems",
-    "bms",
     "plc",
-    "rtu",
-    "isa95",
-    "etcs",
-    "ato",
+    "scada",
     "robot",
-    "agv",
-    "amr"
+    "actuator",
+    "motor",
+    "cpp",
+    "cmake"
   ],
   "trigger_signals": [
-    "zeromq",
-    "zmq",
     "ros2",
+    "rclcpp",
+    "rclpy",
     "dds",
-    "ethercat",
+    "zmq",
+    "zeromq",
     "modbus",
     "opcua",
-    "iec61850",
-    "scada",
-    "bess",
-    "ems",
-    "bms",
     "plc",
-    "rtu",
-    "isa95",
-    "etcs",
-    "ato",
+    "scada",
     "robot",
-    "agv",
-    "amr",
-    "cyberphysical_ot_robotics",
-    "ai_model_serving_engine"
+    "actuator",
+    "motor",
+    "cpp",
+    "cmake",
+    "robotics_cpp_ros2_ot_scada_bess"
   ],
   "archetypes": [
-    "CyberPhysical_OT_Robotics",
-    "AI_Model_Serving_Engine"
+    "Robotics_Cpp_ROS2_OT_SCADA_BESS"
+  ],
+  "coverage_matrix_classes": [
+    "MEMORY_SAFETY_BUFFER_BOUNDS",
+    "PHYSICAL_ACTUATION_BOUNDARY",
+    "TRANSPORT_TLS_TRUST",
+    "INJECTION_SQL_COMMAND_DESERIALIZATION"
   ],
   "blocks": [
-    "unauthenticated-robot-and-ipc-command-bridges",
-    "ot-scada-bess-and-ai-in-control-loop",
-    "ot-command-injection-bounds-and-safety-audit"
+    "cpp-memory-safety-and-zmq-deserialization",
+    "ros2-dds-zmq-unauthenticated-actuation",
+    "ot-modbus-opcua-plc-and-emergency-stop-interlock"
   ],
   "standard_mappings": [
-    "IEC-62443-3-3",
     "IEC-62443-4-2",
+    "ISO-SAE-21434",
     "ISO-10218",
-    "ISO-26262",
-    "NIST-AI-RMF",
-    "OWASP-API4:2023",
-    "ASVS-V5",
-    "ASVS-V16"
+    "ASVS-5.0-V2-Validation",
+    "ASVS-5.0-V11-Cryptography",
+    "ASVS-5.0-V13-Configuration",
+    "CWE-119",
+    "CWE-120",
+    "CWE-306",
+    "CWE-787"
   ],
   "safe_patterns": [
-    "ZeroMQ CURVE / ROS2 SROS2 DDS security / mTLS authentication on all IPC and network actuation sockets",
-    "Deterministic hardware/PLC safety interlock and kinematic/power setpoint clamping independent of AI/cloud control outputs",
-    "Strict bounds checking on protobuf/ZeroMQ frame sizes, tensor dimensions, and joint velocity/torque/MW setpoints before execution"
+    "C++ bounds-checked buffers (std::array, std::span, std::snprintf) with explicit payload size validation before Protobuf ParseFromArray() or FlatBuffersVerifier check",
+    "SROS2 enclaves with DDS Security (governance.xml / permissions.xml signed by CA) or ZeroMQ CurveZMQ (zmq::sockopt::curve_server) with HMAC + monotonic sequence numbers on all actuation frames",
+    "C++/ROS2 deterministic safety supervisor clamping joint torque/velocity/acceleration and enforcing a 50ms dead-man heartbeat timer (zeroing motor torque on timeout)",
+    "Hardware-wired E-Stop safety relay (SIL-2/SIL-3 / PL d) and unidirectional OT firewall separating IT APIs from PLC/Modbus/CAN actuation buses"
   ],
   "vulnerable_patterns": [
-    "Unauthenticated ZeroMQ (tcp://*:5555), ROS2 DDS, Modbus TCP, or HTTP-to-MQTT bridge forwarding raw actuation commands to robots/BESS",
-    "AI/LLM/forecasting output wired directly into PLC/BMS/robot actuators without an independent deterministic bounds filter",
-    "Unchecked integer arithmetic on frame dimensions or payload lengths before heap allocation or memcpy in C/C++ handlers"
+    "C/C++ raw memcpy(dest, zmq_msg.data(), zmq_msg.size()), strcpy, sprintf, or unchecked integer arithmetic on network/sensor frame headers causing stack/heap buffer overflow",
+    "Unauthenticated ZeroMQ (tcp://0.0.0.0:5555) or ROS2 DDS nodes without SROS2 accepting /cmd_vel, /joint_trajectory, or motor torque commands from any host on the subnet",
+    "Missing dead-man heartbeat watchdog in C++ motor control loop (holding last commanded velocity/torque indefinitely when ZMQ/ROS2 publisher disconnects) or software API able to override E-Stop",
+    "Backend Python/Go/C++ service writing unvalidated setpoints directly to Modbus TCP coils/holding registers (:502) or OPC-UA nodes without bounds checking"
   ],
   "required_evidence": [
-    "ev_... excerpt of C++/Python/Go IPC listener (ZeroMQ/ROS2/MQTT/Modbus) showing authentication and message parsing",
-    "ev_... excerpt of actuation dispatch logic showing bounds checks or safety interlock validation"
+    "ev_... excerpt of C/C++/Python socket/ROS2/Modbus handler showing buffer handling, authentication, and command bounds",
+    "ev_... excerpt of watchdog timer, kinematic clamp, or safety state machine logic"
   ],
   "questions_when_unclear": [
-    "Is the robot/BESS control subnet physically air-gapped or segmented via unidirectional data diodes / OT firewalls (IEC 62443 Zone & Conduit)?",
-    "Does an independent safety PLC or hardware BMS hard-clamp power, thermal, and torque limits regardless of software commands?"
+    "Is a hardware safety PLC / SIL-rated E-Stop circuit enforcing physical torque/speed/thermal cutoffs downstream of the software controller?",
+    "Are ROS2 DDS / ZeroMQ / Modbus ports isolated on an internal robot/plant VLAN with no routing from corporate Wi-Fi or cloud tunnels?"
   ],
-  "markdown": "# Robotics (C++/ZeroMQ/ROS2/MQTT), Energy BESS SCADA (OneATS) & Industrial OT (ISA-95 / ETCS) (`robotics-cpp-ros2-ot-scada-bess`)\n\n> **Group:** IV. IoT, Automotive, Robotics & OT\n> **Product Archetypes:** CyberPhysical_OT_Robotics, AI_Model_Serving_Engine\n> **Trigger Signals:** zeromq, zmq, ros2, dds, ethercat, modbus, opcua, iec61850, scada, bess, ems, bms, plc, rtu, isa95, etcs, ato, robot, agv, amr\n\n## [ BLOCK: unauthenticated-robot-and-ipc-command-bridges ]\n### Unauthenticated HTTP/ZeroMQ/MQTT-to-Robot Actuation Bridges & Bounds Checks\n- Hunt for unauthenticated network bridges (e.g., HTTP `/api/sample/call-command/` forwarding directly to EMQX `:8883`, or ZeroMQ `tcp://*:5555` `PredictRequest` servers without CURVE auth).\n- Verify protobuf/message field-level bounds validation (image dimensions, view counts, joint velocity/torque limits) beyond simple total byte-size caps.\n\n## [ BLOCK: ot-scada-bess-and-ai-in-control-loop ]\n### OT SCADA/BESS (IEC 62443), 3-Party Trust Boundaries & AI-in-the-Control-Loop\n- When AI forecasting models feed into OT/SCADA control loops (e.g., BESS 50MW/100MWh charge/discharge scheduling, BF-BOF furnace gas valves, or ATO rail signaling), verify whether a deterministic, hardware/PLC-enforced safety interlock independently clamps out-of-range commands regardless of AI output.\n- Map 3-party trust boundaries (`Asset Owner <-> Grid/Plant Operator <-> Control Software Vendor`) and flag any remote maintenance/telemetry channel lacking dual-path isolation or safety-owner sign-off.\n\n## [ BLOCK: ot-command-injection-bounds-and-safety-audit ]\n### C++/IPC Memory Safety, Command Rate-Limiting & Immutable Safety Audit Logs\n- In C++/ROS2/ZeroMQ services, audit deserialization buffers, image/tensor dimensions, and array indices for integer overflow and out-of-bounds memory access.\n- Verify message rate-limiting (API4) on ZeroMQ/MQTT/Modbus command buses and tamper-evident safety audit logging (ASVS V16) whenever an emergency stop, setpoint override, or BMS/PLC command is issued.\n\n### Standard Mappings\n- IEC-62443-3-3, IEC-62443-4-2, ISO-10218, ISO-26262, NIST-AI-RMF, OWASP-API4:2023, ASVS-V5, ASVS-V16\n\n### Safe Patterns (Refutation Anchors)\n- ZeroMQ CURVE / ROS2 SROS2 DDS security / mTLS authentication on all IPC and network actuation sockets\n- Deterministic hardware/PLC safety interlock and kinematic/power setpoint clamping independent of AI/cloud control outputs\n- Strict bounds checking on protobuf/ZeroMQ frame sizes, tensor dimensions, and joint velocity/torque/MW setpoints before execution\n\n### Vulnerable Patterns\n- Unauthenticated ZeroMQ (tcp://*:5555), ROS2 DDS, Modbus TCP, or HTTP-to-MQTT bridge forwarding raw actuation commands to robots/BESS\n- AI/LLM/forecasting output wired directly into PLC/BMS/robot actuators without an independent deterministic bounds filter\n- Unchecked integer arithmetic on frame dimensions or payload lengths before heap allocation or memcpy in C/C++ handlers\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of C++/Python/Go IPC listener (ZeroMQ/ROS2/MQTT/Modbus) showing authentication and message parsing\n- ev_... excerpt of actuation dispatch logic showing bounds checks or safety interlock validation\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Is the robot/BESS control subnet physically air-gapped or segmented via unidirectional data diodes / OT firewalls (IEC 62443 Zone & Conduit)?\n- Does an independent safety PLC or hardware BMS hard-clamp power, thermal, and torque limits regardless of software commands?\n"
+  "markdown": "# Robotics (C++/ROS2/DDS/ZMQ), Humanoid/AGV, OT/SCADA (Modbus/OPC-UA) & BESS (`robotics-cpp-ros2-ot-scada-bess`)\n\n> **Group:** IV. Physical-Cyber: Automotive, EV Charging, Robotics & OT\n> **Product Archetypes:** Robotics_Cpp_ROS2_OT_SCADA_BESS\n> **Trigger Signals:** ros2, rclcpp, rclpy, dds, zmq, zeromq, modbus, opcua, plc, scada, robot, actuator, motor, cpp, cmake\n\n## [ BLOCK: cpp-memory-safety-and-zmq-deserialization ]\n### C/C++ Memory Safety (`memcpy`, Buffer Overflow, Integer Overflow) & ZeroMQ/Protobuf Parsing\n- Inspect C/C++ network/IPC handlers (ZeroMQ `zmq_recv`, raw UDP/TCP sockets, serial/CAN frames, custom binary headers, Protobuf/FlatBuffers) for unchecked lengths passed to `memcpy`, `strcpy`, `sprintf`, fixed-size stack buffers, `new uint8_t[len]` integer overflows, and use-after-free across async callbacks.\n\n## [ BLOCK: ros2-dds-zmq-unauthenticated-actuation ]\n### ROS2 DDS / ZeroMQ Unauthenticated Pub/Sub & Physical Actuator Command Injection\n- Check whether ROS2 nodes (`rclcpp`, `rclpy`) enforce SROS2 DDS security enclaves (`governance.xml`, `permissions.xml`) or whether ZeroMQ sockets (`ZMQ_SUB`, `ZMQ_PULL`, `ZMQ_REP`) bind to `tcp://0.0.0.0:*` without CurveZMQ encryption/authentication.\n- Trace whether an attacker on the local network or via a cloud-to-robot WebRTC/WebSocket bridge can publish directly to `/cmd_vel`, `/joint_trajectory`, `/gripper_cmd`, or low-level motor torque topics.\n\n## [ BLOCK: ot-modbus-opcua-plc-and-emergency-stop-interlock ]\n### OT/SCADA (Modbus TCP, OPC-UA, S7comm), Watchdog Starvation & E-Stop Bypass\n- Inspect bridges between IT/Cloud APIs and OT fieldbus protocols (Modbus TCP `:502`, OPC-UA `:4840`, EtherCAT, CANopen, PROFINET) in factories, BESS grid controllers, or automated lines.\n- Verify 3 physical safety invariants in code:\n  1. **Kinematic / Torque / Thermal Clamping:** Are joint angles, velocities, torques, voltages, and currents clamped to safe envelopes before hardware write?\n  2. **Dead-Man Switch / Heartbeat Watchdog:** If the high-level planner (`vla.cpp` / cloud bridge) crashes or loses connection, does the low-level controller enter a safe stop state within `N ms`?\n  3. **E-Stop Independence:** Ensure software APIs cannot override or clear a hardware Emergency Stop without physical reset.\n\n### Standard Mappings\n- IEC-62443-4-2, ISO-SAE-21434, ISO-10218, ASVS-5.0-V2-Validation, ASVS-5.0-V11-Cryptography, ASVS-5.0-V13-Configuration, CWE-119, CWE-120, CWE-306, CWE-787\n\n### Safe Patterns (Refutation Anchors)\n- C++ bounds-checked buffers (std::array, std::span, std::snprintf) with explicit payload size validation before Protobuf ParseFromArray() or FlatBuffersVerifier check\n- SROS2 enclaves with DDS Security (governance.xml / permissions.xml signed by CA) or ZeroMQ CurveZMQ (zmq::sockopt::curve_server) with HMAC + monotonic sequence numbers on all actuation frames\n- C++/ROS2 deterministic safety supervisor clamping joint torque/velocity/acceleration and enforcing a 50ms dead-man heartbeat timer (zeroing motor torque on timeout)\n- Hardware-wired E-Stop safety relay (SIL-2/SIL-3 / PL d) and unidirectional OT firewall separating IT APIs from PLC/Modbus/CAN actuation buses\n\n### Vulnerable Patterns\n- C/C++ raw memcpy(dest, zmq_msg.data(), zmq_msg.size()), strcpy, sprintf, or unchecked integer arithmetic on network/sensor frame headers causing stack/heap buffer overflow\n- Unauthenticated ZeroMQ (tcp://0.0.0.0:5555) or ROS2 DDS nodes without SROS2 accepting /cmd_vel, /joint_trajectory, or motor torque commands from any host on the subnet\n- Missing dead-man heartbeat watchdog in C++ motor control loop (holding last commanded velocity/torque indefinitely when ZMQ/ROS2 publisher disconnects) or software API able to override E-Stop\n- Backend Python/Go/C++ service writing unvalidated setpoints directly to Modbus TCP coils/holding registers (:502) or OPC-UA nodes without bounds checking\n\n### Mandatory Evidence (`required_evidence`)\n- ev_... excerpt of C/C++/Python socket/ROS2/Modbus handler showing buffer handling, authentication, and command bounds\n- ev_... excerpt of watchdog timer, kinematic clamp, or safety state machine logic\n\n### Verification Questions When Static Code Is Inconclusive (`questions_when_unclear`)\n- Is a hardware safety PLC / SIL-rated E-Stop circuit enforcing physical torque/speed/thermal cutoffs downstream of the software controller?\n- Are ROS2 DDS / ZeroMQ / Modbus ports isolated on an internal robot/plant VLAN with no routing from corporate Wi-Fi or cloud tunnels?\n"
 }
