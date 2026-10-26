@@ -42,8 +42,8 @@ Không ghi `risk`/`priority`; nếu có ghi thì phải khớp giá trị script
 
 Sau đó:
 ```bash
-python3 AI-skills/reporting/report.py check --stage risk
-python3 AI-skills/reporting/report.py render-risk --draft     # ghi cả work/risk_review_basis.json (phiên bản cho R.4)
+python AI-skills/reporting/report.py check --stage risk
+python AI-skills/reporting/report.py render-risk --draft     # ghi cả work/risk_review_basis.json (phiên bản cho R.4)
 ```
 Rồi chuyển sang R.4. Người thách thức **không phải phiên này**: chia lô theo `phase-risk-assessment`. Không tự viết `risk_review*`.
 
@@ -63,7 +63,7 @@ Rồi chuyển sang R.4. Người thách thức **không phải phiên này**: c
    - chạy lại R.3 cho các F đó.
 4. Chốt:
    ```bash
-   python3 AI-skills/reporting/report.py risk-ack          # ghi phiên bản của các F vừa "Đã sửa:"; sửa tiếp sau đó thì phải rà lại
-   python3 AI-skills/reporting/report.py check --stage risk
-   python3 AI-skills/reporting/report.py render-risk
+   python AI-skills/reporting/report.py risk-ack          # ghi phiên bản của các F vừa "Đã sửa:"; sửa tiếp sau đó thì phải rà lại
+   python AI-skills/reporting/report.py check --stage risk
+   python AI-skills/reporting/report.py render-risk
    ```

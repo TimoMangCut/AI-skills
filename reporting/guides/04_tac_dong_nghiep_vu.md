@@ -98,4 +98,4 @@ Không đạt:
 
 Kiểm tự động chỉ bắt được lỗi hình thức. Việc tác động có **đúng** hay không vẫn phải rà theo checklist ở bước 4.6.
 
-Chạy `python3 AI-skills/reporting/report.py check --stage impact` tới khi đạt.
+Chạy `python AI-skills/reporting/report.py check --stage impact` tới khi đạt.

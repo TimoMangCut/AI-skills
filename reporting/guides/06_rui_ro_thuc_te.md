@@ -10,7 +10,7 @@ Phase này **không dùng khung chấm điểm** (CVSS, OWASP Risk Rating, DREAD
 
 ## 1. Đơn vị đánh giá
 
-Mỗi phát hiện `F-xx` sau bước 4.3 có một file `documents/_report/work/risk/F-xx.json` (mẫu: `templates/risk.example.json`).
+Mỗi phát hiện `F-xx` sau bước 4.3 có một file `documents/_report/work/risk/F-xx.json` (mẫu: `AI-skills/reporting/templates/risk.example.json`).
 
 Trần mỗi F:
 - tối đa 4 đường;
@@ -89,7 +89,7 @@ Câu hỏi thật của "phải nắm giữ X" là: **ai đang giữ X, và ngư
 ]
 ```
 
-- Tra **bắt buộc** bằng `python3 AI-skills/reporting/report.py access --for F-xx`. Lệnh trả về phần chỉ mục truy cập liên quan (bí mật, client, scope, mạng, nguồn ID, chuỗi cung ứng) của mọi repo. Mỗi nguồn liên quan là một holder.
+- Tra **bắt buộc** bằng `python AI-skills/reporting/report.py access --for F-xx`. Lệnh trả về phần chỉ mục truy cập liên quan (bí mật, client, scope, mạng, nguồn ID, chuỗi cung ứng) của mọi repo. Mỗi nguồn liên quan là một holder.
 - `attainable` của holder: người của đường này lấy được X **từ nguồn này** không.
 - Kết luận của mắt xích phải khớp holders: có một nguồn `co` thì `co`; mọi nguồn `khong` thì `khong`; còn lại `chua_ro`.
 - `holders` chỉ dùng cho `nam_giu`. "Chỗ đứng trong cluster" là `cham_toi`, không phải `nam_giu`.
@@ -180,7 +180,7 @@ Tác động 4.4 là đầu vào và **không** chứa yếu tố khả năng kh
 
 ## 7. Ghép chéo (R.2)
 
-Làm trên `report.py risk-digest`. Ghép khi thứ F-B **cho** (`yields`) đúng là thứ mắt xích của F-A **cần**:
+Làm trên `python AI-skills/reporting/report.py risk-digest`. Ghép khi thứ F-B **cho** (`yields`) đúng là thứ mắt xích của F-A **cần**:
 - ghi `enabled_by: ["F-B"]` vào mắt xích;
 - thêm `{"id": "X1", "giver": "F-B", "target": "F-A", "link": "F-A.P1.C1", "how": "…"}` vào `work/risk/_combinations.json`.
 
@@ -206,7 +206,7 @@ Khi một sự thật chưa biết quyết định mắt xích `chua_ro` của *
 ## 9. Thông tin runtime
 
 Phần lớn câu trả lời cho "ai giữ, mở ra đâu, cấu hình gì ở production" không nằm trong mã. Khi người vận hành trả lời:
-1. ghi vào `documents/_report/runtime_facts.json` (`id`, `question`, `answer`, `source`, `date`; mẫu `templates/runtime_facts.example.json`);
+1. ghi vào `documents/_report/runtime_facts.json` (`id`, `question`, `answer`, `source`, `date`; mẫu `AI-skills/reporting/templates/runtime_facts.example.json`);
 2. trích bằng `fact:<id>` và đổi kết luận của mắt xích;
 3. chạy lại R.3–R.5 cho các F đó.
 

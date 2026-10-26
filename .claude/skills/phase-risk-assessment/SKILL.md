@@ -17,14 +17,14 @@ description: >-
 - **Đầu vào:**
   - phát hiện đã hợp nhất (`documents/_report/work/consolidation.json`, bước 4.3) và tác động nghiệp vụ của chúng (bước 4.4);
   - kiến trúc (`work/architecture.*`);
-  - chỉ mục truy cập (`report.py access --for F-xx`);
+  - chỉ mục truy cập (`python AI-skills/reporting/report.py access --for F-xx`);
   - kết quả đã khoá sổ trong `documents/`.
 - **Đầu ra:**
   - `work/risk/F-xx.json`;
   - `work/risk/_combinations.json`;
   - `work/risk_review.json` hoặc `work/risk_review/<lô>.json`;
   - `documents/_report/DANH_GIA_RUI_RO.md`.
-- **Cổng:** báo cáo tổng hợp (4.5) chỉ được viết khi `report.py check --stage risk` đạt và đã chạy `render-risk` (không `--draft`). Mức rủi ro và ưu tiên trong báo cáo do script suy ra ở phase này.
+- **Cổng:** báo cáo tổng hợp (4.5) chỉ được viết khi `python AI-skills/reporting/report.py check --stage risk` đạt và đã chạy `render-risk` (không `--draft`). Mức rủi ro và ưu tiên trong báo cáo do script suy ra ở phase này.
 
 ## Quyền truy cập
 - **Đọc:**
@@ -42,20 +42,20 @@ description: >-
 | Bước | Việc | Công cụ có subagent (Claude Code, Antigravity) | Công cụ không có subagent (model local) | Cổng |
 |---|---|---|---|---|
 | R.1 | Đường khai thác, mắt xích, người nắm giữ cho từng F | Agent tool, `general-purpose`, `model: sonnet`, mỗi subagent 1–2 F; prompt chỉ gồm: "Theo `.agents/skills/phase-risk-exploit-path/SKILL.md`, F: <F-xx>". Chạy song song được, mỗi F một file | tuần tự. **Context dưới 64K: mỗi lượt 1 F**; trên 64K: tối đa 2 F. Mở phiên mới khi context gần đầy, rồi chạy `status` | `check --stage risk-paths` |
-| R.2 | Ghép chéo, câu hỏi quyết định | phiên chính, làm trên `report.py risk-digest` (không mở mọi file F) | như bên trái | `check --stage risk` (phần `_combinations`) |
-| R.3 | Lập luận kết luận cho từng F | phiên chính, theo `.agents/skills/phase-risk-verdict/SKILL.md` mục R.3, rồi `report.py render-risk --draft` | như bên trái, mỗi lượt khoảng 5 F | `status` dòng R.2–R.3 |
+| R.2 | Ghép chéo, câu hỏi quyết định | phiên chính, làm trên `python AI-skills/reporting/report.py risk-digest` (không mở mọi file F) | như bên trái | `check --stage risk` (phần `_combinations`) |
+| R.3 | Lập luận kết luận cho từng F | phiên chính, theo `.agents/skills/phase-risk-verdict/SKILL.md` mục R.3, rồi `python AI-skills/reporting/report.py render-risk --draft` | như bên trái, mỗi lượt khoảng 5 F | `status` dòng R.2–R.3 |
 | R.4 | Thách thức độc lập hai chiều | **không phải phiên chính**. Chia lô khoảng 8 F, mỗi lô một subagent `general-purpose`, `model: sonnet`; prompt chỉ gồm: "Theo `.agents/skills/phase-risk-challenge/SKILL.md`; `context: fresh_subagent`; lô `<tên>`: F-01, F-02, …". Mỗi lô ghi `work/risk_review/<tên>.json` | **cuộc hội thoại mới** cho mỗi lô, gọi `/phase-risk-challenge`, ghi `context: new_session` | — |
-| R.5 | Xử lý thách thức, chốt | `.agents/skills/phase-risk-verdict/SKILL.md` mục R.5, rồi `report.py render-risk` | như bên trái | `status` dòng R.4–R.5 |
+| R.5 | Xử lý thách thức, chốt | `.agents/skills/phase-risk-verdict/SKILL.md` mục R.5, rồi `python AI-skills/reporting/report.py render-risk` | như bên trái | `status` dòng R.4–R.5 |
 
-Mọi lệnh chạy từ `<Project-Root>` (Windows: `python` nếu không có `python3`):
+Mọi lệnh chạy từ `<Project-Root>` (trên Windows dùng `python`; trên macOS/Linux dùng `python3`):
 ```bash
-python3 AI-skills/reporting/report.py status                         # dòng R.1, R.2–R.3, R.4–R.5 kèm F còn thiếu
-python3 AI-skills/reporting/report.py access --for F-03              # chỉ mục truy cập của một F (không đọc nguyên 05_access_index.md)
-python3 AI-skills/reporting/report.py check --stage risk-paths --only F-03   # chỉ lỗi R.1 của F-03
-python3 AI-skills/reporting/report.py risk-digest                    # bảng ghép chéo gọn cho R.2
-python3 AI-skills/reporting/report.py check --stage risk
-python3 AI-skills/reporting/report.py render-risk --draft            # trước R.4; ghi phiên bản file rủi ro
-python3 AI-skills/reporting/report.py render-risk                    # sau R.5
+python AI-skills/reporting/report.py status                         # dòng R.1, R.2–R.3, R.4–R.5 kèm F còn thiếu
+python AI-skills/reporting/report.py access --for F-03              # chỉ mục truy cập của một F (không đọc nguyên 05_access_index.md)
+python AI-skills/reporting/report.py check --stage risk-paths --only F-03   # chỉ lỗi R.1 của F-03
+python AI-skills/reporting/report.py risk-digest                    # bảng ghép chéo gọn cho R.2
+python AI-skills/reporting/report.py check --stage risk
+python AI-skills/reporting/report.py render-risk --draft            # trước R.4; ghi phiên bản file rủi ro
+python AI-skills/reporting/report.py render-risk                    # sau R.5
 ```
 
 ## Phương pháp

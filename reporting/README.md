@@ -10,7 +10,7 @@ Báo cáo gồm: tóm tắt điều hành · **kiến trúc toàn hệ thống t
 
 ## Vì sao có script riêng
 
-Model (nhất là model chạy local) giỏi phán đoán nhưng dễ sót, dễ bịa và dễ tràn context khi phải đọc hàng trăm finding. Vì vậy phần **tất định** do `report.py` làm:
+Model (nhất là model chạy local) giỏi phán đoán nhưng dễ sót, dễ bịa và dễ tràn context khi phải đọc hàng trăm finding. Vì vậy phần **tất định** do `AI-skills/reporting/report.py` làm:
 
 | Lệnh | Việc |
 |---|---|
@@ -55,16 +55,16 @@ runtime_facts.json       — (documents/_report/) sự thật runtime do ngườ
 | `/phase-4-report-writer` | 4.5 Tóm tắt, lộ trình, khoảng trống, bản nháp; 4.7 xử lý rà soát, render cuối |
 | `/phase-4-independent-review` | 4.6 Rà soát độc lập trong context mới (subagent hoặc cuộc hội thoại mới), ghi `work/review.json` |
 
-Hướng dẫn chi tiết: `guides/01_nguon_du_lieu.md` … `guides/05_viet_bao_cao.md`; Phase Risk: `guides/06_rui_ro_thuc_te.md`. Mẫu: `templates/`.
+Hướng dẫn chi tiết: `AI-skills/reporting/guides/01_nguon_du_lieu.md` … `AI-skills/reporting/guides/05_viet_bao_cao.md`; Phase Risk: `AI-skills/reporting/guides/06_rui_ro_thuc_te.md`. Mẫu: `templates/`.
 
-Phase 4 không đi qua engine `lsec.py` (không `submit_skill`, không `ev_...` mới) vì nó không đọc mã nguồn; cổng kiểm của nó là `report.py check`. Test: `tests/test_reporting.py`.
+Phase 4 không đi qua engine `lsec.py` (không `submit_skill`, không `ev_...` mới) vì nó không đọc mã nguồn; cổng kiểm của nó là `python AI-skills/reporting/report.py check`. Test: `tests/test_reporting.py`.
 
 ## Chạy nhanh
 
 ```bash
-python3 AI-skills/reporting/report.py collect
-python3 AI-skills/reporting/report.py status
+python AI-skills/reporting/report.py collect
+python AI-skills/reporting/report.py status
 # … model làm 4.2 → 4.4 theo /phase-4-consolidated-report, rồi Phase Risk theo /phase-risk-assessment, rồi 4.5 → 4.7 …
-python3 AI-skills/reporting/report.py check --stage final
-python3 AI-skills/reporting/report.py render
+python AI-skills/reporting/report.py check --stage final
+python AI-skills/reporting/report.py render
 ```

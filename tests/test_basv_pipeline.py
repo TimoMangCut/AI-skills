@@ -357,14 +357,40 @@ class TestBASVPipeline(unittest.TestCase):
 
         toolkit_root = manual_session._toolkit_root()
         agents_dir = toolkit_root / ".agents"
-        md_files = [agents_dir / "README.md"] + sorted((agents_dir / "skills").glob("*/SKILL.md"))
-        self.assertEqual(len(md_files), 29)  # 18 wins + 11 vendored phase-4-*/phase-risk-* report skills
+        md_files = (
+            [
+                agents_dir / "README.md",
+                toolkit_root / "README.md",
+                toolkit_root / "CLAUDE.md",
+                toolkit_root / "AGENTS.md",
+                toolkit_root / "reporting" / "README.md",
+            ]
+            + sorted((agents_dir / "skills").glob("*/SKILL.md"))
+            + sorted((toolkit_root / ".claude" / "skills").glob("*/SKILL.md"))
+            + sorted((toolkit_root / "reporting" / "guides").glob("*.md"))
+        )
+        self.assertEqual(len(list((agents_dir / "skills").glob("*/SKILL.md"))), 28)
 
         ms_source = Path(manual_session.__file__).read_text(encoding="utf-8")
         registered_subcmds = set(re.findall(r'sub\.add_parser\("([a-z0-9_]+)"', ms_source))
+        valid_report_subcmds = {
+            "collect",
+            "status",
+            "catalog",
+            "promote",
+            "check",
+            "access",
+            "risk-digest",
+            "risk-ack",
+            "review-ack",
+            "render-risk",
+            "render",
+        }
+        valid_report_stages = {"architecture", "findings", "impact", "risk-paths", "risk", "final"}
 
         for md_file in md_files:
             text = md_file.read_text(encoding="utf-8")
+            rel_md = md_file.relative_to(toolkit_root)
             # 1. Every concrete `AI-skills/<path>` reference must exist inside toolkit_root
             for match in re.findall(r"`(AI-skills/[A-Za-z0-9_./-]+)`", text):
                 rel = match.removeprefix("AI-skills/").rstrip("/")
@@ -373,16 +399,35 @@ class TestBASVPipeline(unittest.TestCase):
                 target = toolkit_root / rel
                 self.assertTrue(
                     target.exists(),
-                    f"Broken path reference '{match}' in {md_file.relative_to(toolkit_root)} -> {target} does not exist",
+                    f"Broken path reference '{match}' in {rel_md} -> {target} does not exist",
                 )
-            # 2. Every `python -m localsec.manual_session <subcmd>` must be a registered CLI subparser
-            self.assertNotIn("PYTHONPATH=AI-skills:.", text, f"Legacy POSIX inline PYTHONPATH found in {md_file}")
-            self.assertNotIn("python3 -m", text, f"Legacy python3 -m found in {md_file}")
+            # 2. No unprefixed toolkit paths (`templates/...`, `guides/...`, `contracts/v3-orchestration.json`) that fail from <Project-Root>
+            unprefixed = re.findall(r"`((?:templates|guides)/[A-Za-z0-9_.-]+|contracts/v3-orchestration\.json)`", text)
+            self.assertEqual(
+                unprefixed,
+                [],
+                f"Unprefixed toolkit path in {rel_md} (must start with AI-skills/ when standing at <Project-Root>): {unprefixed}",
+            )
+            # 3. Windows branch (`wins`) must use `python` (never `python3 ` or legacy `PYTHONPATH=AI-skills:.`)
+            self.assertNotIn("PYTHONPATH=AI-skills:.", text, f"Legacy POSIX inline PYTHONPATH found in {rel_md}")
+            self.assertNotIn("python3 ", text, f"Non-Windows 'python3 ' command found in {rel_md}")
             for subcmd in re.findall(r"python3? -m localsec\.manual_session\s+([a-z0-9_]+)", text):
                 self.assertIn(
                     subcmd,
                     registered_subcmds,
-                    f"Unregistered CLI subcommand '{subcmd}' referenced in {md_file.relative_to(toolkit_root)}",
+                    f"Unregistered CLI subcommand '{subcmd}' referenced in {rel_md}",
+                )
+            for rep_sub in re.findall(r"python3? AI-skills/reporting/report\.py\s+([a-z-]+)", text):
+                self.assertIn(
+                    rep_sub,
+                    valid_report_subcmds,
+                    f"Unregistered report.py subcommand '{rep_sub}' referenced in {rel_md}",
+                )
+            for stg in re.findall(r"report\.py\s+check\s+--stage\s+([A-Za-z0-9_.-]+)", text):
+                self.assertIn(
+                    stg,
+                    valid_report_stages,
+                    f"Invalid report.py check --stage '{stg}' in {rel_md}",
                 )
 
     def test_manual_session_blinded_commands_and_allowed_paths(self) -> None:

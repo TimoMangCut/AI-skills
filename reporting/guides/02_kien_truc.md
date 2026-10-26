@@ -60,4 +60,4 @@ Theo khung `AI-skills/reporting/templates/architecture.template.md`. Heading b�
 - Không lặp lại danh sách finding ở đây. Kiến trúc nói về **cấu trúc và kiểm soát**; finding nằm ở mục 4.
 - Sau bước 4.3, quay lại 2.3/2.5/2.6 để thay SID/RC bằng `F-xx` (bước 4.5).
 
-Chạy `python3 AI-skills/reporting/report.py check --stage architecture` tới khi đạt.
+Chạy `python AI-skills/reporting/report.py check --stage architecture` tới khi đạt.

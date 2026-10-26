@@ -1,6 +1,6 @@
 # 05 — Viết, rà soát độc lập và chốt báo cáo (bước 4.5–4.7)
 
-Báo cáo cuối do `report.py render` dựng **tự động** từ `work/architecture.md`, `work/architecture.json`, `work/consolidation.json`, `work/map/*.json` và `inputs/inputs.json`. Model không tự viết file báo cáo cuối và không sửa nó bằng tay. Muốn đổi nội dung thì sửa file `work/` rồi render lại.
+Báo cáo cuối do `python AI-skills/reporting/report.py render` dựng **tự động** từ `work/architecture.md`, `work/architecture.json`, `work/consolidation.json`, `work/map/*.json` và `inputs/inputs.json`. Model không tự viết file báo cáo cuối và không sửa nó bằng tay. Muốn đổi nội dung thì sửa file `work/` rồi render lại.
 
 ## Bố cục do renderer dựng
 
@@ -41,10 +41,10 @@ Thay SID/RC ở mục 2.3, 2.5, 2.6 bằng `F-xx` tương ứng để người �
 ## Dựng bản nháp, rà soát độc lập, chốt
 
 ```bash
-python3 AI-skills/reporting/report.py render --draft      # 4.5: bản nháp có dòng "BẢN NHÁP"
+python AI-skills/reporting/report.py render --draft      # 4.5: bản nháp có dòng "BẢN NHÁP"
 # 4.6: /phase-4-independent-review trong context MỚI (subagent hoặc cuộc hội thoại mới) → work/review.json
-python3 AI-skills/reporting/report.py check --stage final # 4.7: sau khi điền `resolution` cho mọi vấn đề
-python3 AI-skills/reporting/report.py render
+python AI-skills/reporting/report.py check --stage final # 4.7: sau khi điền `resolution` cho mọi vấn đề
+python AI-skills/reporting/report.py render
 ```
 
 `check --stage final` chặn khi:

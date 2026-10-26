@@ -62,10 +62,10 @@ Mục không bắt buộc (không có ★) mà không gom thì renderer tự đ�
 - công cụ có subagent: phiên chính giao mỗi lô cho một subagent (`general-purpose`, `model: sonnet`), nhiều lô chạy song song được; prompt chỉ gồm tên lô và đường dẫn SKILL.md;
 - công cụ không có subagent: làm tuần tự từng lô; khi context gần đầy thì mở phiên mới, chạy `catalog` rồi làm tiếp.
 
-Vấn đề mới mà chưa có F thì ghi `"to": "NEW:<slug>"` kèm `"proposal": {"title", "core_issue", "root_causes", "services"}`. Phiên chính hợp nhất ở 4.3c bằng `report.py promote NEW:<slug> F-xx`.
+Vấn đề mới mà chưa có F thì ghi `"to": "NEW:<slug>"` kèm `"proposal": {"title", "core_issue", "root_causes", "services"}`. Phiên chính hợp nhất ở 4.3c bằng `python AI-skills/reporting/report.py promote NEW:<slug> F-xx`.
 
 Lặp lại cho mỗi lô:
-1. `python3 AI-skills/reporting/report.py catalog`: xem danh mục F hiện có và repo kế tiếp.
+1. `python AI-skills/reporting/report.py catalog`: xem danh mục F hiện có và repo kế tiếp.
 2. Đọc `inputs/findings/<repo>.md`. Chỉ xử lý dòng ★ là bắt buộc; dòng không ★ mức high thì nên xử lý.
 3. Mỗi dòng: gán vào F có sẵn (cùng gốc, cùng cách sửa), tạo F mới trong `consolidation.json`, hoặc loại trừ.
 4. Cần hiểu kỹ một mục thì mở file ở cột *Nguồn*, **đọc theo đoạn** quanh ID đó; không đọc cả file lớn.
@@ -75,7 +75,7 @@ Lặp lại cho mỗi lô:
 
 ## Định dạng
 
-`work/map/<repo>.json` (xem `templates/map.example.json`):
+`work/map/<repo>.json` (xem `AI-skills/reporting/templates/map.example.json`):
 ```json
 {"repo": "vfip-payment", "items": [
   {"sid": "vfip-payment:CM-1", "to": "F-03"},
@@ -84,7 +84,7 @@ Lặp lại cho mỗi lô:
 ]}
 ```
 
-F trong `work/consolidation.json` (xem `templates/consolidation.example.json`). Trường bắt buộc ở bước này: `id`, `title`, `services`, `domains`, `source_ids` (2–6 nguồn **chính**, mạnh nhất, những nguồn khác nằm trong map), `root_causes`, `core_issue` (1–3 câu, nói *cái gì sai ở đâu*, không kể lại khai thác), `risk`, `confidence`, `priority`, `risk_rationale`, `remediation`, `validation` (nếu chưa `confirmed`).
+F trong `work/consolidation.json` (xem `AI-skills/reporting/templates/consolidation.example.json`). Trường bắt buộc ở bước này: `id`, `title`, `services`, `domains`, `source_ids` (2–6 nguồn **chính**, mạnh nhất, những nguồn khác nằm trong map), `root_causes`, `core_issue` (1–3 câu, nói *cái gì sai ở đâu*, không kể lại khai thác), `risk`, `confidence`, `priority`, `risk_rationale`, `remediation`, `validation` (nếu chưa `confirmed`).
 
 ## Không được
 

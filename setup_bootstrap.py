@@ -51,10 +51,12 @@ def _is_git_tracked(root: Path, rel_path: str) -> bool:
         return False
 
 
-def _merge_marked_file(src_path: Path, dst_path: Path, marker_name: str) -> str:
+def _merge_marked_file(src_path: Path, dst_path: Path, marker_name: str, folder_name: str = "AI-skills") -> str:
     begin_tag = f"<!-- BEGIN AI-SKILLS:{marker_name} -->"
     end_tag = f"<!-- END AI-SKILLS:{marker_name} -->"
     src_text = src_path.read_text(encoding="utf-8").strip()
+    if folder_name != "AI-skills":
+        src_text = src_text.replace("AI-skills", folder_name)
     block = f"{begin_tag}\n{src_text}\n{end_tag}\n"
 
     if not dst_path.is_file():
@@ -154,21 +156,35 @@ def _resolve_working_python_cmd() -> str | None:
     return None
 
 
-def _rewrite_hook_python_cmd(project_root: Path, py_cmd: str) -> None:
-    """When `python` on PATH is missing or a broken shim, rewrite installed hook configs to use `py_cmd`."""
-    if not py_cmd or py_cmd == "python":
+def _rewrite_hook_python_cmd(project_root: Path, py_cmd: str, skill_dir: Path | None = None) -> None:
+    """Rewrite installed hook configs in `project_root` to use `py_cmd` and resolve `claude_subagent_guard.py` regardless of hook runner cwd."""
+    if not py_cmd:
         return
-    old_cmd = "python -m localsec.claude_subagent_guard"
-    new_cmd = f"{py_cmd} -m localsec.claude_subagent_guard"
-    for rel in (
-        Path(".claude") / "agents" / "localsec-blinded-challenger.md",
-        Path(".agents") / "hooks.json",
-    ):
-        fp = project_root / rel
-        if fp.is_file():
-            txt = fp.read_text(encoding="utf-8")
+    guard_py = (skill_dir / "localsec" / "claude_subagent_guard.py").resolve() if skill_dir else None
+    cl_agent = project_root / ".claude" / "agents" / "localsec-blinded-challenger.md"
+    if cl_agent.is_file() and py_cmd != "python":
+        txt = cl_agent.read_text(encoding="utf-8")
+        for old_cmd in ("python -m localsec.claude_subagent_guard", "python3 -m localsec.claude_subagent_guard"):
             if old_cmd in txt:
-                fp.write_text(txt.replace(old_cmd, new_cmd), encoding="utf-8")
+                txt = txt.replace(old_cmd, f"{py_cmd} -m localsec.claude_subagent_guard")
+        cl_agent.write_text(txt, encoding="utf-8")
+
+    ag_hooks = project_root / ".agents" / "hooks.json"
+    if ag_hooks.is_file():
+        try:
+            data = json.loads(ag_hooks.read_text(encoding="utf-8"))
+            guard_cfg = data.get("localsec-blinded-guard")
+            if isinstance(guard_cfg, dict):
+                for entry in guard_cfg.get("PreToolUse") or []:
+                    for hk in (entry.get("hooks") if isinstance(entry, dict) else None) or []:
+                        if isinstance(hk, dict) and hk.get("type") == "command":
+                            if guard_py and guard_py.is_file():
+                                hk["command"] = f'{py_cmd} "{guard_py.as_posix()}" --platform antigravity'
+                            else:
+                                hk["command"] = f"{py_cmd} -m localsec.claude_subagent_guard --platform antigravity"
+                ag_hooks.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _self_check_blinded_guard(project_root: Path, py_cmd: str | None = None) -> tuple[bool, str]:
@@ -490,7 +506,7 @@ def main(argv: list[str] | None = None) -> int:
     # 3b. Resolve working Python interpreter and self-check both Claude and Antigravity blinded-step hooks
     py_cmd = _resolve_working_python_cmd()
     if py_cmd:
-        _rewrite_hook_python_cmd(project_root, py_cmd)
+        _rewrite_hook_python_cmd(project_root, py_cmd, skill_dir=skill_dir)
     guard_ok, guard_msg = _self_check_blinded_guard(project_root, py_cmd=py_cmd)
     if not guard_ok:
         print(f"[!] Hook bước mù (2.3) KHÔNG hoạt động: {guard_msg}", file=sys.stderr)
@@ -499,10 +515,10 @@ def main(argv: list[str] | None = None) -> int:
             return 3
 
     # 4. Non-destructively install or merge AGENTS.md, SOUL.md, and CLAUDE.md
-    agents_status = _merge_marked_file(skill_dir / "AGENTS.md", project_root / "AGENTS.md", "AGENTS.md")
-    soul_status = _merge_marked_file(skill_dir / "SOUL.md", project_root / "SOUL.md", "SOUL.md")
+    agents_status = _merge_marked_file(skill_dir / "AGENTS.md", project_root / "AGENTS.md", "AGENTS.md", folder_name=folder_name)
+    soul_status = _merge_marked_file(skill_dir / "SOUL.md", project_root / "SOUL.md", "SOUL.md", folder_name=folder_name)
     claude_status = (
-        _merge_marked_file(skill_dir / "CLAUDE.md", project_root / "CLAUDE.md", "CLAUDE.md")
+        _merge_marked_file(skill_dir / "CLAUDE.md", project_root / "CLAUDE.md", "CLAUDE.md", folder_name=folder_name)
         if (skill_dir / "CLAUDE.md").is_file()
         else "skipped"
     )

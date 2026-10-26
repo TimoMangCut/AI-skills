@@ -16,10 +16,10 @@ Rủi ro thật thường nằm ở **tổ hợp**: một điểm yếu riêng l
 ```
 
 ## Điều kiện
-`report.py check --stage risk-paths` đạt (mọi F đã qua R.1).
+`python AI-skills/reporting/report.py check --stage risk-paths` đạt (mọi F đã qua R.1).
 
 ## Làm
-1. Chạy `python3 AI-skills/reporting/report.py risk-digest`. Bảng gồm:
+1. Chạy `python AI-skills/reporting/report.py risk-digest`. Bảng gồm:
    - `yields` của mỗi F, kèm F đó khả thi hay không;
    - mọi mắt xích `khong`/`chua_ro` của mọi F (một dòng mỗi mắt xích).
 
@@ -49,10 +49,10 @@ Rủi ro thật thường nằm ở **tổ hợp**: một điểm yếu riêng l
    - Câu hỏi phải trả lời được bằng một lần xuất dữ liệu hoặc một lệnh, và nêu đích danh đối tượng cần kiểm (ví dụ client kiểm thử trong seed).
    - Script tính sẵn kết quả rủi ro/ưu tiên cho từng câu trả lời "có" / "không".
    - Mắt xích đã nằm trong câu hỏi quyết định không cần câu hỏi riêng trong file F nữa: xoá câu hỏi trùng để giữ dưới trần 10 câu.
-4. Tìm thứ cung cấp mắt xích **cả ngoài tập F**: `report.py access --for F-xx`, `inputs/03_findings_index.md`, kể cả mục đã loại trừ ở 4.3.
+4. Tìm thứ cung cấp mắt xích **cả ngoài tập F**: `python AI-skills/reporting/report.py access --for F-xx`, `inputs/03_findings_index.md`, kể cả mục đã loại trừ ở 4.3.
    - Nguồn nào có trong chỉ mục mà chưa thành holder thì thêm.
    - `enabled_by` bằng SID: `check` báo lỗi nếu SID đã thuộc F (ghi F đó), hoặc đã bị loại trừ (quay lại 4.3).
-5. `python3 AI-skills/reporting/report.py check --stage risk`: phần `_combinations` không còn lỗi; cảnh báo "`enabled_by` … chưa có tổ hợp tương ứng" phải hết.
+5. `python AI-skills/reporting/report.py check --stage risk`: phần `_combinations` không còn lỗi; cảnh báo "`enabled_by` … chưa có tổ hợp tương ứng" phải hết.
 
 ## Không được
 - Ghép hai điểm yếu chỉ vì cùng service hay cùng chủ đề. Phải chỉ ra đúng mắt xích nào được mở.

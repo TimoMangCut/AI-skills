@@ -9,7 +9,7 @@ description: >-
 Phase 4 không đọc mã nguồn và không tự viết báo cáo bằng script. Nó gồm hai phần:
 
 1. **Xuất (script, 0 token):** `finalize_v3_phase4` chép kết quả `.localsec/runs/<run_id>/` thành các file trong `documents/` mà `reporting/report.py collect` đọc được.
-2. **Lập báo cáo (model + cổng script):** chạy nguyên luồng của bộ báo cáo tổng hợp vendored trong `AI-skills/reporting/` và các skill `phase-4-*` / `phase-risk-*`. Mọi kết luận đi qua `report.py check`; mức rủi ro do `reporting/risk.py` suy ra.
+2. **Lập báo cáo (model + cổng script):** chạy nguyên luồng của bộ báo cáo tổng hợp vendored trong `AI-skills/reporting/` và các skill `phase-4-*` / `phase-risk-*`. Mọi kết luận đi qua `python AI-skills/reporting/report.py check`; mức rủi ro do `reporting/risk.py` suy ra.
 
 ## Bước 4.0 — Kiểm cổng và xuất
 

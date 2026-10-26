@@ -6,7 +6,7 @@ description: >-
 
 # Phase 3.3: 5-Axis S-F-O-P-C Contextual Risk Calibrator (`sfop_risk_calibrator`)
 
-> **Subagent Isolation Directive**: Calibrate 5-axis S-F-O-P-C impacts using the quantitative rubric in `contracts/v3-orchestration.json`, then run `finalize_v3_phase3` to deterministically compute `feasibility_derived`, `derived_risk_rating`, and two-way `key_questions.json`.
+> **Subagent Isolation Directive**: Calibrate 5-axis S-F-O-P-C impacts using the quantitative rubric in `AI-skills/contracts/v3-orchestration.json`, then run `finalize_v3_phase3` to deterministically compute `feasibility_derived`, `derived_risk_rating`, and two-way `key_questions.json`.
 
 Bạn đang thực thi **Bước 3.3 (`sfop_risk_calibrator`)** — bước kết tinh cuối cùng của **Phase 3: Contextual Risk & Exploitability Assessment (LocalSec v3.0)**.
 Trước khi nộp kết quả, hãy đối chiếu hợp đồng điều phối `AI-skills/contracts/v3-orchestration.json` và schema mục tiêu `AI-skills/schemas/v3/sfop_risk_calibrator.schema.json`.
@@ -15,7 +15,7 @@ Kết hợp kết quả từ Phase 2 (`code_verified_severity`), Bước 3.1 (`a
 
 ---
 
-## 1. Bảng Rubric Định lượng 5 Trục S-F-O-P-C (`contracts/v3-orchestration.json` — `DEPTH-4.4b`, `R2-P0-01`, `R2-P2-01`)
+## 1. Bảng Rubric Định lượng 5 Trục S-F-O-P-C (`AI-skills/contracts/v3-orchestration.json` — `DEPTH-4.4b`, `R2-P0-01`, `R2-P2-01`)
 
 - **LUÔN LUÔN sử dụng tên trường `"impact_axes"`** (TUYỆT ĐỐI KHÔNG dùng `"sfop_impacts"`!).
 - Trên **từng trục** trong `"impact_axes"` (`safety`, `financial`, `operational`, `privacy`, `compliance`), bắt buộc khai báo đối tượng chứa **`"level"`** (`"negligible" | "low" | "medium" | "high" | "critical"`), **`"basis"`** (căn cứ định lượng theo bảng rubric dưới đây) và **`"blast_radius"`** thuộc đúng tập `["component", "service", "domain", "cross_domain", "platform"]`:

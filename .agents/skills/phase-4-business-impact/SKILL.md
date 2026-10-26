@@ -16,7 +16,7 @@ Mỗi phát hiện phải trả lời: lỗi này làm hỏng việc kinh doanh 
 ```
 
 ## Điều kiện
-`report.py check --stage findings` đạt.
+`python AI-skills/reporting/report.py check --stage findings` đạt.
 
 ## Làm
 1. Đọc `AI-skills/reporting/guides/04_tac_dong_nghiep_vu.md` (bắt buộc).
@@ -27,7 +27,7 @@ Mỗi phát hiện phải trả lời: lỗi này làm hỏng việc kinh doanh 
    - dùng `work/architecture.json` (`domains`, `shared_components`) và `inputs/02_edges.md` để xác định `blast_radius`;
    - ghi `business_impact` (capability, scenario, consequence, dimensions, level, blast_radius, basis, conditions);
    - ghi `risk` = mức tác động, `priority` tạm theo bảng trong guide 04, `risk_rationale` nói vì sao mức tác động này. Không tính ai khai thác được hay khó dễ thế nào.
-4. Chạy `python3 AI-skills/reporting/report.py check --stage impact` tới khi `ĐẠT`; đọc hết cảnh báo (nâng mức so với nguồn, ước lượng tiền, blast radius).
+4. Chạy `python AI-skills/reporting/report.py check --stage impact` tới khi `ĐẠT`; đọc hết cảnh báo (nâng mức so với nguồn, ước lượng tiền, blast radius).
 5. `risk`/`priority` ở bước này là **tạm**. Tác động nghiệp vụ là đầu ra chính của bước này; nó được giữ nguyên và là đầu vào của **Phase Risk** (`/phase-risk-assessment`). Phase Risk xét khả năng khai thác thực tế rồi chốt mức rủi ro và ưu tiên cuối.
 
 ## Không được

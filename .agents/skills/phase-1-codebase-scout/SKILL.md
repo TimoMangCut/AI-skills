@@ -22,7 +22,7 @@ Mục tiêu của bước này là **định vị chính xác mẫu số kiểm 
    - File `.localsec/runs/default/<repo_name>/inventory_repo.json` cung cấp danh sách tất định `mandatory_files` (phân loại theo `entrypoint`, `security`, `wiring_config`, `outbound`, `data_access`) cùng các dấu vết nhạy cảm/phụ thuộc (`scan_repo_leads`).
 2. **Độ phủ Bắt buộc của `target_modules` & Enum `ignored_modules`**:
    - `target_modules` **BẮT BUỘC phải bao phủ 100% các thư mục có chứa file `entrypoint` hoặc `security`** trong `inventory_repo.json`.
-   - Nếu loại trừ bất kỳ thư mục nào vào `ignored_modules`, mỗi mục **BẮT BUỘC** phải khai báo `path` và `reason` thuộc đúng tập enum chuẩn trong `contracts/v3-orchestration.json`:
+   - Nếu loại trừ bất kỳ thư mục nào vào `ignored_modules`, mỗi mục **BẮT BUỘC** phải khai báo `path` và `reason` thuộc đúng tập enum chuẩn trong `AI-skills/contracts/v3-orchestration.json`:
      - `test_or_mock`
      - `generated_code`
      - `third_party_vendor`

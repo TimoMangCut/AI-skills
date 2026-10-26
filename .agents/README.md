@@ -15,7 +15,7 @@ Hệ thống gồm **28 Skills** đồng bộ phần thân giữa `.agents/skill
 | **Phase 1: Unified Reconnaissance** | `/phase-1-orchestrator` | **6 bước theo thứ tự `Intent Before Code` (`1.1 -> 1.3 -> 1.2 -> 1.4 -> 1.5 -> 1.6`)**: `inventory_repo` + `codebase_scout` $\rightarrow$ `intent_invariant_modeler` $\rightarrow$ `extractor_tailor` $\rightarrow$ `unified_surface_mapper` $\rightarrow$ `match_cross_repo_boundaries` + `cross_repo_and_arch_review` $\rightarrow$ `coverage_and_evidence_auditor` + `finalize_v3_phase1` | Chạy kiểm kê tất định `inventory_repo` trước, dựng mô hình Ý định & Bất biến S-F-O-P-C trước khi đọc code thực thi (`ARCH-3K`), tinh chỉnh Python extractor trên canary files, đọc code theo lô ưu tiên rủi ro (`read_files --module <m> --until-pct 50`, cổng yêu cầu mỗi `target_module` đọc $\ge 50\%$ số dòng nguồn — `target_module_min_line_coverage`), thực hiện rà soát `stride_review` (8 mục) & `pattern_checklist` (10 mục) ở bước `1.5`, và khóa sổ qua `finalize_v3_phase1` để xuất `coverage_matrix.json` & `candidate_queue.json`. |
 | **Phase 2: Deep Analysis & Falsification** | `/phase-2-orchestrator` | **3 bước bắt buộc + 1 bước tuỳ chọn (`2.1 -> 2.2 -> 2.3 -> [2.4]`)**: `candidate_intake_planner` $\rightarrow$ `deep_trace_chain_analyst` $\rightarrow$ `blinded_counterevidence_challenger` (Subagent cô lập) $\rightarrow$ `finalize_v3_phase2` (`analysis_evidence_gate` được `finalize_v3_phase2` tự ghi) | Đọc `candidate_queue.json`, tiêm nguyên văn khối `Attack-Class Companion`, truy vết sâu `hops[]` cho 100% ứng viên, xuất gói mù Whitelist qua `prepare_blinded_chain_verifier` (tự động thêm file import 1 cấp `imported_by_hops` và câu hỏi trung tính `claim_to_challenge`), chạy bước `2.3` trong **Subagent cô lập có hook `PreToolUse` bảo vệ**, chép `chains_fingerprint` vào `blinded_package_fingerprint`, và khóa sổ qua `finalize_v3_phase2`. |
 | **Phase 3: Contextual Risk & Exploitability** | `/phase-3-orchestrator` | **3 bước (`3.1 -> 3.3` + Per-Repo Report)**: `actor_and_feasibility_assessor` $\rightarrow$ `beyond_code_control_mapper` $\rightarrow$ `sfop_risk_calibrator` + `finalize_v3_phase3` + `render_v3_report` | Đánh giá 100% `chain_id` sống sót (cùng các chuỗi từ `broken_link_splits` nếu có): chứng minh `minimum_actor`, `preconditions[]` (`status`: `yes`/`no`/`unknown`, `holders[]` với `actor_type` + `attainable`, `actors_considered`), đối chiếu kiểm soát ngoài code (`3.2`), hiệu chuẩn rủi ro 5 trục **S-F-O-P-C** (`3.3`), chạy `finalize_v3_phase3` và `render_v3_report`. |
-| **Phase 4: Final Synthesis & Canonical Report Generation** | `/phase-4-orchestrator` | **Xuất dữ liệu v3 $\rightarrow$ Collect $\rightarrow$ Consolidation (`4.2`) $\rightarrow$ Risk (`R.1–R.5`) $\rightarrow$ Business Impact (`4.3`) $\rightarrow$ Architecture (`4.5`) $\rightarrow$ Independent Review (`4.6`) $\rightarrow$ Report Writer (`4.7`) $\rightarrow$ Check & Render** | Chạy `python -m localsec.manual_session finalize_v3_phase4` để xuất dữ liệu v3 sang `documents/<repo>/`, `documents/_analysis/`, `documents/_system/`, `documents/_v3/<repo>/` và mồi thẻ `documents/_report/work/risk/F-xx.json`; tiếp theo chạy `python AI-skills/reporting/report.py collect`, thực hiện các bước `4.2` $\rightarrow$ `R.1–R.5` $\rightarrow$ `4.3` $\rightarrow$ `4.5` $\rightarrow$ `4.6` (subagent/phiên mới) $\rightarrow$ `4.7`, kiểm định bằng `python AI-skills/reporting/report.py check --stage final` và kết xuất bộ 3 báo cáo cuối cùng bằng `python AI-skills/reporting/report.py render`. |
+| **Phase 4: Final Synthesis & Canonical Report Generation** | `/phase-4-orchestrator` | **Xuất dữ liệu v3 $\rightarrow$ Collect (`4.1`) $\rightarrow$ Architecture (`4.2`) $\rightarrow$ Consolidation (`4.3`) $\rightarrow$ Business Impact (`4.4`) $\rightarrow$ Phase Risk (`R.1–R.5`) $\rightarrow$ Draft (`4.5`) $\rightarrow$ Independent Review (`4.6`) $\rightarrow$ Final (`4.7`)** | Chạy `python -m localsec.manual_session finalize_v3_phase4` để xuất dữ liệu v3 sang `documents/<repo>/`, `documents/_analysis/`, `documents/_system/`, `documents/_v3/`; tiếp theo chạy `python AI-skills/reporting/report.py collect`, thực hiện các bước `4.2` $\rightarrow$ `4.3` $\rightarrow$ `4.4` $\rightarrow$ `R.1–R.5` $\rightarrow$ `4.5` $\rightarrow$ `4.6` (subagent/phiên mới) $\rightarrow$ `4.7`, kiểm định bằng `python AI-skills/reporting/report.py check --stage final` và kết xuất báo cáo cuối cùng bằng `python AI-skills/reporting/report.py render`. |
 
 ---
 
@@ -26,7 +26,7 @@ Cả **Claude Code** và **Google Antigravity** đều hỗ trợ cô lập ng�
 | Năng lực | Claude Code | Google Antigravity |
 |---|---|---|
 | **Cơ chế tách Subagent ngữ cảnh sạch (Bước 2.3, R.4, 4.6)** | Frontmatter `context: fork` + `agent: localsec-blinded-challenger` trong `.claude/skills/phase-2-blinded-counterevidence-challenger/SKILL.md` kết hợp `.claude/agents/localsec-blinded-challenger.md` ([Claude Code Subagents Docs](https://docs.anthropic.com/en/docs/claude-code/sub-agents)). | Gọi tool `invoke_subagent` với `TypeName: "localsec-blinded-challenger"` (định nghĩa tại `.agents/agents/localsec-blinded-challenger.md`), `Prompt` mở đầu bằng `/phase-2-blinded-counterevidence-challenger <repo_name>` (kèm dấu nhận diện `LOCALSEC_BLINDED_CHALLENGER_CONTEXT`). |
-| **Cơ chế Hook `PreToolUse` chặn đọc ngoài Whitelist ở Bước 2.3** | Khai báo `hooks.PreToolUse` trong `.claude/agents/localsec-blinded-challenger.md` chạy `python -m localsec.claude_subagent_guard --mode blinded_challenger`; trả mã thoát `2` để chặn lệnh vi phạm ([Claude Code Hooks Docs](https://docs.anthropic.com/en/docs/claude-code/hooks)). | Khai báo `hooks.PreToolUse` trong `.agents/hooks.json` chạy `python -m localsec.claude_subagent_guard --platform antigravity`; đọc `transcriptPath` để phát hiện phiên có `LOCALSEC_BLINDED_CHALLENGER_CONTEXT` và trả JSON `{"decision": "deny", "reason": "..."}` (exit code `0`) khi tool cố đọc ngoài danh sách cho phép. |
+| **Cơ chế Hook `PreToolUse` chặn đọc ngoài Whitelist ở Bước 2.3** | Khai báo `hooks.PreToolUse` trong `.claude/agents/localsec-blinded-challenger.md` chạy `python -m localsec.claude_subagent_guard --mode blinded_challenger`; trả mã thoát `2` để chặn lệnh vi phạm ([Claude Code Hooks Docs](https://docs.anthropic.com/en/docs/claude-code/hooks)). | Khai báo `localsec-blinded-guard.PreToolUse` trong `.agents/hooks.json` chạy `localsec.claude_subagent_guard --platform antigravity`; đọc `transcriptPath` để phát hiện phiên có `LOCALSEC_BLINDED_CHALLENGER_CONTEXT` và trả JSON `{"decision": "deny", "reason": "..."}` (exit code `0`) khi tool cố đọc ngoài danh sách cho phép. |
 | **Tự kiểm (Self-Check) lúc cài đặt (`setup_bootstrap.py`)** | Tự động tìm trình thông dịch Python hoạt động (`python`, `python3`, `py`), ghi cấu hình hook tương ứng và chạy thử lệnh đọc bị cấm $\rightarrow$ bắt buộc nhận mã thoát `2`. | Tự động tạo transcript thử chứa `LOCALSEC_BLINDED_CHALLENGER_CONTEXT` và gọi thử tool `view_file` vào đường dẫn cấm $\rightarrow$ bắt buộc nhận `"decision": "deny"`. |
 
 ---
@@ -66,10 +66,10 @@ Chạy tuần tự 3 bước (3.1 -> 3.3): chứng minh minimum_actor, precondit
 ### Bước D — Chạy Toàn bộ Phase 4 & Phase Risk (Final Synthesis & Canonical Report Generation — Mở Phiên Mới)
 ```text
 /phase-4-orchestrator Thực hiện Phase 4 và Phase Risk cho toàn bộ dự án:
-1. Chạy `python -m localsec.manual_session finalize_v3_phase4` để xuất dữ liệu v3 sang `documents/<repo>/`, `documents/_analysis/`, `documents/_system/`, `documents/_v3/<repo>/` và mồi thẻ `documents/_report/work/risk/F-xx.json`.
+1. Chạy `python -m localsec.manual_session finalize_v3_phase4` để xuất dữ liệu v3 sang `documents/<repo>/`, `documents/_analysis/`, `documents/_system/`, `documents/_v3/`.
 2. Chạy `python AI-skills/reporting/report.py collect` và kiểm tra `python AI-skills/reporting/report.py status`.
-3. Thực hiện tuần tự Bước 4.2 (`/phase-4-finding-consolidation`) -> Bước R.1 đến R.5 (`/phase-risk-exploit-path`, `/phase-risk-assessment`, `/phase-risk-cross-link`, `/phase-risk-challenge` ở subagent cô lập, `/phase-risk-verdict`) -> Bước 4.3 (`/phase-4-business-impact`) -> Bước 4.5 (`/phase-4-architecture-synthesis`) -> Bước 4.6 (`/phase-4-independent-review` trong subagent cô lập) -> Bước 4.7 (`/phase-4-report-writer`).
-4. Kiểm định bằng `python AI-skills/reporting/report.py check --stage final` và kết xuất 3 báo cáo chính thức bằng `python AI-skills/reporting/report.py render`.
+3. Thực hiện tuần tự Bước 4.2 (`/phase-4-architecture-synthesis`) -> Bước 4.3 (`/phase-4-finding-consolidation`) -> Bước 4.4 (`/phase-4-business-impact`) -> Bước R.1 đến R.5 (`/phase-risk-assessment`: `/phase-risk-exploit-path`, `/phase-risk-cross-link`, `/phase-risk-challenge` ở subagent cô lập, `/phase-risk-verdict`) -> Bước 4.5 (`/phase-4-report-writer` nháp) -> Bước 4.6 (`/phase-4-independent-review` trong subagent cô lập) -> Bước 4.7 (`/phase-4-report-writer` chốt).
+4. Kiểm định bằng `python AI-skills/reporting/report.py check --stage final` và kết xuất báo cáo chính thức bằng `python AI-skills/reporting/report.py render`.
 ```
 
 ---
@@ -111,22 +111,22 @@ Chạy tuần tự 3 bước (3.1 -> 3.3): chứng minh minimum_actor, precondit
 
 | Thứ tự | Lệnh Skill | Chức năng & Cổng kiểm định (`AI-skills/reporting/report.py`) |
 |---|---|---|
-| **4.0** | `/phase-4-orchestrator` | Điều phối trọn bộ Phase 4: `finalize_v3_phase4` $\rightarrow$ `report.py collect` $\rightarrow$ `4.2` $\rightarrow$ `R.1–R.5` $\rightarrow$ `4.3` $\rightarrow$ `4.5` $\rightarrow$ `4.6` $\rightarrow$ `4.7` $\rightarrow$ `report.py check --stage final` $\rightarrow$ `report.py render`. |
-| **4.0b** | `/phase-4-consolidated-report` | Sổ tay tham chiếu toàn bộ quy trình tổng hợp báo cáo Phase 4 và các cổng kiểm định `report.py`. |
-| **4.2** | `/phase-4-finding-consolidation` | Hợp nhất các phát hiện trùng nguyên nhân gốc thành danh sách chuẩn `F-01..F-NN` trong `documents/_report/work/consolidation.json`. |
-| **R.1** | `/phase-risk-exploit-path` | Xác định đường đi tới lỗ hổng theo từng loại người tấn công (`actors`, `preconditions`, `holders`) trên thẻ `documents/_report/work/risk/F-xx.json`. |
-| **R.2 & R.3** | `/phase-risk-assessment` | Kiểm chứng các lớp bảo vệ có sẵn trong code/cấu hình và neo hậu quả vào dữ liệu thật, quyền thật, tác động S-F-O-P-C thật của hệ thống. |
-| **R.3b** | `/phase-risk-cross-link` | Đối chiếu chéo tài sản dùng chung (`access_index.json`) và xác định các cặp lỗ hổng kết hợp (`_combinations.json`). |
-| **R.4** | `/phase-risk-challenge` | Phản biện độc lập từng lô thẻ `F-xx.json` trong ngữ cảnh sạch (subagent cô lập) trước khi chốt mức rủi ro. |
-| **R.5** | `/phase-risk-verdict` | Chốt mức độ nghiêm trọng thực tế, các câu hỏi cần hỏi đội vận hành (`key_questions`) và kiểm định qua `report.py check --stage R.5`. |
-| **4.3** | `/phase-4-business-impact` | Diễn giải tác động nghiệp vụ và kịch bản khai thác thực tế cho từng lỗ hổng `F-xx` trong `business_impact.json`. |
-| **4.5** | `/phase-4-architecture-synthesis` | Tổng hợp bức tranh kiến trúc liên dịch vụ và lộ trình khắc phục 3 giai đoạn (`architecture_synthesis.json`). |
-| **4.6** | `/phase-4-independent-review` | Kiểm toán độc lập toàn bộ hồ sơ Phase 4 trong subagent/phiên mới (`independent_review.json`). |
-| **4.7** | `/phase-4-report-writer` | Biên tập tóm tắt điều hành (`report_draft.json`), chạy `report.py check --stage final` và `report.py render` để xuất `00_manifest.md`, `BAO_CAO_TONG_HOP_BAO_MAT.md`, `DANH_GIA_RUI_RO.md`. |
+| **4.0** | `/phase-4-orchestrator` | Điều phối trọn bộ Phase 4: `finalize_v3_phase4` $\rightarrow$ `python AI-skills/reporting/report.py collect` $\rightarrow$ `4.2` $\rightarrow$ `4.3` $\rightarrow$ `4.4` $\rightarrow$ `R.1–R.5` $\rightarrow$ `4.5` $\rightarrow$ `4.6` $\rightarrow$ `4.7` $\rightarrow$ `python AI-skills/reporting/report.py check --stage final` $\rightarrow$ `python AI-skills/reporting/report.py render`. |
+| **4.0b** | `/phase-4-consolidated-report` | Sổ tay tham chiếu toàn bộ quy trình tổng hợp báo cáo Phase 4 và các cổng kiểm định `AI-skills/reporting/report.py`. |
+| **4.2** | `/phase-4-architecture-synthesis` | Tổng hợp bức tranh kiến trúc theo cụm nghiệp vụ (`documents/_report/work/architecture.json`, kiểm qua `python AI-skills/reporting/report.py check --stage architecture`). |
+| **4.3** | `/phase-4-finding-consolidation` | Hợp nhất các phát hiện trùng nguyên nhân gốc thành danh sách chuẩn `F-01..F-NN` (`documents/_report/work/consolidation.json`, kiểm qua `python AI-skills/reporting/report.py check --stage findings`). |
+| **4.4** | `/phase-4-business-impact` | Đánh giá tác động nghiệp vụ và kịch bản lạm dụng thực tế cho từng `F-xx` (`documents/_report/work/impact.json`, kiểm qua `python AI-skills/reporting/report.py check --stage impact`). |
+| **R.0** | `/phase-risk-assessment` | Điểm vào điều phối Phase Risk (`R.1` $\rightarrow$ `R.2` $\rightarrow$ `R.3` $\rightarrow$ `R.4` $\rightarrow$ `R.5`). |
+| **R.1** | `/phase-risk-exploit-path` | Dựng đường khai thác thực tế theo từng loại người tấn công (`actors`, `preconditions`, `holders`, `blocking_controls`) trên `documents/_report/work/risk/F-xx.json` (`python AI-skills/reporting/report.py check --stage risk-paths`). |
+| **R.2** | `/phase-risk-cross-link` | Ghép chéo điểm yếu qua `python AI-skills/reporting/report.py risk-digest` và ghi `documents/_report/work/risk/_combinations.json`. |
+| **R.3 & R.5** | `/phase-risk-verdict` | Viết lập luận kết luận (`verdict`), chạy `python AI-skills/reporting/report.py check --stage risk`, `render-risk --draft`, `risk-ack`, và `render-risk`. |
+| **R.4** | `/phase-risk-challenge` | Thách thức độc lập hai chiều theo lô trong ngữ cảnh sạch (subagent cô lập), ghi `documents/_report/work/risk_review/<batch>.json`. |
+| **4.5 & 4.7** | `/phase-4-report-writer` | Viết tóm tắt điều hành, lộ trình khắc phục, nối kiến trúc với `F-xx` (`render --draft`); sau rà soát thì chạy `review-ack`, `check --stage final` và `render`. |
+| **4.6** | `/phase-4-independent-review` | Rà soát độc lập bản nháp Báo cáo tổng hợp trong subagent/phiên mới (`documents/_report/work/review.json`). |
 
 ---
 
-## 6. Bảng Tra cứu Nhanh Các Lệnh CLI Chuẩn (`python -m localsec.manual_session` & `report.py`)
+## 6. Bảng Tra cứu Nhanh Các Lệnh CLI Chuẩn (`python -m localsec.manual_session` & `AI-skills/reporting/report.py`)
 
 Trên nhánh `wins`, `setup.ps1` / `setup.bat` tự động cài cầu nối package `localsec` và thư mục tạm `.localsec/tmp/` tại `<Project-Root>`, giúp mọi thao tác chạy trực tiếp trên cả **PowerShell**, **CMD**, và **Git Bash**:
 
@@ -157,8 +157,19 @@ python -m localsec.manual_session render_v3_report <repo_name>
 python -m localsec.manual_session finalize_v3_phase4
 python AI-skills/reporting/report.py collect
 python AI-skills/reporting/report.py status
-python AI-skills/reporting/report.py check --stage 4.2
-python AI-skills/reporting/report.py check --stage R.5
+python AI-skills/reporting/report.py catalog
+python AI-skills/reporting/report.py check --stage architecture
+python AI-skills/reporting/report.py check --stage findings
+python AI-skills/reporting/report.py check --stage impact
+python AI-skills/reporting/report.py access --for F-01
+python AI-skills/reporting/report.py check --stage risk-paths --only F-01
+python AI-skills/reporting/report.py risk-digest
+python AI-skills/reporting/report.py check --stage risk
+python AI-skills/reporting/report.py render-risk --draft
+python AI-skills/reporting/report.py risk-ack
+python AI-skills/reporting/report.py render-risk
+python AI-skills/reporting/report.py render --draft
+python AI-skills/reporting/report.py review-ack
 python AI-skills/reporting/report.py check --stage final
 python AI-skills/reporting/report.py render
 

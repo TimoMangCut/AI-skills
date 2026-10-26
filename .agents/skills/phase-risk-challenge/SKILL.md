@@ -28,7 +28,7 @@ Người thách thức **không được là phiên đã đánh giá rủi ro**.
 
 ## Trước khi hỏi
 Với mỗi F trong lô:
-- chạy `python3 AI-skills/reporting/report.py access --for F-xx` (bắt buộc);
+- chạy `python AI-skills/reporting/report.py access --for F-xx` (bắt buộc);
 - so kết quả với `holders` của các mắt xích `nam_giu`, với `actors_considered`, và với các kiểm soát.
 
 ## Hỏi cho từng F

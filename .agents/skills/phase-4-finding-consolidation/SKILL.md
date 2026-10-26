@@ -16,30 +16,30 @@ Biến hàng trăm mục gốc thành danh sách phát hiện cuối `F-xx`, g�
 ```
 
 ## Điều kiện
-`report.py check --stage architecture` đạt (cần `domains`).
+`python AI-skills/reporting/report.py check --stage architecture` đạt (cần `domains`).
 
-Đọc trước: `AI-skills/reporting/guides/03_hop_nhat_phat_hien.md` (bắt buộc) và phần disposition/SID/chuỗi của `guides/01_nguon_du_lieu.md`.
+Đọc trước: `AI-skills/reporting/guides/03_hop_nhat_phat_hien.md` (bắt buộc) và phần disposition/SID/chuỗi của `AI-skills/reporting/guides/01_nguon_du_lieu.md`.
 
 ## 4.3a — Khung F (phiên chính)
-Đọc `documents/_report/inputs/03_findings_index.md`, `inputs/findings/_analysis.md`, `inputs/findings/_system.md`. Tạo `documents/_report/work/consolidation.json` (mẫu `templates/consolidation.example.json`; chưa cần `business_impact`, `executive_summary`, `roadmap`, `gaps`) với F cho mỗi chuỗi P3, mỗi khuôn mẫu lặp/nguyên nhân gốc, mỗi mismatch hệ thống. Ghi `work/map/_analysis.json`, `work/map/_system.json`.
+Đọc `documents/_report/inputs/03_findings_index.md`, `inputs/findings/_analysis.md`, `inputs/findings/_system.md`. Tạo `documents/_report/work/consolidation.json` (mẫu `AI-skills/reporting/templates/consolidation.example.json`; chưa cần `business_impact`, `executive_summary`, `roadmap`, `gaps`) với F cho mỗi chuỗi P3, mỗi khuôn mẫu lặp/nguyên nhân gốc, mỗi mismatch hệ thống. Ghi `work/map/_analysis.json`, `work/map/_system.json`.
 
 ## 4.3b — Chế độ lô (một repo, hoặc `_ext`)
 Chạy được trong subagent, phiên mới, hoặc ngay trong phiên chính. Đầu vào duy nhất là **tên lô**.
-1. `python3 AI-skills/reporting/report.py catalog`: danh mục F hiện có và các đề xuất `NEW:` đã có.
+1. `python AI-skills/reporting/report.py catalog`: danh mục F hiện có và các đề xuất `NEW:` đã có.
 2. Đọc `documents/_report/inputs/findings/<lô>.md`. Xử lý mọi dòng ★; dòng không ★ mức high thì nên xử lý. Cột *Chuỗi P3* cho biết mục thuộc chuỗi nào: gom cùng F với chuỗi đó.
 3. Với mỗi dòng:
    - cùng gốc và cùng cách sửa với một F có sẵn → `"to": "F-xx"`;
    - vấn đề mới → `"to": "NEW:<slug>"` kèm `"proposal": {"title", "core_issue", "root_causes", "services"}`; nhiều mục cùng vấn đề mới thì dùng cùng một slug;
    - loại trừ → `"to": "excluded"` với `reason` + `note` cụ thể (luật ở guide 03).
 4. Cần chi tiết thì mở file ở cột *Nguồn*, **đọc theo đoạn** quanh ID đó.
-5. Ghi `documents/_report/work/map/<lô>.json` (mẫu `templates/map.example.json`). **Không** sửa `consolidation.json` và không đụng file map của lô khác: nhờ vậy nhiều lô chạy song song được.
+5. Ghi `documents/_report/work/map/<lô>.json` (mẫu `AI-skills/reporting/templates/map.example.json`). **Không** sửa `consolidation.json` và không đụng file map của lô khác: nhờ vậy nhiều lô chạy song song được.
 6. Trả về tối đa 8 dòng: số mục đã gán, số đề xuất `NEW:`, số loại trừ theo lý do, các mục còn phân vân.
 
 ## 4.3c — Hợp nhất (phiên chính)
-1. `report.py catalog`: xem đề xuất `NEW:` từ mọi lô. Gộp các đề xuất trùng ý, hoặc gán chúng vào F đã có.
-2. Tạo F mới trong `consolidation.json` cho đề xuất đứng được, rồi chạy `python3 AI-skills/reporting/report.py promote NEW:<slug> F-xx` (lệnh tự sửa mọi file map).
+1. `python AI-skills/reporting/report.py catalog`: xem đề xuất `NEW:` từ mọi lô. Gộp các đề xuất trùng ý, hoặc gán chúng vào F đã có.
+2. Tạo F mới trong `consolidation.json` cho đề xuất đứng được, rồi chạy `python AI-skills/reporting/report.py promote NEW:<slug> F-xx` (lệnh tự sửa mọi file map).
 3. Rà danh mục: gộp F trùng, tách F trộn nhiều vấn đề (`check` báo khi F có >25 nguồn hoặc >2 nguyên nhân gốc), đặt tiêu đề theo dạng *điểm yếu + hậu quả*.
-4. `python3 AI-skills/reporting/report.py check --stage findings` tới khi `ĐẠT`.
+4. `python AI-skills/reporting/report.py check --stage findings` tới khi `ĐẠT`.
 
 ## Kết quả công cụ và nguồn ngoài pipeline
 `collect` đã đăng ký SAST (SARIF), secret và SCA/misconfig (trivy) thành lô `_ext`; xử lý lô này như một repo. Loại trừ dương tính giả phải dẫn báo cáo xác minh trong `reports/`. Báo cáo/review thủ công (`reports/*.md`, `reviews/`, `independent-review/`): finding còn đứng được thì gắn vào F bằng SID `ext:<đường dẫn>#<ID>`.
