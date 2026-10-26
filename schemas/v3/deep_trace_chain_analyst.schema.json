@@ -194,6 +194,9 @@
           },
           "root_cause_cluster_id": {
             "type": "string"
+          },
+          "root_cause_hint_override_reason": {
+            "type": "string"
           }
         }
       }

@@ -7,6 +7,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 
 from .agent import run_skill
 from .llm import LocalModelError, OpenAICompatibleLocalClient
@@ -3452,11 +3453,20 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
                 item,
             )
 
-    # 6. coverage_ledger.json / coverage_matrix.json -> flagged records
+    # 6. coverage_ledger.json / coverage_matrix.json -> flagged records (V22: deduplicate by coverage_id and group unhinted records by (target_module, attack_class))
     combined_records = list(ledger.get("records", [])) + list(matrix.get("records", []))
+    seen_cov_ids: set[str] = set()
+    cov_groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for rec in combined_records:
-        if isinstance(rec, dict) and str(rec.get("status", "")) in {"flagged_for_phase_2", "reopened", "failed_hypothesis"}:
-            cid_str = str(rec.get("coverage_id") or "")
+        if not isinstance(rec, dict) or str(rec.get("status", "")) not in {"flagged_for_phase_2", "reopened", "failed_hypothesis"}:
+            continue
+        cid_str = str(rec.get("coverage_id") or "")
+        if cid_str and cid_str in seen_cov_ids:
+            continue
+        if cid_str:
+            seen_cov_ids.add(cid_str)
+        rc_explicit = _norm_rc(rec.get("root_cause_hint") or rec.get("root_cause_cluster_id") or "")
+        if rc_explicit:
             _add_candidate(
                 "coverage_ledger_flagged",
                 f"Flagged Coverage Record: {cid_str}",
@@ -3464,6 +3474,47 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
                 str(rec.get("target_module") or cid_str),
                 list(rec.get("evidence_ids", [])),
                 rec,
+            )
+        else:
+            t_mod = str(rec.get("target_module") or "").strip()
+            if not t_mod and "::" in cid_str:
+                parts = cid_str.split("::")
+                if len(parts) >= 3:
+                    t_mod = unquote(parts[2]).strip()
+            atk_cls = str(rec.get("attack_class") or "COVERAGE_FLAGGED").strip()
+            cov_groups.setdefault((t_mod or cid_str, atk_cls), []).append(rec)
+
+    for (t_mod, atk_cls), recs in cov_groups.items():
+        if len(recs) == 1:
+            rec = recs[0]
+            cid_str = str(rec.get("coverage_id") or "")
+            _add_candidate(
+                "coverage_ledger_flagged",
+                f"Flagged Coverage Record: {cid_str}",
+                atk_cls,
+                str(rec.get("target_module") or cid_str),
+                list(rec.get("evidence_ids", [])),
+                rec,
+            )
+        else:
+            merged_eids: list[str] = []
+            cov_ids: list[str] = []
+            for r_item in recs:
+                c_str = str(r_item.get("coverage_id") or "")
+                if c_str and c_str not in cov_ids:
+                    cov_ids.append(c_str)
+                for e_id in r_item.get("evidence_ids", []):
+                    if str(e_id) not in merged_eids:
+                        merged_eids.append(str(e_id))
+            rep_rec = dict(recs[0])
+            rep_rec["grouped_coverage_ids"] = cov_ids
+            _add_candidate(
+                "coverage_ledger_flagged",
+                f"Flagged Coverage Records ({len(recs)} in {t_mod}): {cov_ids[0] if cov_ids else atk_cls}",
+                atk_cls,
+                t_mod,
+                merged_eids,
+                rep_rec,
             )
 
     # 7. inventory_repo.json -> secret_leads[], dependency_leads[], and external_tool_leads[]
@@ -3520,6 +3571,18 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
     def _file_of(c: dict[str, Any]) -> str:
         return str(c.get("target_path") or "").split(":", 1)[0].strip().lstrip("./")
 
+    def _module_of(c: dict[str, Any]) -> str:
+        tp = _file_of(c)
+        if "::" in tp:
+            parts = tp.split("::")
+            if len(parts) >= 3:
+                return unquote(parts[2]).strip().strip("/")
+        if "/" in tp:
+            parts = [p for p in tp.split("/") if p]
+            if len(parts) >= 2 and "." in parts[-1]:
+                return "/".join(parts[:-1])
+        return tp.strip("/")
+
     def _is_generic(c: dict[str, Any]) -> bool:
         title = str(c.get("title") or "")
         return c["attack_class"] in generic_classes or title.startswith(("Flagged Coverage Record", "Cluster Outlier", "Contradicted Surface"))
@@ -3527,6 +3590,29 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
     def _jaccard(a: dict[str, Any], b: dict[str, Any]) -> float:
         ea, eb = set(a["evidence_ids"]), set(b["evidence_ids"])
         return len(ea & eb) / len(ea | eb) if ea and eb else 0.0
+
+    # V22: Inherit root_cause_hint for coverage_ledger_flagged / hintless candidates from the closest hinted candidate
+    # sharing evidence or in the same file/module before union-find grouping.
+    hinted_indices = [idx for idx, cand in enumerate(candidates) if cand.get("root_cause_hint")]
+    for idx, cand in enumerate(candidates):
+        if cand.get("root_cause_hint") or cand.get("source_kind") != "coverage_ledger_flagged":
+            continue
+        best_h_idx, best_h_score = None, 0.0
+        c_mod = _module_of(cand)
+        c_file = _file_of(cand)
+        for h_idx in hinted_indices:
+            h_cand = candidates[h_idx]
+            h_score = _jaccard(cand, h_cand)
+            if c_file and c_file == _file_of(h_cand):
+                h_score += 0.6
+            elif c_mod and (c_mod == _module_of(h_cand) or _file_of(h_cand).startswith(c_mod + "/")):
+                h_score += 0.35
+                if cand.get("attack_class") == h_cand.get("attack_class"):
+                    h_score += 0.25
+            if h_score > best_h_score:
+                best_h_idx, best_h_score = h_idx, h_score
+        if best_h_idx is not None and best_h_score >= 0.5:
+            cand["root_cause_hint"] = candidates[best_h_idx]["root_cause_hint"]
 
     specific = [i for i, c in enumerate(candidates) if not _is_generic(c)]
     for x, i in enumerate(specific):
@@ -3580,16 +3666,19 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
     duplicate_groups: list[dict[str, Any]] = []
     for members in sorted(groups.values(), key=lambda m: m[0]["candidate_id"]):
         gid = "grp_" + hashlib.sha256("|".join(sorted(c["candidate_id"] for c in members)).encode("utf-8")).hexdigest()[:10]
+        shared_hints = sorted({c["root_cause_hint"] for c in members if c.get("root_cause_hint")})
         for c in members:
             c["duplicate_group_id"] = gid
             c["duplicate_group_size"] = len(members)
+            if not c.get("root_cause_hint") and len(shared_hints) == 1:
+                c["root_cause_hint"] = shared_hints[0]
         duplicate_groups.append({
             "duplicate_group_id": gid,
             "attack_class": members[0]["attack_class"],
             "target_files": sorted({_file_of(c) for c in members if _file_of(c)}),
             "candidate_ids": [c["candidate_id"] for c in members],
             "titles": [c["title"] for c in members][:6],
-            "root_cause_hints": sorted({c["root_cause_hint"] for c in members if c.get("root_cause_hint")}),
+            "root_cause_hints": shared_hints,
         })
 
     payload = {
@@ -4465,35 +4554,48 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
         "reconciliation_log": reconciliation_log,
     }
     write_json(run_dir / "phase3_verified_queue.json", phase3_queue)
+    guard_self_test = str(challenger.get("guard_self_test") or "").strip().lower() if isinstance(challenger, dict) else ""
+    guard_self_test_warning = (
+        "Blinded challenger reported guard_self_test='not_blocked': PreToolUse hook did not block forbidden read; re-run setup."
+        if guard_self_test == "not_blocked"
+        else None
+    )
+
+    gate_result: dict[str, Any] = {
+        "repo_name": repo_name,
+        "gate_passed": gate_passed,
+        "confirmed_reachable_chains": [f.get("chain_id") for f in verified_phase3_findings],
+        "downgraded_or_refuted_chains": [r.get("chain_id") or r.get("candidate_id") for r in refuted_ledger],
+        "hypothesis_only_chains": [h.get("chain_id") for h in hypothesis_only],
+        "unchallenged_chains": unchallenged_chains,
+        "incomplete_checklist_chains": incomplete_checklist_chains,
+        "stale_challenger": stale_challenger,
+        "challenger_fingerprint": challenger_fingerprint or None,
+        "current_chains_fingerprint": current_fingerprint or None,
+        "empirical_refutations_ledger": refuted_ledger,
+        "reconciliation_log": reconciliation_log,
+        "summary": (
+            f"Phase 2 gate finalized (gate_passed={gate_passed}, "
+            f"{len(verified_phase3_findings)} reachable, {len(refuted_ledger)} refuted, "
+            f"{len(unchallenged_chains)} unchallenged)."
+        ),
+    }
+    if guard_self_test:
+        gate_result["guard_self_test"] = guard_self_test
+    if guard_self_test_warning:
+        gate_result["guard_self_test_warning"] = guard_self_test_warning
+
     write_json(
         run_dir / "analysis_evidence_gate.json",
         {
             "skill": "analysis_evidence_gate",
             "version": "3.0.0",
             "status": "ok",
-            "result": {
-                "repo_name": repo_name,
-                "gate_passed": gate_passed,
-                "confirmed_reachable_chains": [f.get("chain_id") for f in verified_phase3_findings],
-                "downgraded_or_refuted_chains": [r.get("chain_id") or r.get("candidate_id") for r in refuted_ledger],
-                "hypothesis_only_chains": [h.get("chain_id") for h in hypothesis_only],
-                "unchallenged_chains": unchallenged_chains,
-                "incomplete_checklist_chains": incomplete_checklist_chains,
-                "stale_challenger": stale_challenger,
-                "challenger_fingerprint": challenger_fingerprint or None,
-                "current_chains_fingerprint": current_fingerprint or None,
-                "empirical_refutations_ledger": refuted_ledger,
-                "reconciliation_log": reconciliation_log,
-                "summary": (
-                    f"Phase 2 gate finalized (gate_passed={gate_passed}, "
-                    f"{len(verified_phase3_findings)} reachable, {len(refuted_ledger)} refuted, "
-                    f"{len(unchallenged_chains)} unchallenged)."
-                ),
-            },
+            "result": gate_result,
         },
     )
 
-    cert = {
+    cert: dict[str, Any] = {
         "phase": "phase_2",
         "repo_name": repo_name,
         "run_id": run_id,
@@ -4513,6 +4615,10 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
         "hypothesis_only_count": len(hypothesis_only),
         "reconciliation_log": reconciliation_log,
     }
+    if guard_self_test:
+        cert["guard_self_test"] = guard_self_test
+    if guard_self_test_warning:
+        cert["guard_self_test_warning"] = guard_self_test_warning
     write_json(run_dir / "phase2_gate_Certificate.json", cert)
     write_json(run_dir / "phase2_gate_receipt.json", cert)
     return cert

@@ -133,9 +133,13 @@ def _remove_localsec_bridge(project_root: Path) -> None:
 
 
 def _resolve_working_python_cmd() -> str | None:
-    """Return the first Python command that can actually start and import sys (`python`, `python3`, `py`, or `sys.executable`)."""
+    """Return the first Python command that can actually start and import sys (preferring a real `sys.executable` over `WindowsApps` aliases)."""
     seen: set[str] = set()
-    for cand in ("python", "python3", "py", sys.executable):
+    cands: list[str] = []
+    if sys.executable and Path(sys.executable).is_file() and "WindowsApps" not in str(sys.executable):
+        cands.append(sys.executable)
+    cands.extend(["python", "python3", "py", sys.executable])
+    for cand in cands:
         if not cand or cand in seen:
             continue
         seen.add(cand)
@@ -156,17 +160,58 @@ def _resolve_working_python_cmd() -> str | None:
     return None
 
 
+def _unquoted_path(p: Path) -> str:
+    """Path usable in a hook command WITHOUT quotes, with forward slashes.
+
+    - Antigravity on Windows passes the hook command to cmd.exe with inner quotes escaped as \\", so a quoted path
+      reaches cmd/python as a literal `\\"C:/...\\"` (`is not recognized` / `can't open file 'C:\\\\"C:...'`) and the
+      failing hook blocks every tool call in the workspace.
+    - Claude Code runs hooks through Git Bash on Windows, which eats unquoted backslashes (`C:\\Users` -> `C:Users`).
+    cmd.exe and Git Bash both accept `C:/Users/x/python.exe`. Paths with spaces use the 8.3 short name.
+    """
+    s = str(p.resolve())
+    if " " in s and os.name == "nt":
+        try:
+            import ctypes
+
+            buf = ctypes.create_unicode_buffer(1024)
+            if ctypes.windll.kernel32.GetShortPathNameW(s, buf, 1024) and " " not in buf.value:
+                s = buf.value
+        except Exception:  # noqa: BLE001
+            pass
+    s = s.replace("\\", "/")
+    return s if " " not in s else f'"{s}"'
+
+
+def _guard_commands(py_cmd: str, skill_dir: Path) -> tuple[str, str]:
+    """(claude_cmd, antigravity_cmd): absolute interpreter + absolute guard script, no quotes, no dependence on the
+    hook runner's cwd (`python -m localsec...` only resolves from <Project-Root>)."""
+    exe = shutil.which(py_cmd) or py_cmd
+    if (
+        py_cmd in {"python", "python3", "py"}
+        and sys.executable
+        and Path(sys.executable).is_file()
+        and "WindowsApps" not in str(sys.executable)
+    ):
+        exe = sys.executable
+    py = _unquoted_path(Path(exe)) if Path(exe).is_file() else py_cmd
+    guard = _unquoted_path(skill_dir / "localsec" / "claude_subagent_guard.py")
+    return f"{py} {guard} --mode blinded_challenger", f"{py} {guard} --platform antigravity"
+
+
 def _rewrite_hook_python_cmd(project_root: Path, py_cmd: str, skill_dir: Path | None = None) -> None:
-    """Rewrite installed hook configs in `project_root` to use `py_cmd` and resolve `claude_subagent_guard.py` regardless of hook runner cwd."""
-    if not py_cmd:
+    """Pin both installed hook commands (Claude agent + Antigravity hooks.json) to _guard_commands()."""
+    if not py_cmd or skill_dir is None:
         return
-    guard_py = (skill_dir / "localsec" / "claude_subagent_guard.py").resolve() if skill_dir else None
+    claude_cmd, ag_cmd = _guard_commands(py_cmd, skill_dir)
     cl_agent = project_root / ".claude" / "agents" / "localsec-blinded-challenger.md"
-    if cl_agent.is_file() and py_cmd != "python":
+    if cl_agent.is_file():
         txt = cl_agent.read_text(encoding="utf-8")
-        for old_cmd in ("python -m localsec.claude_subagent_guard", "python3 -m localsec.claude_subagent_guard"):
-            if old_cmd in txt:
-                txt = txt.replace(old_cmd, f"{py_cmd} -m localsec.claude_subagent_guard")
+        txt = re.sub(
+            r"(?m)^(\s*command:\s*).*claude_subagent_guard.*$",
+            lambda m: m.group(1) + "'" + claude_cmd.replace("'", "''") + "'",
+            txt,
+        )
         cl_agent.write_text(txt, encoding="utf-8")
 
     ag_hooks = project_root / ".agents" / "hooks.json"
@@ -177,90 +222,107 @@ def _rewrite_hook_python_cmd(project_root: Path, py_cmd: str, skill_dir: Path | 
             if isinstance(guard_cfg, dict):
                 for entry in guard_cfg.get("PreToolUse") or []:
                     for hk in (entry.get("hooks") if isinstance(entry, dict) else None) or []:
-                        if isinstance(hk, dict) and hk.get("type") == "command":
-                            if guard_py and guard_py.is_file():
-                                hk["command"] = f'{py_cmd} "{guard_py.as_posix()}" --platform antigravity'
-                            else:
-                                hk["command"] = f"{py_cmd} -m localsec.claude_subagent_guard --platform antigravity"
+                        if isinstance(hk, dict) and hk.get("type", "command") == "command":
+                            hk["command"] = ag_cmd
                 ag_hooks.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         except Exception:  # noqa: BLE001
             pass
 
 
-def _self_check_blinded_guard(project_root: Path, py_cmd: str | None = None) -> tuple[bool, str]:
-    """Run both Claude Code and Antigravity blinded-step PreToolUse hooks from `project_root`.
+def _installed_hook_commands(project_root: Path) -> tuple[str | None, str | None]:
+    claude_cmd = ag_cmd = None
+    cl_agent = project_root / ".claude" / "agents" / "localsec-blinded-challenger.md"
+    if cl_agent.is_file():
+        m = re.search(r"(?m)^\s*command:\s*(?:'(.*)'|\"(.*)\"|(.*))\s*$", cl_agent.read_text(encoding="utf-8"))
+        if m:
+            claude_cmd = m.group(1).replace("''", "'") if m.group(1) is not None else (m.group(2) or m.group(3))
+    ag_hooks = project_root / ".agents" / "hooks.json"
+    if ag_hooks.is_file():
+        try:
+            ag_cmd = json.loads(ag_hooks.read_text(encoding="utf-8"))["localsec-blinded-guard"]["PreToolUse"][0]["hooks"][0]["command"]
+        except Exception:  # noqa: BLE001
+            ag_cmd = None
+    return claude_cmd, ag_cmd
 
-    Claude Code treats any exit code other than 2 as a non-blocking hook error and lets the tool run, while
-    Antigravity expects exit code 0 with JSON `{"decision": "deny"}` on stdout when the transcript has the
-    `LOCALSEC_BLINDED_CHALLENGER_CONTEXT` marker.
+
+def _git_bash() -> str | None:
+    """Git Bash used by Claude Code on Windows (not WSL's System32\\bash.exe, which cannot run C:/ paths)."""
+    cands = [os.environ.get("CLAUDE_CODE_GIT_BASH_PATH", "")]
+    git = shutil.which("git")
+    if git:
+        gp = Path(git).resolve()
+        cands += [str(gp.parent.parent / "bin" / "bash.exe"), str(gp.parent.parent.parent / "bin" / "bash.exe")]
+    cands += [r"C:\Program Files\Git\bin\bash.exe", r"C:\Program Files (x86)\Git\bin\bash.exe"]
+    return next((c for c in cands if c and Path(c).is_file()), None)
+
+
+def _self_check_blinded_guard(project_root: Path, _py_cmd: str | None = None) -> int:
+    """Run the INSTALLED hook command strings exactly the way each tool runs them, from a directory that is not
+    <Project-Root>. (The previous self-check called the interpreter directly from <Project-Root>, so it passed
+    while the installed commands failed inside Antigravity and Claude Code.)
+
+    - Claude Code: exit code must be 2 for a forbidden read (any other code is a NON-blocking hook error, i.e. the
+      guard silently switches off). Checked through cmd.exe and, on Windows, Git Bash.
+    - Antigravity: stdout must be {"decision": "deny"} for a 2.3 transcript and "allow" otherwise, exit code 0.
+      Run as subprocess(["cmd", "/c", command]) so inner quotes get escaped as \\" exactly like Antigravity does.
     """
-    resolved_py = py_cmd or _resolve_working_python_cmd()
-    if resolved_py is None:
-        return False, "No working Python interpreter found (`python`, `python3`, `py`)."
+    import tempfile
+
+    claude_cmd, ag_cmd = _installed_hook_commands(project_root)
+    if not claude_cmd and not ag_cmd:
+        print("[WARN] Blinded guard self-check: no installed hook command found.", file=sys.stderr)
+        return 1
     probe_claude = '{"tool_name": "Read", "tool_input": {"file_path": ".localsec/tmp/deep_trace_chain_analyst_probe.json"}}'
-    try:
-        res_cl = subprocess.run(
-            [resolved_py, "-m", "localsec.claude_subagent_guard", "--mode", "blinded_challenger"],
-            input=probe_claude,
-            capture_output=True,
-            text=True,
-            cwd=str(project_root),
-            timeout=60,
-            check=False,
-        )
-    except Exception as exc:  # noqa: BLE001
-        return False, f"Claude hook could not start ({type(exc).__name__}: {exc})"
-    if res_cl.returncode != 2:
-        return (
-            False,
-            f"Claude hook returned exit code {res_cl.returncode} instead of 2 for a forbidden read: {res_cl.stderr.strip()[:300]}",
-        )
-
-    tmp_dir = project_root / ".localsec" / "tmp"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-    probe_transcript = tmp_dir / "_ag_hook_probe_transcript.jsonl"
-    try:
-        probe_transcript.write_text(
-            '{"role":"user","content":"LOCALSEC_BLINDED_CHALLENGER_CONTEXT /phase-2-blinded-counterevidence-challenger probe"}\n',
-            encoding="utf-8",
-        )
-        probe_ag = json.dumps(
-            {
-                "transcriptPath": str(probe_transcript),
-                "toolCall": {
-                    "name": "view_file",
-                    "args": {
-                        "AbsolutePath": str(
-                            project_root / ".localsec" / "runs" / "default" / "probe" / "deep_trace_chain_analyst.json"
-                        )
-                    },
-                },
-            }
-        )
-        res_ag = subprocess.run(
-            [resolved_py, "-m", "localsec.claude_subagent_guard", "--platform", "antigravity"],
-            input=probe_ag,
-            capture_output=True,
-            text=True,
-            cwd=str(project_root),
-            timeout=60,
-            check=False,
-        )
-    except Exception as exc:  # noqa: BLE001
-        return False, f"Antigravity hook could not start ({type(exc).__name__}: {exc})"
-    finally:
-        if probe_transcript.is_file():
-            try:
-                probe_transcript.unlink()
-            except OSError:
-                pass
-
-    if res_ag.returncode != 0 or '"deny"' not in res_ag.stdout:
-        return (
-            False,
-            f"Antigravity hook failed self-check (rc={res_ag.returncode}, stdout={res_ag.stdout.strip()[:200]}, stderr={res_ag.stderr.strip()[:200]})",
-        )
-    return True, f"Claude + Antigravity hooks block forbidden reads (interpreter: {resolved_py})"
+    with tempfile.TemporaryDirectory() as tmp:
+        if claude_cmd:
+            shells: list[tuple[str, list[str]]] = [
+                ("cmd" if os.name == "nt" else "sh", (["cmd", "/c", claude_cmd] if os.name == "nt" else ["sh", "-c", claude_cmd]))
+            ]
+            gb = _git_bash() if os.name == "nt" else None
+            if gb:
+                shells.append(("git-bash", [gb, "-c", claude_cmd]))
+            for name, argv in shells:
+                try:
+                    res = subprocess.run(argv, input=probe_claude, capture_output=True, text=True, cwd=tmp, timeout=60, check=False)
+                except Exception as exc:  # noqa: BLE001
+                    print(f"[WARN] Blinded guard self-check: Claude hook could not start via {name} ({type(exc).__name__}: {exc}).", file=sys.stderr)
+                    return 1
+                if res.returncode != 2:
+                    print(
+                        f"[WARN] Blinded guard self-check FAILED: Claude hook via {name} returned {res.returncode} instead of 2 "
+                        f"(guard would be OFF). Command: {claude_cmd}\n{res.stderr.strip()[:300]}",
+                        file=sys.stderr,
+                    )
+                    return 1
+        if ag_cmd:
+            tr = Path(tmp) / "t.jsonl"
+            tr.write_text(json.dumps({"content": "/phase-2-blinded-counterevidence-challenger probe"}) + "\n", encoding="utf-8")
+            call = {"name": "view_file", "args": {"AbsolutePath": ".localsec/tmp/deep_trace_chain_analyst_probe.json"}}
+            argv = ["cmd", "/c", ag_cmd] if os.name == "nt" else ["sh", "-c", ag_cmd]
+            for transcript, want in ((str(tr), "deny"), ("", "allow")):
+                try:
+                    res = subprocess.run(
+                        argv,
+                        input=json.dumps({"toolCall": call, "transcriptPath": transcript}),
+                        capture_output=True,
+                        text=True,
+                        cwd=tmp,
+                        timeout=60,
+                        check=False,
+                    )
+                    got = json.loads(res.stdout or "{}").get("decision")
+                except Exception as exc:  # noqa: BLE001
+                    print(f"[WARN] Blinded guard self-check: Antigravity hook could not run ({type(exc).__name__}: {exc}).", file=sys.stderr)
+                    return 1
+                if res.returncode != 0 or got != want:
+                    print(
+                        f"[WARN] Blinded guard self-check FAILED: Antigravity hook expected {want}, got rc={res.returncode} decision={got!r} "
+                        f"(a failing hook blocks EVERY tool call). Command: {ag_cmd}\n{res.stderr.strip()[:300]}",
+                        file=sys.stderr,
+                    )
+                    return 1
+    print("[OK] Blinded guard self-check passed (installed Claude + Antigravity hook commands work from any cwd).")
+    return 0
 
 
 
@@ -507,9 +569,7 @@ def main(argv: list[str] | None = None) -> int:
     py_cmd = _resolve_working_python_cmd()
     if py_cmd:
         _rewrite_hook_python_cmd(project_root, py_cmd, skill_dir=skill_dir)
-    guard_ok, guard_msg = _self_check_blinded_guard(project_root, py_cmd=py_cmd)
-    if not guard_ok:
-        print(f"[!] Hook bước mù (2.3) KHÔNG hoạt động: {guard_msg}", file=sys.stderr)
+    if _self_check_blinded_guard(project_root, _py_cmd=py_cmd) != 0:
         if os.environ.get("AI_SKILLS_ALLOW_UNGUARDED", "0") != "1":
             print("[!] Dừng setup. Sửa lỗi trên, hoặc đặt AI_SKILLS_ALLOW_UNGUARDED=1 nếu chấp nhận bước mù không được bảo vệ.", file=sys.stderr)
             return 3

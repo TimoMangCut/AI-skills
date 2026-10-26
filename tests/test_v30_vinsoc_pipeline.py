@@ -2997,9 +2997,113 @@ class LocalSecV30VinSOCPipelineTests(unittest.TestCase):
             setup_bootstrap._merge_antigravity_hooks(hooks, src, remove=True)
             self.assertEqual(set(json.loads(hooks.read_text(encoding="utf-8"))), {"my-lint"})
 
+            # Installed hook commands contain no quotes/backslashes and pass self-check from outside the project
+            toolkit = Path(__file__).resolve().parents[1]
+            proj = Path(tmp) / "proj"
+            (proj / ".agents").mkdir(parents=True)
+            (proj / ".claude" / "agents").mkdir(parents=True)
+            setup_bootstrap._merge_antigravity_hooks(proj / ".agents" / "hooks.json", src)
+            (proj / ".claude" / "agents" / "localsec-blinded-challenger.md").write_text(
+                (toolkit / ".claude" / "agents" / "localsec-blinded-challenger.md").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            setup_bootstrap._rewrite_hook_python_cmd(proj, "python", skill_dir=toolkit)
+            ag_cmd, cl_cmd = setup_bootstrap._installed_hook_commands(proj)
+            for cmd in (ag_cmd, cl_cmd):
+                self.assertNotIn('"', cmd)
+                self.assertNotIn("'", cmd)
+                self.assertNotIn("\\", cmd)
+            self.assertEqual(setup_bootstrap._self_check_blinded_guard(proj), 0)
+
+            # Section 2.1: _resolve_run_id ignores foreign v2 manual-v0.2 directory without wins v3 markers
+            from localsec.manual_session import _resolve_run_id
+            foreign_proj = Path(tmp) / "foreign_proj"
+            (foreign_proj / ".localsec" / "runs" / "manual-v0.2" / "svc").mkdir(parents=True)
+            (foreign_proj / ".localsec" / "runs" / "manual-v0.2" / "svc" / "repo_profile.json").write_text("{}", encoding="utf-8")
+            self.assertEqual(_resolve_run_id(foreign_proj, {}, None, "svc"), "default")
+            (foreign_proj / ".localsec" / "runs" / "manual-v0.2" / "svc" / "inventory_repo.json").write_text("{}", encoding="utf-8")
+            self.assertEqual(_resolve_run_id(foreign_proj, {}, None, "svc"), "manual-v0.2")
+
+            # Section 2.3 (V22): unhinted flagged coverage records in same (target_module, attack_class) collapse & inherit root_cause_hint
+            from localsec.orchestrator import build_v3_candidate_queue, finalize_v3_phase2
+            rd_v22 = Path(tmp) / "rd_v22"
+            rd_v22.mkdir(parents=True)
+            (rd_v22 / "unified_surface_mapper.json").write_text(
+                json.dumps({
+                    "candidates": [
+                        {
+                            "title": "Unsigned x-user-id trusted",
+                            "attack_class": "BOLA_IDOR",
+                            "target_path": "apps/mcp/server/ctx.ts",
+                            "evidence_ids": ["ev_1"],
+                            "root_cause_hint": "RC-UNSIGNED-IDENTITY-HEADERS",
+                        }
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            (rd_v22 / "coverage_ledger.json").write_text(
+                json.dumps({
+                    "records": [
+                        {
+                            "coverage_id": "http_api::mcp_edge::apps%2Fmcp%2Fserver::BOLA_IDOR::ep1",
+                            "target_module": "apps/mcp/server",
+                            "attack_class": "BOLA_IDOR",
+                            "status": "flagged_for_phase_2",
+                            "evidence_ids": ["ev_1"],
+                        },
+                        {
+                            "coverage_id": "http_api::mcp_edge::apps%2Fmcp%2Fserver::BOLA_IDOR::ep2",
+                            "target_module": "apps/mcp/server",
+                            "attack_class": "BOLA_IDOR",
+                            "status": "flagged_for_phase_2",
+                            "evidence_ids": ["ev_1"],
+                        },
+                    ]
+                }),
+                encoding="utf-8",
+            )
+            q_v22 = build_v3_candidate_queue(rd_v22, "svc")
+            self.assertEqual(q_v22["duplicate_group_count"], 1)
+            self.assertEqual(q_v22["duplicate_groups"][0]["root_cause_hints"], ["RC-UNSIGNED-IDENTITY-HEADERS"])
+
+            # Section 2.5a: validator 2.2 flags conflicting candidate root_cause_hint vs root_cause_cluster_id
+            from localsec.validators import _validate_v30_epistemic_gates
+            rc_mismatch = {
+                "_candidate_root_cause_hints": {"cand_1": "RC-UNSIGNED-IDENTITY-HEADERS", "cand_2": "RC-MODEL-CONSENT"},
+                "chains": [
+                    {
+                        "chain_id": "C-CONFLICT",
+                        "candidate_ids": ["cand_1", "cand_2"],
+                        "chain_verdict": "hypothesized",
+                        "root_cause_cluster_id": "RC-UNSIGNED-IDENTITY-HEADERS",
+                        "hops": [{"hop_id": "H1", "hop_kind": "in_process", "file": "src/a.ts"}],
+                    }
+                ],
+            }
+            rc_issues: list[str] = []
+            _validate_v30_epistemic_gates("deep_trace_chain_analyst", rc_mismatch, rc_issues)
+            self.assertTrue(any("conflicting Phase 1 root_cause_hints" in i for i in rc_issues))
+
+            # Section 4.2: guard_self_test='not_blocked' emits guard_self_test_warning in phase2_gate_receipt.json
+            p2_proj = Path(tmp) / "p2_proj"
+            p2_rd = p2_proj / ".localsec" / "runs" / "default" / "svc"
+            p2_rd.mkdir(parents=True)
+            (p2_rd / "workspace_state.json").write_text(json.dumps({"evidence": {"ev_1": {"path": "src/a.ts"}}}), encoding="utf-8")
+            (p2_rd / "candidate_queue.json").write_text(json.dumps({"candidates": []}), encoding="utf-8")
+            (p2_rd / "deep_trace_chain_analyst.json").write_text(json.dumps({"chains": [], "unexploitable_candidates": []}), encoding="utf-8")
+            (p2_rd / "blinded_counterevidence_challenger.json").write_text(
+                json.dumps({"challenged_chains": [], "guard_self_test": "not_blocked"}),
+                encoding="utf-8",
+            )
+            p2_cert = finalize_v3_phase2(p2_proj, "svc", run_id="default")
+            self.assertEqual(p2_cert.get("guard_self_test"), "not_blocked")
+            self.assertIn("guard_self_test_warning", p2_cert)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

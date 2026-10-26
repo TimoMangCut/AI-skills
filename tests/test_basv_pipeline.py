@@ -372,7 +372,7 @@ class TestBASVPipeline(unittest.TestCase):
         self.assertEqual(len(list((agents_dir / "skills").glob("*/SKILL.md"))), 28)
 
         ms_source = Path(manual_session.__file__).read_text(encoding="utf-8")
-        registered_subcmds = set(re.findall(r'sub\.add_parser\("([a-z0-9_]+)"', ms_source))
+        registered_subcmds = set(re.findall(r'sub\.add_parser\(\s*"([a-z0-9_]+)"', ms_source))
         valid_report_subcmds = {
             "collect",
             "status",

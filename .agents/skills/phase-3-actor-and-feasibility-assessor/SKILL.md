@@ -79,17 +79,6 @@ python -m localsec.manual_session submit_skill <repo_name> actor_and_feasibility
             ],
             "evidence_ids": [
               "ev_001"
-            ],
-            "holders": [
-              {
-                "who": "Any registered EV driver",
-                "actor_type": "authenticated_user",
-                "attainable": "yes",
-                "why": "station_id is printed on the charger and transaction_id is echoed in the driver's own session API",
-                "evidence_ids": [
-                  "ev_001"
-                ]
-              }
             ]
           },
           {
@@ -99,7 +88,16 @@ python -m localsec.manual_session submit_skill <repo_name> actor_and_feasibility
             "searched_paths": [
               "src/ocpp/charging_router.py"
             ],
-            "evidence_ids": []
+            "evidence_ids": [],
+            "holders": [
+              {
+                "who": "Any registered EV driver",
+                "actor_type": "authenticated_user",
+                "attainable": "unknown",
+                "why": "Needs runtime ingress verification whether station_id routing is pinned to mTLS cert",
+                "evidence_ids": []
+              }
+            ]
           }
         ],
         "actors_considered": {
