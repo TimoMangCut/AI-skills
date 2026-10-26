@@ -15,6 +15,9 @@ Thay vì quét lại toàn bộ mã nguồn từ đầu, Phase 2 **đọc trực
 
 ---
 
+
+> **Nhóm trùng gợi ý (Đợt 7 — E6):** `candidate_queue.json` có `duplicate_groups[]` (và `duplicate_group_id` trên từng ứng viên), do script gom theo: phần lớn bằng chứng giống nhau, hoặc cùng file nguồn, hoặc cùng thư mục + cùng loại tấn công. Dùng làm điểm xuất phát cho `deduplicated_batches[]`; được tách hoặc gộp tiếp nếu đọc thấy khác, nhưng mọi `candidate_id` vẫn phải nằm trong đúng một lô hoặc trong `dismissed_candidates[]`. Nhóm là gợi ý: có thể gộp nhầm các vấn đề khác nhau cùng chạm một file trung tâm.
+
 ## 1. Quy tắc Thực thi Bắt buộc (`ARCH-3G`, `DEPTH-4.5`, `R3-A4`)
 
 1. **Đọc `candidate_queue.json` & Không Bỏ rơi Ứng viên (`ARCH-3G`, `R3-A4`)**:

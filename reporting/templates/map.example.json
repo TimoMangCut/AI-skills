@@ -1,0 +1,16 @@
+{
+  "repo": "payment-service",
+  "items": [
+    {"sid": "payment-service:CM-1", "to": "F-03"},
+    {"sid": "payment-service:TM-PAY-01", "to": "F-03"},
+    {"sid": "payment-service:AR-02", "to": "F-03"},
+    {"sid": "payment-service:CM-2", "to": "F-07"},
+    {"sid": "payment-service:AR-04", "to": "F-11"},
+    {"sid": "payment-service:TM-PAY-06", "to": "NEW:topup-race", "proposal": {
+      "title": "Nạp ví đồng thời cộng tiền hai lần do thiếu khoá giao dịch",
+      "core_issue": "Hai callback nạp ví cùng mã giao dịch được xử lý song song, không có khoá hay ràng buộc duy nhất",
+      "root_causes": [], "services": ["payment-service"]}},
+    {"sid": "payment-service:AR-07", "to": "excluded", "reason": "khong_phai_lo_hong", "note": "Mô tả cơ chế retry của scheduler, không nêu điểm yếu"},
+    {"sid": "payment-service:TM-PAY-09", "to": "excluded", "reason": "trung_lap", "into": "F-03", "note": "Cùng callback không ký, góc nhìn threat model"}
+  ]
+}

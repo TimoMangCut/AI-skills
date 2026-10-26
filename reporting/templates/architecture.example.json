@@ -1,0 +1,51 @@
+{
+  "project": {
+    "name": "Nền tảng ví dụ",
+    "summary": "Ví dụ minh hoạ định dạng — thay bằng nội dung của project thật."
+  },
+  "domains": [
+    {
+      "id": "D1",
+      "name": "Thanh toán & công nợ",
+      "description": "Thu tiền dịch vụ, nhận callback cổng thanh toán, đẩy công nợ sang ERP",
+      "criticality": "critical",
+      "services": ["payment-service"]
+    },
+    {
+      "id": "D2",
+      "name": "Kênh truy cập",
+      "description": "Ứng dụng di động và portal quản trị",
+      "criticality": "high",
+      "services": ["mobile-app", "admin-portal"]
+    },
+    {
+      "id": "D3",
+      "name": "Nền tảng & hạ tầng",
+      "description": "Gateway, cấu hình tập trung, CI/CD, IaC",
+      "criticality": "critical",
+      "services": ["api-gateway", "central-config", "infra-terraform"]
+    }
+  ],
+  "shared_components": [
+    {
+      "name": "api-gateway",
+      "type": "gateway",
+      "used_by": ["D1", "D2"],
+      "risk_note": "Điểm xác thực duy nhất; backend tin header danh tính do gateway gắn [có bằng chứng]"
+    },
+    {
+      "name": "MySQL dùng chung nhiều schema",
+      "type": "database",
+      "used_by": ["D1", "D3"],
+      "risk_note": "Một credential lộ có thể đọc schema của cụm khác [giả thuyết — chưa kiểm phân quyền DB]"
+    }
+  ],
+  "related_projects": [
+    {
+      "name": "project-khac (cụm đổi pin)",
+      "relationship": "payment-service gọi API đổi pin để tính phí",
+      "status": "inferred",
+      "evidence": "inputs/02_edges.md dòng payment-service → bss; chưa có tài liệu tích hợp"
+    }
+  ]
+}

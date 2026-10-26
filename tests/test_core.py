@@ -255,8 +255,8 @@ func main() { println("hello") }
         repo_root = Path(__file__).resolve().parents[1]
         ag_skills = sorted((repo_root / ".agents" / "skills").glob("*/SKILL.md"))
         cl_skills = sorted((repo_root / ".claude" / "skills").glob("*/SKILL.md"))
-        self.assertEqual(len(ag_skills), 17)
-        self.assertEqual(len(cl_skills), 17)
+        self.assertEqual(len(ag_skills), 28)
+        self.assertEqual(len(cl_skills), 28)
 
         for ag_p, cl_p in zip(ag_skills, cl_skills):
             self.assertEqual(ag_p.parent.name, cl_p.parent.name)
@@ -309,8 +309,8 @@ func main() { println("hello") }
             env = dict(os.environ, AI_SKILLS_SKIP_TESTS="1")
             res = subprocess.run([sys.executable, str(setup_py)], cwd=str(target_root), env=env, capture_output=True, text=True)
             self.assertEqual(res.returncode, 0, res.stderr)
-            self.assertEqual(len(list((target_root / ".agents" / "skills").glob("*/SKILL.md"))), 17)
-            self.assertEqual(len(list((target_root / ".claude" / "skills").glob("*/SKILL.md"))), 17)
+            self.assertEqual(len(list((target_root / ".agents" / "skills").glob("*/SKILL.md"))), 28)
+            self.assertEqual(len(list((target_root / ".claude" / "skills").glob("*/SKILL.md"))), 28)
             self.assertTrue((target_root / ".claude" / "agents" / "localsec-blinded-challenger.md").is_file())
             self.assertTrue((target_root / "AGENTS.md").is_file())
             self.assertTrue((target_root / "SOUL.md").is_file())

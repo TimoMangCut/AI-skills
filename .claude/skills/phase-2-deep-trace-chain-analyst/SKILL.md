@@ -33,6 +33,12 @@ Bước này hợp nhất 5 yêu cầu kỹ thuật liên hoàn trong **một ph
 
 ---
 
+### Một chuỗi = một đường đi liên tục; bắt buộc `root_cause_cluster_id` (Đợt 9 — V17, V15)
+
+- **Mỗi chuỗi là một đường đi liên tục** từ điểm vào tới hậu quả. Hai hop liền nhau thuộc hai đơn vị triển khai khác nhau (`apps/<x>`, `services/<x>`, `cmd/<x>`, hoặc hai repo) phải được nối bằng hop xuyên dịch vụ (`http`, `grpc`, `message_queue`, `zmq_or_ipc`), kèm `caller_evidence_ids` và `callee_evidence_ids`. Không gộp hai điểm yếu ở hai dịch vụ vào một chuỗi chỉ vì chúng "cùng chủ đề" (ví dụ chatJWT ở gateway và vé huỷ ở mcp): mỗi điểm yếu là một chuỗi riêng. Validator từ chối chuỗi có bước nhảy `in_process` giữa hai đơn vị.
+- **`root_cause_cluster_id` là bắt buộc** ở mọi chuỗi. Đặt tên theo nguyên nhân gốc, ví dụ `RC-UNSIGNED-IDENTITY-HEADERS`; các chuỗi cùng nguyên nhân dùng cùng id. Nếu ứng viên của chuỗi đã có `root_cause_hint` từ Phase 1 (xem `duplicate_groups[].root_cause_hints`), dùng lại đúng hint đó. Phase 4 dùng id này để dựng bản đồ nguyên nhân gốc.
+- Nếu bước phản biện mù kết luận `broken_link`, `finalize_v3_phase2` **không** coi các ứng viên của chuỗi là đã bác. Chúng được tách ra (`broken_link_splits`) và phải được đánh giá riêng ở báo cáo.
+
 ## 2. Giao thức Thực thi CLI
 
 ```powershell
@@ -128,6 +134,7 @@ python -m localsec.manual_session submit_skill <repo_name> deep_trace_chain_anal
           }
         ],
         "root_cause": "remote_start_session loads session by sessionId without checking session.user_id against the authenticated caller",
+        "root_cause_cluster_id": "RC-SESSION-OWNERSHIP-MISSING",
         "remediation": "Enforce ownership check comparing session.user_id with authenticated JWT subject before dispatching RemoteStartTransaction",
         "request_plan": {
           "execution_status": "not_executed",

@@ -10,6 +10,7 @@ Can be invoked via:
 from __future__ import annotations
 
 import os
+import json
 import re
 import shutil
 import subprocess
@@ -129,6 +130,146 @@ def _remove_localsec_bridge(project_root: Path) -> None:
     shutil.rmtree(bridge_dir, ignore_errors=True)
 
 
+def _resolve_working_python_cmd() -> str | None:
+    """Return the first Python command that can actually start and import sys (`python`, `python3`, `py`, or `sys.executable`)."""
+    seen: set[str] = set()
+    for cand in ("python", "python3", "py", sys.executable):
+        if not cand or cand in seen:
+            continue
+        seen.add(cand)
+        if cand != sys.executable and shutil.which(cand) is None:
+            continue
+        try:
+            res = subprocess.run(
+                [cand, "-c", "import sys"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+                check=False,
+            )
+            if res.returncode == 0:
+                return cand
+        except Exception:  # noqa: BLE001
+            continue
+    return None
+
+
+def _rewrite_hook_python_cmd(project_root: Path, py_cmd: str) -> None:
+    """When `python` on PATH is missing or a broken shim, rewrite installed hook configs to use `py_cmd`."""
+    if not py_cmd or py_cmd == "python":
+        return
+    old_cmd = "python -m localsec.claude_subagent_guard"
+    new_cmd = f"{py_cmd} -m localsec.claude_subagent_guard"
+    for rel in (
+        Path(".claude") / "agents" / "localsec-blinded-challenger.md",
+        Path(".agents") / "hooks.json",
+    ):
+        fp = project_root / rel
+        if fp.is_file():
+            txt = fp.read_text(encoding="utf-8")
+            if old_cmd in txt:
+                fp.write_text(txt.replace(old_cmd, new_cmd), encoding="utf-8")
+
+
+def _self_check_blinded_guard(project_root: Path, py_cmd: str | None = None) -> tuple[bool, str]:
+    """Run both Claude Code and Antigravity blinded-step PreToolUse hooks from `project_root`.
+
+    Claude Code treats any exit code other than 2 as a non-blocking hook error and lets the tool run, while
+    Antigravity expects exit code 0 with JSON `{"decision": "deny"}` on stdout when the transcript has the
+    `LOCALSEC_BLINDED_CHALLENGER_CONTEXT` marker.
+    """
+    resolved_py = py_cmd or _resolve_working_python_cmd()
+    if resolved_py is None:
+        return False, "No working Python interpreter found (`python`, `python3`, `py`)."
+    probe_claude = '{"tool_name": "Read", "tool_input": {"file_path": ".localsec/tmp/deep_trace_chain_analyst_probe.json"}}'
+    try:
+        res_cl = subprocess.run(
+            [resolved_py, "-m", "localsec.claude_subagent_guard", "--mode", "blinded_challenger"],
+            input=probe_claude,
+            capture_output=True,
+            text=True,
+            cwd=str(project_root),
+            timeout=60,
+            check=False,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return False, f"Claude hook could not start ({type(exc).__name__}: {exc})"
+    if res_cl.returncode != 2:
+        return (
+            False,
+            f"Claude hook returned exit code {res_cl.returncode} instead of 2 for a forbidden read: {res_cl.stderr.strip()[:300]}",
+        )
+
+    tmp_dir = project_root / ".localsec" / "tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    probe_transcript = tmp_dir / "_ag_hook_probe_transcript.jsonl"
+    try:
+        probe_transcript.write_text(
+            '{"role":"user","content":"LOCALSEC_BLINDED_CHALLENGER_CONTEXT /phase-2-blinded-counterevidence-challenger probe"}\n',
+            encoding="utf-8",
+        )
+        probe_ag = json.dumps(
+            {
+                "transcriptPath": str(probe_transcript),
+                "toolCall": {
+                    "name": "view_file",
+                    "args": {
+                        "AbsolutePath": str(
+                            project_root / ".localsec" / "runs" / "default" / "probe" / "deep_trace_chain_analyst.json"
+                        )
+                    },
+                },
+            }
+        )
+        res_ag = subprocess.run(
+            [resolved_py, "-m", "localsec.claude_subagent_guard", "--platform", "antigravity"],
+            input=probe_ag,
+            capture_output=True,
+            text=True,
+            cwd=str(project_root),
+            timeout=60,
+            check=False,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return False, f"Antigravity hook could not start ({type(exc).__name__}: {exc})"
+    finally:
+        if probe_transcript.is_file():
+            try:
+                probe_transcript.unlink()
+            except OSError:
+                pass
+
+    if res_ag.returncode != 0 or '"deny"' not in res_ag.stdout:
+        return (
+            False,
+            f"Antigravity hook failed self-check (rc={res_ag.returncode}, stdout={res_ag.stdout.strip()[:200]}, stderr={res_ag.stderr.strip()[:200]})",
+        )
+    return True, f"Claude + Antigravity hooks block forbidden reads (interpreter: {resolved_py})"
+
+
+
+def _merge_antigravity_hooks(dst: Path, src: Path, remove: bool = False) -> None:
+    """Add (or remove) the toolkit's named hooks in the workspace `.agents/hooks.json`, keeping the user's own hooks."""
+    if not src.is_file():
+        return
+    ours = json.loads(src.read_text(encoding="utf-8"))
+    current: dict = {}
+    if dst.is_file():
+        try:
+            current = json.loads(dst.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            current = {}
+    for k in ours:
+        current.pop(k, None)
+    if not remove:
+        current.update(ours)
+    if current:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_text(json.dumps(current, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    elif dst.is_file():
+        dst.unlink()
+
+
 def _update_git_exclude(root: Path, skill_folder: str, has_bridge: bool = True, remove: bool = False) -> bool:
     exclude_file = _resolve_git_exclude(root)
     if exclude_file is None:
@@ -146,14 +287,17 @@ def _update_git_exclude(root: Path, skill_folder: str, has_bridge: bool = True, 
         f"/{skill_folder}/",
         "/.agents/README.md",
         "/.agents/rules/soul.md",
+        "/.agents/agents/localsec-*",
         "/.agents/skills/phase-1-*",
         "/.agents/skills/phase-2-*",
         "/.agents/skills/phase-3-*",
         "/.agents/skills/phase-4-*",
+        "/.agents/skills/phase-risk-*",
         "/.claude/skills/phase-1-*",
         "/.claude/skills/phase-2-*",
         "/.claude/skills/phase-3-*",
         "/.claude/skills/phase-4-*",
+        "/.claude/skills/phase-risk-*",
         "/.claude/agents/localsec-*",
         "/.localsec/",
         "/documents/",
@@ -178,7 +322,15 @@ def main(argv: list[str] | None = None) -> int:
             except Exception:
                 pass
 
-    args = list(sys.argv[1:] if argv is None else argv)
+    raw_args = list(sys.argv[1:] if argv is None else argv)
+    replace_foreign = False
+    args: list[str] = []
+    for a in raw_args:
+        if a in ("--replace-foreign", "-ReplaceForeign"):
+            replace_foreign = True
+        else:
+            args.append(a)
+
     skill_dir = Path(__file__).resolve().parent
     project_root = Path.cwd().resolve()
     folder_name = skill_dir.name
@@ -211,10 +363,15 @@ def main(argv: list[str] | None = None) -> int:
         soul_rule = agents_dir / "rules" / "soul.md"
         if soul_rule.is_file():
             soul_rule.unlink()
+        if (skill_dir / ".agents" / "agents").is_dir():
+            for ap in (skill_dir / ".agents" / "agents").iterdir():
+                if (agents_dir / "agents" / ap.name).is_file():
+                    (agents_dir / "agents" / ap.name).unlink()
+        _merge_antigravity_hooks(agents_dir / "hooks.json", skill_dir / ".agents" / "hooks.json", remove=True)
         readme_ag = agents_dir / "README.md"
         if readme_ag.is_file():
             readme_ag.unlink()
-        for sub in ("skills", "rules"):
+        for sub in ("skills", "rules", "agents"):
             subdir = agents_dir / sub
             if subdir.is_dir() and not any(subdir.iterdir()):
                 subdir.rmdir()
@@ -259,6 +416,35 @@ def main(argv: list[str] | None = None) -> int:
     (claude_dst / "agents").mkdir(parents=True, exist_ok=True)
     (project_root / ".localsec" / "tmp").mkdir(parents=True, exist_ok=True)
 
+    our_skills = {sp.name for sp in (skill_dir / ".agents" / "skills").iterdir() if sp.is_dir()}
+    our_agents = set()
+    if (skill_dir / ".claude" / "agents").is_dir():
+        our_agents.update(ap.name for ap in (skill_dir / ".claude" / "agents").iterdir() if ap.is_file())
+    if (skill_dir / ".agents" / "agents").is_dir():
+        our_agents.update(ap.name for ap in (skill_dir / ".agents" / "agents").iterdir() if ap.is_file())
+
+    foreign_entries: list[str] = []
+    for skill_parent, label in ((agents_dst / "skills", ".agents/skills"), (claude_dst / "skills", ".claude/skills")):
+        if skill_parent.is_dir():
+            for child in sorted(skill_parent.iterdir()):
+                if child.name not in our_skills:
+                    foreign_entries.append(f"{label}/{child.name}")
+                    if replace_foreign:
+                        if child.is_dir():
+                            shutil.rmtree(child)
+                        else:
+                            child.unlink()
+    for agent_parent, label in ((agents_dst / "agents", ".agents/agents"), (claude_dst / "agents", ".claude/agents")):
+        if agent_parent.is_dir():
+            for child in sorted(agent_parent.iterdir()):
+                if child.name not in our_agents:
+                    foreign_entries.append(f"{label}/{child.name}")
+                    if replace_foreign:
+                        if child.is_dir():
+                            shutil.rmtree(child)
+                        else:
+                            child.unlink()
+
     shutil.copy2(skill_dir / ".agents" / "README.md", agents_dst / "README.md")
     if (skill_dir / ".agents" / "rules" / "soul.md").is_file():
         shutil.copy2(skill_dir / ".agents" / "rules" / "soul.md", agents_dst / "rules" / "soul.md")
@@ -283,6 +469,14 @@ def main(argv: list[str] | None = None) -> int:
             if ap.is_file():
                 shutil.copy2(ap, claude_dst / "agents" / ap.name)
 
+    # Antigravity: custom subagent definitions + workspace PreToolUse hook (same guard as the Claude agent hook)
+    if (skill_dir / ".agents" / "agents").is_dir():
+        (agents_dst / "agents").mkdir(parents=True, exist_ok=True)
+        for ap in sorted((skill_dir / ".agents" / "agents").iterdir()):
+            if ap.is_file():
+                shutil.copy2(ap, agents_dst / "agents" / ap.name)
+    _merge_antigravity_hooks(agents_dst / "hooks.json", skill_dir / ".agents" / "hooks.json")
+
     # 2. Rewrite folder references if cloned under a custom folder name != AI-skills
     if folder_name != "AI-skills":
         for root_target in (agents_dst, claude_dst / "skills", claude_dst / "agents"):
@@ -292,6 +486,17 @@ def main(argv: list[str] | None = None) -> int:
 
     # 3. Install package bridge <Project-Root>/localsec/__init__.py so `python -m localsec.manual_session` works on Windows PowerShell/CMD without PYTHONPATH
     has_bridge = _install_localsec_bridge(project_root, skill_dir, folder_name)
+
+    # 3b. Resolve working Python interpreter and self-check both Claude and Antigravity blinded-step hooks
+    py_cmd = _resolve_working_python_cmd()
+    if py_cmd:
+        _rewrite_hook_python_cmd(project_root, py_cmd)
+    guard_ok, guard_msg = _self_check_blinded_guard(project_root, py_cmd=py_cmd)
+    if not guard_ok:
+        print(f"[!] Hook bước mù (2.3) KHÔNG hoạt động: {guard_msg}", file=sys.stderr)
+        if os.environ.get("AI_SKILLS_ALLOW_UNGUARDED", "0") != "1":
+            print("[!] Dừng setup. Sửa lỗi trên, hoặc đặt AI_SKILLS_ALLOW_UNGUARDED=1 nếu chấp nhận bước mù không được bảo vệ.", file=sys.stderr)
+            return 3
 
     # 4. Non-destructively install or merge AGENTS.md, SOUL.md, and CLAUDE.md
     agents_status = _merge_marked_file(skill_dir / "AGENTS.md", project_root / "AGENTS.md", "AGENTS.md")
@@ -306,9 +511,15 @@ def main(argv: list[str] | None = None) -> int:
     exclude_updated = _update_git_exclude(project_root, folder_name, has_bridge=has_bridge, remove=False)
 
     print(f"[+] Đã đồng bộ {copied_skills} skills vào .agents/skills/ (Antigravity) và .claude/skills/ (Claude Code)")
+    if foreign_entries:
+        if replace_foreign:
+            print(f"[!] Đã gỡ {len(foreign_entries)} skill/agent ngoại lai (--replace-foreign): {', '.join(foreign_entries[:10])}")
+        else:
+            print(f"[i] Phát hiện {len(foreign_entries)} skill/agent riêng của dự án (được giữ nguyên; truyền --replace-foreign nếu muốn dọn sạch): {', '.join(foreign_entries[:10])}")
     print(f"[+] Trạng thái AGENTS.md: {agents_status} | SOUL.md: {soul_status} | CLAUDE.md: {claude_status}")
     if has_bridge:
         print("[+] Đã tạo cầu nối package localsec (chạy trực tiếp `python -m localsec.manual_session` trên PowerShell/CMD/Bash).")
+    print("[+] Thư mục trạng thái chuẩn (Run Directory): .localsec/runs/default/<repo_slug>/")
     if exclude_updated:
         print("[+] Đã cập nhật .git/info/exclude để giữ sạch 'git status' cho Project.")
     print(f"[+] Toàn bộ Engine & Schemas được giữ gọn trong: {skill_dir}")
@@ -328,7 +539,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         f"[✓] Sẵn sàng! Hãy mở {project_root} trong Antigravity hoặc Claude Code và chạy "
-        "/phase-1-orchestrator, /phase-2-orchestrator, hoặc /phase-3-orchestrator."
+        "/phase-1-orchestrator, /phase-2-orchestrator, /phase-3-orchestrator, hoặc /phase-4-orchestrator."
     )
     return 0
 

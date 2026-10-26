@@ -1,54 +1,76 @@
 ---
 name: phase-4-orchestrator
 description: >-
-  Master Orchestrator duy nhất cần gọi để chạy trọn bộ Phase 4 Final Report Synthesis and Canonical Export v3.0 (xuất toàn bộ cây tài liệu chuẩn documents/, chuyển đổi F-xx.json không tốn token, kiểm chứng tương đương rủi ro S-F-O-P-C và tổng hợp 00_manifest.md, BAO_CAO_TONG_HOP_BAO_MAT.md, DANH_GIA_RUI_RO.md). Kích hoạt khi người dùng gọi /phase-4-orchestrator.
+  Điểm vào Phase 4 của wins (Phase cuối, sau Phase đánh giá Risk): kiểm cổng Phase 1/2/3, xuất kết quả đã khoá sổ thành đầu vào của bộ báo cáo tổng hợp (`reporting/report.py`), rồi chuyển sang luồng /phase-4-consolidated-report (gồm Phase Risk /phase-risk-assessment) để ra BAO_CAO_TONG_HOP_BAO_MAT.md và DANH_GIA_RUI_RO.md có cổng kiểm. Kích hoạt khi người dùng gọi /phase-4-orchestrator.
 ---
 
-# LocalSec v3.0 — Phase 4 Master Orchestrator: Final Report Synthesis & Canonical Export
+# Phase 4 của wins — Xuất dữ liệu và lập báo cáo tổng hợp
 
-> **Hợp đồng điều phối chuẩn:** `AI-skills/contracts/v3-orchestration.json`
+Phase 4 không đọc mã nguồn và không tự viết báo cáo bằng script. Nó gồm hai phần:
 
-## 1. Mục tiêu của Phase 4 (Phase Báo cáo Tổng hợp Cuối cùng)
+1. **Xuất (script, 0 token):** `finalize_v3_phase4` chép kết quả `.localsec/runs/<run_id>/` thành các file trong `documents/` mà `reporting/report.py collect` đọc được.
+2. **Lập báo cáo (model + cổng script):** chạy nguyên luồng của bộ báo cáo tổng hợp vendored trong `AI-skills/reporting/` và các skill `phase-4-*` / `phase-risk-*`. Mọi kết luận đi qua `report.py check`; mức rủi ro do `reporting/risk.py` suy ra.
 
-Sau khi hoàn tất:
-- **Phase 1 (`phase-1-orchestrator`)**: Unified Reconnaissance (`1.1 -> 1.6`, đóng cổng bằng `finalize_v3_phase1`)
-- **Phase 2 (`phase-2-orchestrator`)**: Deep Analysis & Falsification (`2.1 -> 2.4`, đóng cổng bằng `finalize_v3_phase2`)
-- **Phase 3 (`phase-3-orchestrator`)**: Contextual S-F-O-P-C Risk & Exploitability Assessment (`3.1 -> 3.3`, đóng cổng bằng `finalize_v3_phase3`)
-
-**Phase 4 (`phase-4-orchestrator`)** đóng vai trò là **Phase Báo cáo Tổng hợp & Xuất Hồ sơ Chuẩn (`Final Report Synthesis & Canonical Export`)** trên toàn bộ dự án:
-1. **Bảo vệ chống ghi đè ngoài ý muốn (`Overwrite Guard — B2`)**: Trước khi ghi vào `documents/`, kiểm tra xem có file nào do bộ công cụ khác tạo (không mang dấu `"generated_by": "wins"` hoặc `<!-- generated_by: wins -->`) hay không. Nếu phát hiện, dừng lại an toàn trừ khi truyền cờ `--force-overwrite`.
-2. **Chuyển đổi toàn bộ kết quả `.localsec/runs/<run_id>/` sang cây thư mục chuẩn `documents/` tương thích schema 100% (`B1`)**:
-   - `documents/_v3/<repo>/01..03.md` (3 thẻ báo cáo v3 theo đối tượng: Developer, Executive, QA/Pentest)
-   - `documents/<repo>/01_repo_profile.md` (đủ mục `## Purpose` và `## Criticality assessment`), `02_techstack.json` (`languages`, `frameworks`), `05_inbound_outbound.json` (`inbound`, `outbound`), `09_findings.json` (giữ nguyên 100% `candidate_queue` + `architecture_findings` từ Phase 1), `16_code_coverage.json` (ghi rõ `coverage_semantics: "file_touched"` và `line_coverage_pct`), `basv/18_business_aware_synthesis.json` (`invariants`, `gaps`)
-   - `documents/<repo>/12_analysis_status.json` (**chỉ tạo khi `phase1_gate_receipt.json` có `gate_passed: true`**)
-   - `documents/<repo>/basv/19_basv_epistemic_and_contradiction_diagnostics.json` (**chỉ tạo khi `phase2_gate_receipt.json` có `gate_passed: true`**)
-   - `documents/_analysis/chains/chain_<ID>.json` (cho toàn bộ chuỗi của dự án), `06_root_cause_map.json` (`root_causes[]`), `99_project_chain_report.json` (`chains[]`)
-   - `documents/_system/02_cross_repo_review.json` (`findings[]`)
-   - `documents/_report/runtime_facts.json`, `documents/_report/work/findings_consolidated.json` (gom nhóm chuỗi theo `root_cause_cluster_id` thành `F-01`, `F-02`, ... — `B4`)
-3. **Chuyển đổi tất định (0 LLM token) kết quả Phase 3 (`3.1` + `3.2` + `3.3`) sang `documents/_report/work/risk/F-xx.json` và `_combinations.json` (`B1`, `B5`)**:
-   - Đầy đủ `attack_paths` (`links`, `controls`, `path_feasibility`), `actors_considered`, `yields`, `detection`, `business_impact` (5 chiều `an_toan_vat_ly`, `tai_chinh`, `van_hanh`, `du_lieu_ca_nhan`, `tuan_thu`), `open_questions`.
-   - Tự động tính lại `muc_rui_ro_suy_ra` theo đúng luật của `finalize_v3_phase3` (kể cả kiểm soát từ `runtime_environment_facts.json` và hạ điều kiện `"no"` thiếu bằng chứng về `"unknown"`) và đối chiếu tương đương (`parity_verified: true`) với `derived_risk_rating`.
-4. **Tổng hợp 3 báo cáo cấp dự án tại `documents/_report/` (`B3`, `B6`)**:
-   - `documents/_report/00_manifest.md`: Bảng kiểm kê toàn bộ repo, trạng thái 3 cổng kiểm toán Phase 1/2/3, độ phủ `file_touched` vs `line_coverage_pct`, và chỉ mục tài liệu.
-   - `documents/_report/BAO_CAO_TONG_HOP_BAO_MAT.md`: Báo cáo kỹ thuật & kiến trúc bảo mật tổng hợp toàn dự án (Executive Summary, Kiến trúc & Blast Radius, Chi tiết từng lỗ hổng hợp nhất `F-xx` kèm `hops[]`, `evidence_ids`, `discriminating_requests`, Lộ trình khắc phục P0/P1/P2, Phạm vi chưa kiểm chứng, và Phụ lục A/B/C).
-   - `documents/_report/DANH_GIA_RUI_RO.md`: Báo cáo đánh giá rủi ro 5 trục S-F-O-P-C (Chi tiết từng `F-xx` với bảng mắt xích `attack_paths`, `holders`, `actors_considered`, Rủi ro kết hợp `_combinations.json`, trạng thái `Gate 0 / Emergency Brake`, và Bảng câu hỏi mở hai chiều `outcome_if_yes` / `outcome_if_no`).
-
----
-
-## 2. Quy trình Thực thi Phase 4
-
-### Bước 4.1: Xuất Hồ sơ Chuẩn & Kiểm chứng Tương đương Rủi ro (`finalize_v3_phase4` / `export_final_phase_inputs`)
-
-Chạy lệnh đóng cổng và xuất báo cáo Phase 4:
+## Bước 4.0 — Kiểm cổng và xuất
 
 ```bash
 python -m localsec.manual_session finalize_v3_phase4
 ```
 
-*(Nếu cần ghi đè lên thư mục `documents/` có sẵn từ công cụ khác, thêm cờ `--force-overwrite`: `python -m localsec.manual_session finalize_v3_phase4 --force-overwrite`).*
+- Dừng (`gate_passed: false`) nếu repo nào thiếu hoặc trượt `phase1/2/3_gate_receipt.json`. Chạy lại `finalize_v3_phase1/2/3` cho repo đó. Chỉ khi người dùng đồng ý xuất bản chưa khoá sổ mới thêm `--allow-unfinalized` (repo chưa đạt sẽ không có `12_analysis_status.json`, và `collect` ghi nhận là chưa xong).
+- Dừng (`overwrite_blocked: true`) nếu một file đích trong `documents/` đã có mà không do wins sinh (ví dụ dự án đã chạy bộ khác). Báo người dùng danh sách `conflicting_files`. Chỉ dùng `--force-overwrite` khi người dùng xác nhận.
+- Lệnh này **không** ghi `documents/_report/work/` và không ghi báo cáo cuối. `documents/_report/runtime_facts.json` được gộp (giữ fact đã có).
 
-### Bước 4.2: Kiểm tra Biên nhận Phase 4 & Bàn giao
+File được xuất:
 
-Đọc kết quả JSON trả về từ `finalize_v3_phase4` (hoặc kiểm tra `.localsec/runs/default/_analysis/phase4_gate_receipt.json`):
-- Nếu `gate_passed: true` và `risk_parity_verified: true`: Báo cáo hoàn tất toàn bộ 4 Phase.
-- Nếu `gate_passed: false` (do bất kỳ repo nào thiếu/trượt `phase1/2/3_gate_receipt.json`, lệch `risk_parity_verified`, hoặc bị chặn bởi `overwrite_blocked`): Giữ nguyên cảnh báo `[UNFINALIZED / GATE FAILED]` và xử lý nguyên nhân trước khi phát hành báo cáo.
+| File | Nguồn wins |
+|---|---|
+| `documents/<repo>/01_repo_profile.md`, `02_techstack.json`, `05_inbound_outbound.json` | 1.1 codebase_scout, 1.3 unified_surface_mapper |
+| `documents/<repo>/09_findings.json` | toàn bộ `candidate_queue` + phát hiện kiến trúc 1.5 |
+| `documents/<repo>/basv/18_…`, `19_…` | `invariant_checks` của 1.3, bất biến 1.2; 19 chỉ khi cổng Phase 2 đạt |
+| `documents/<repo>/12_analysis_status.json` | chỉ khi cả 3 cổng đạt |
+| `documents/<repo>/16_code_coverage.json` | `mandatory_pct` = số dòng đã đọc / tổng dòng file bắt buộc |
+| `documents/<repo>/evidence_index.json` | mọi `ev_` đã đọc, để `risk.py` nhận làm bằng chứng |
+| `documents/_analysis/chains/chain_<repo>_<id>.json`, `06_root_cause_map.json`, `99_project_chain_report.json` | chuỗi Phase 2 + đối chiếu phản biện 2.3 |
+| `documents/_system/02_cross_repo_review.json` | ghép ranh giới liên repo (trạng thái `hypothesis`) |
+| `documents/_v3/wins_phase3_risk.json` | dữ liệu Phase 3 (3.1/3.2/3.3) theo chuỗi, chép nguyên |
+
+## Bước 4.1 trở đi — Luồng báo cáo tổng hợp
+
+```bash
+python AI-skills/reporting/report.py collect
+python AI-skills/reporting/report.py status
+```
+
+Sau đó gọi `/phase-4-consolidated-report` và làm đúng theo skill đó (4.2 kiến trúc → 4.3 hợp nhất F → 4.4 tác động → Phase Risk `/phase-risk-assessment` R.1–R.5 → 4.5 viết → 4.6 rà soát độc lập → 4.7), kết thúc bằng:
+
+```bash
+python AI-skills/reporting/report.py check --stage final
+python AI-skills/reporting/report.py render
+```
+
+### Đối chiếu tên gọi khi đọc các skill vendored
+
+Các skill `phase-4-*` / `phase-risk-*` và `AI-skills/reporting/guides/` được chép nguyên từ bộ báo cáo dùng chung, nên dùng tên nguồn của bộ đó. Với dữ liệu wins:
+
+| Trong skill vendored | Ở wins |
+|---|---|
+| SID `P1` (`<repo>:<id>`, `09_findings.json`) | ứng viên Phase 1 của wins (`candidate_queue`) và phát hiện kiến trúc 1.5 |
+| SID `P2` (`basv/18`) | bất biến bị thiếu/chưa rõ từ 1.2/1.3 |
+| SID `P3` / chuỗi (`_analysis:<repo>:<id>`) | chuỗi Phase 2 của wins sau đối chiếu phản biện 2.3 |
+| `lsec.py read_file` | `python -m localsec.manual_session read_file` (Phase 4 không đọc mã nguồn) |
+
+### Dùng kết quả Phase 3 của wins trong Phase Risk
+
+Ở R.1 (`/phase-risk-exploit-path`), đọc `documents/_v3/wins_phase3_risk.json` cho các chuỗi thuộc F đang viết:
+- `preconditions` (3.1) → điều kiện của đường khai thác, giữ trạng thái và `evidence_ids`; điều kiện chưa có bằng chứng thì `chua_ro`.
+- `beyond_code_controls` (3.2) → `blocking_controls`; kiểm soát không có bằng chứng thì `exists: chua_ro`.
+- `impact_axes` (3.3) → cơ sở cho tác động 4.4.
+- `key_questions` → câu hỏi mở.
+
+Người nắm giữ (`holders`) và `actors_considered` theo từng loại người: chỉ ghi khi có cơ sở; dữ liệu wins hiện không có các trường này cho mọi chuỗi, nên phải lập luận và ghi lý do như skill R.1 yêu cầu. `risk.py` tự suy mức rủi ro; nếu khác `derived_risk_rating` của wins, giải thích ở R.3.
+
+## Không làm
+
+- Không sửa tay file do 4.0 xuất; muốn đổi thì sửa kết quả Phase 1–3 rồi chạy lại 4.0.
+- Không viết `work/risk/F-xx.json`, `_combinations.json` hay báo cáo bằng script; chúng là đầu ra của các bước có model và có cổng kiểm.

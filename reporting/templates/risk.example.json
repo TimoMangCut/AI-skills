@@ -1,0 +1,134 @@
+{
+  "finding": "F-03",
+  "actors_considered": {
+    "ngoai": ["P1"],
+    "nguoi_dung": ["P1"],
+    "doi_tac": ["P2"],
+    "noi_bo": "Vận hành có quyền sửa thẳng trạng thái hoá đơn trong DB; lỗi này không cho họ thêm khả năng nào so với quyền họ đã có",
+    "thanh_phan_bi_chiem": ["P1"]
+  },
+  "attack_paths": [
+    {
+      "id": "P1",
+      "summary": "Gửi callback 'thanh toán thành công' giả cho hoá đơn của mình hoặc người khác qua gateway",
+      "actor": "Bất kỳ ai nắm một client credential có scope tới route callback (người bóc được credential từ app/portal/seed, hoặc workload bị chiếm có credential đó)",
+      "reaches_impact": "co",
+      "entry": {
+        "surface": "POST /payment/v1.0/battery-leasing/payment/call-back/pay-success qua api-gateway",
+        "reachable": "co",
+        "why": "Route được đăng ký trong controller và không có kiểm tra chữ ký; gateway chuyển tiếp mọi route có trong bảng api",
+        "evidence": ["payment-service:CM-1", "_analysis:C2"]
+      },
+      "preconditions": [
+        {
+          "id": "C1",
+          "kind": "nam_giu",
+          "need": "Có client credential mà bảng scope của gateway cho phép gọi route callback",
+          "attainable": "chua_ro",
+          "why": "Bảng api/client_scope production không có trong repo nên chưa biết client nào có scope; xem từng người nắm giữ dưới đây",
+          "evidence": [],
+          "searched": ["report.py access --for F-03", "documents/vfip-api-gateway/04_auth_matrix.json"],
+          "enabled_by": ["F-08"],
+          "holders": [
+            {
+              "who": "Client của payment hub — người giữ theo thiết kế",
+              "how": "Cấp khi tích hợp; lưu ở hệ thống payment hub",
+              "attainable": "chua_ro",
+              "why": "Chưa biết credential này lưu ở đâu và ai ngoài đối tác đọc được",
+              "evidence": [],
+              "searched": ["report.py access --for F-03"]
+            },
+            {
+              "who": "Client của portal quản trị — secret nằm trong bundle JS công khai",
+              "how": "Tải trang portal, đọc bundle (F-08)",
+              "attainable": "chua_ro",
+              "why": "Ai tải trang cũng lấy được secret (F-08), nhưng chưa biết client portal có scope tới route callback",
+              "evidence": [],
+              "searched": ["documents/vfip-admin-portal/09_findings.md"]
+            },
+            {
+              "who": "Client kiểm thử được seed scope toàn bộ route trong migration",
+              "how": "Đọc repo chứa seed SQL",
+              "attainable": "chua_ro",
+              "why": "Seed nạp cho mọi môi trường và secret nằm rõ trong repo; chưa biết bản ghi còn ở production không",
+              "evidence": [],
+              "searched": ["report.py access --for F-03"]
+            }
+          ]
+        },
+        {
+          "id": "C2",
+          "kind": "biet",
+          "need": "Biết billIds hoặc paymentCode của hoá đơn mục tiêu",
+          "attainable": "co",
+          "why": "Hoá đơn của chính mình thì biết chắc; billId là số tăng dần theo migration tạo bảng nên dò được hoá đơn người khác",
+          "evidence": ["payment-service:TM-PAY-01"]
+        }
+      ],
+      "blocking_controls": [
+        {
+          "control": "Job đối soát OnePay định kỳ đảo lại trạng thái hoá đơn sai",
+          "exists": "co",
+          "exists_evidence": ["payment-service:CM-1"],
+          "effective": "khong",
+          "why": "Job chỉ chọn hoá đơn đang PAY_WAITING; hoá đơn đã bị callback giả đặt PAY_SUCCESS không còn được chọn lại",
+          "evidence": ["payment-service:CM-1"]
+        },
+        {
+          "control": "Có thể có allowlist IP cho route callback ở gateway production",
+          "exists": "chua_ro",
+          "why": "Không có bằng chứng cấu hình này tồn tại; không được tính cho tới khi có bằng chứng hoặc fact"
+        }
+      ],
+      "effort": "Vài phút cho mỗi hoá đơn khi đã có credential; tự động hoá được; không cần kỹ năng đặc biệt"
+    },
+    {
+      "id": "P2",
+      "summary": "Payment hub (bên tích hợp hợp pháp) gửi callback không khớp giao dịch thật",
+      "actor": "Nhân sự hoặc hệ thống phía payment hub giữ credential có scope theo thiết kế",
+      "reaches_impact": "co",
+      "entry": {
+        "surface": "Cùng route callback, gọi bằng credential của payment hub",
+        "reachable": "co",
+        "why": "Đây là đường gọi hợp pháp theo thiết kế của luồng thanh toán",
+        "evidence": ["payment-service:CM-1"]
+      },
+      "preconditions": [
+        {
+          "id": "C1",
+          "kind": "trang_thai",
+          "need": "Service chấp nhận callback không khớp số tiền hay mã giao dịch thật",
+          "attainable": "co",
+          "why": "Service không đối chiếu số tiền hay mã giao dịch với cổng thanh toán, chỉ đọc cờ success",
+          "evidence": ["payment-service:CM-1"]
+        }
+      ],
+      "blocking_controls": [],
+      "effort": "Một request cho mỗi hoá đơn từ hệ thống tích hợp"
+    }
+  ],
+  "yields": ["Không cho thêm quyền hay bí mật nào; chỉ đổi trạng thái hoá đơn (và đồng bộ sai sang ERP)"],
+  "detection": {
+    "would_be_noticed": "chua_ro",
+    "why": "Phụ thuộc có đối soát tiền thực thu với hoá đơn PAY_SUCCESS ở kế toán hay không (chưa xác nhận)",
+    "evidence": [],
+    "searched": ["documents/_analysis/chains/chain_C2.json"]
+  },
+  "likelihood": {
+    "hardest": "P1.C1",
+    "why": "Với người ngoài, mắt xích khó nhất là có credential có scope tới route callback; nếu client portal (F-08) hay client kiểm thử trong seed có scope thì ai đọc được bundle/repo cũng vượt được. Payment hub (P2) vượt được ngay vì giữ credential theo thiết kế."
+  },
+  "rationale": "P2 khai thác được: bên tích hợp hợp pháp gửi được callback không khớp giao dịch vì service không đối chiếu số tiền. P1 còn treo ở P1.C1 (ai ngoài payment hub có credential có scope). Script suy ra: khai thác được, rủi ro bằng tác động 4.4.",
+  "escalation_triggers": [
+    "P1.C1 thành `co` (client portal hay client kiểm thử có scope tới callback, câu hỏi Q1) → người ngoài cũng khai thác được",
+    "Xác nhận không có đối soát tiền thực thu (detection `khong`) → thiệt hại tích luỹ không ai thấy"
+  ],
+  "open_questions": [
+    {
+      "question": "Có đối soát tiền thực thu với hoá đơn PAY_SUCCESS hằng ngày không, ai thực hiện?",
+      "to": "tai_chinh",
+      "to_detail": "Kế toán thuê pin",
+      "affects": "detection"
+    }
+  ]
+}

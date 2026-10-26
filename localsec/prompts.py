@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -349,6 +350,7 @@ def select_companion_blocks(
     exclude_reasons: dict[str, str] | None = None,
     run_dir: Path | None = None,
     max_companions: int | None = None,
+    free_text_signals: list[str] | None = None,
 ) -> dict[str, Any]:
     """Select verbatim Attack-Class Companion blocks (JSON-first with Markdown fallback) for sub-agent prompts.
     Enforces verbatim `## [ BLOCK: ... ]` preservation and requires explicit reasons for any exclusions.
@@ -357,15 +359,29 @@ def select_companion_blocks(
     always_ids = set(reg.get("always_inject_modules", []))
     exclude_reasons = exclude_reasons or {}
 
+    def _norm_id(x: str) -> str:
+        return x.strip().lower().replace("_", "-")
+
+    # E5: a module whose id equals a registered archetype is selected directly; triggers match WHOLE tokens only.
+    # The old substring rule (`trig in tok or tok in trig`) selected 13-14/16 modules (OTA, OCPP, SAP...) for a
+    # TypeScript MCP repo in the vinfast-mcp trial and printed ~383 KB.
+    archetype_ids = {_norm_id(a) for a in (archetypes or []) if isinstance(a, str) and a.strip()}
     tokens: set[str] = set()
     for collection in (techstack or [], archetypes or [], signals or [], candidate_classes or []):
         for item in collection:
             if isinstance(item, str) and item.strip():
                 low = item.strip().lower()
                 tokens.add(low)
-                for part in low.replace("/", " ").replace("-", " ").replace("_", " ").split():
-                    if part:
+                for part in re.split(r"[\s/_\-.,;:()+]+", low):
+                    if len(part) >= 3:
                         tokens.add(part)
+    # Free text (coding conventions) only contributes long, non-generic words
+    free_stop = {"can", "all", "always", "order", "rest", "echo", "inventory", "billing", "gateway", "container", "client", "data"}
+    for item in free_text_signals or []:
+        if isinstance(item, str):
+            for part in re.split(r"[^a-z0-9.@]+", item.lower()):
+                if len(part) >= 4 and part not in free_stop:
+                    tokens.add(part)
 
     selected_ids: list[str] = []
     excluded_blocks: list[dict[str, str]] = []
@@ -377,11 +393,8 @@ def select_companion_blocks(
         if not mid:
             continue
         is_always = mid in always_ids or bool(mod.get("always_inject"))
-        triggers = [str(t).lower() for t in mod.get("trigger_signals", [])]
-        matched = is_always or any(
-            trig in tokens or any(trig in tok or tok in trig for tok in tokens if len(tok) >= 3)
-            for trig in triggers
-        )
+        triggers = [str(t).lower() for t in mod.get("trigger_signals", []) if str(t).lower() not in {"always", "all"}]
+        matched = is_always or _norm_id(mid) in archetype_ids or any(trig in tokens for trig in triggers)
         if not matched:
             continue
         if mid in exclude_reasons:

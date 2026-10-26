@@ -1602,6 +1602,10 @@ CONTENT_ENTRYPOINT_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("ros2_node", re.compile(r"\b(?:create_subscription|create_service|create_action_server)\b")),
     ("mobile_bridge", re.compile(r"\bMethodChannel\s*\(|\bCFBundleURLSchemes\b|android:exported\s*=\s*\"true\"|<intent-filter")),
     ("enterprise_ot_listener", re.compile(r"\bFUNCTION\s+Z\w+|\bRFC_\w+|<http:listener|\b(?:modbus|opcua|iec61850|dnp3)\b", re.IGNORECASE)),
+    # MCP / LLM tool handlers: arguments are chosen by the model (and by prompt injection), so each tool is an entrypoint
+    ("mcp_or_llm_tool", re.compile(r"\.register(?:Tool|Resource|Prompt)\s*\(|\bserver\.tool\s*\(|setRequestHandler\s*\(\s*(?:CallToolRequestSchema|ReadResourceRequestSchema)|@mcp\.(?:tool|resource)\b|\bFastMCP\s*\(")),
+    ("js_route_handler_export", re.compile(r"\bexport\s+(?:async\s+)?function\s+(?:GET|POST|PUT|DELETE|PATCH)\s*\(|\bexport\s+default\s+(?:async\s+)?function\s+handler\s*\(")),
+    ("js_queue_worker", re.compile(r"\bnew\s+Worker\s*\(\s*['\"]|\bchannel\.consume\s*\(|\bconsumer\.run\s*\(|\.subscribe\s*\(\s*\{\s*topic")),
 ]
 
 CONTENT_SECURITY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
@@ -2372,6 +2376,60 @@ def validate_scout_map_against_inventory(
     }
 
 
+_HANDLER_SIG_RE = re.compile(
+    r"^\s*(?:"
+    r"(?:async\s+)?def\s+\w+"                                   # Python
+    r"|func\s*(?:\([^)]*\)\s*)?\w*\s*\("                     # Go (incl. methods / closures)
+    r"|(?:export\s+)?(?:async\s+)?function\b"                  # JS/TS function
+    r"|(?:(?:public|private|protected|internal|static|async|override|virtual|final|synchronized)\s+)+[\w<>\[\],?\s]*\w+\s*\("  # Java/C#/TS methods
+    r"|(?:async\s+)?\w+\s*\([^;]*\)\s*(?::\s*[\w<>\[\], ]+)?\s*\{"  # TS/JS class method `name(...) {`
+    r"|.*=>\s*\{?"                                              # arrow handler: r.get('/x', (req, res) => {
+    r")"
+)
+
+
+def _derive_handler_end(lines: list[str], line_start: int, max_scan: int = 400) -> int | None:
+    """C3: derive where a handler body ends from the source itself, instead of trusting the mapper's line_end.
+
+    Starts at the route/decorator line, finds the handler signature within the next 15 lines, then follows
+    indentation (Python) or brace depth (C-family) to the end of the body. Returns a 1-based line or None.
+    """
+    n = len(lines)
+    if line_start < 1 or line_start > n:
+        return None
+    sig = None
+    for i in range(line_start - 1, min(n, line_start + 15)):
+        if _HANDLER_SIG_RE.match(lines[i]):
+            sig = i
+            break
+    if sig is None:
+        return None
+    sig_line = lines[sig]
+    if re.match(r"^\s*(?:async\s+)?def\s", sig_line):
+        indent = len(sig_line) - len(sig_line.lstrip())
+        end = sig
+        for j in range(sig + 1, min(n, sig + max_scan)):
+            txt = lines[j]
+            if not txt.strip():
+                continue
+            if len(txt) - len(txt.lstrip()) <= indent:
+                break
+            end = j
+        return end + 1
+    depth = 0
+    opened = False
+    for j in range(sig, min(n, sig + max_scan)):
+        for ch in lines[j]:
+            if ch == "{":
+                depth += 1
+                opened = True
+            elif ch == "}" and opened:
+                depth -= 1
+                if depth == 0:
+                    return j + 1
+    return None
+
+
 def audit_visibility_and_coverage(
     *,
     workspace: ManualWorkspace,
@@ -2546,18 +2604,25 @@ def audit_visibility_and_coverage(
                 if span_info is not None:
                     sf, l_start, l_end = span_info
                     eff_ranges = _merge_ranges(workspace.read_ranges.get(sf, file_ranges))
-                    sf_total_lines = 0
+                    sf_lines: list[str] = []
                     sf_disk = workspace.root / sf
                     if sf_disk.is_file():
                         try:
-                            sf_total_lines = len(sf_disk.read_text(encoding="utf-8", errors="replace").splitlines())
+                            sf_lines = sf_disk.read_text(encoding="utf-8", errors="replace").splitlines()
                         except Exception:
-                            sf_total_lines = 0
-                    if l_end > l_start:
-                        req_end = min(sf_total_lines, l_end) if sf_total_lines > 0 else l_end
+                            sf_lines = []
+                    sf_total_lines = len(sf_lines)
+                    # C3: the handler end comes from the source (brace/indent walk), never only from the mapper's claim;
+                    # a short self-declared line_end cannot shrink the span that must be read.
+                    derived_end = _derive_handler_end(sf_lines, l_start) if sf_lines else None
+                    if derived_end is not None:
+                        req_end = max(derived_end, l_end)
+                    elif l_end > l_start:
+                        req_end = l_end
                     else:
-                        # When only line_start (decorator/signature line) was provided, require reading the handler body window
-                        req_end = min(sf_total_lines, l_start + 8) if sf_total_lines > 0 else (l_start + 5)
+                        req_end = l_start + 8
+                    if sf_total_lines > 0:
+                        req_end = min(sf_total_lines, req_end)
                     spot_read = any(r_s <= l_start and r_e >= req_end for r_s, r_e in eff_ranges)
                 elif spot_file and spot_file != rep:
                     spot_read = spot_file in visited_set
@@ -2568,6 +2633,9 @@ def audit_visibility_and_coverage(
                     for e in ep_to_eids.get(spot_ep, []):
                         if e in workspace.evidence and e not in set(rep_eids_list):
                             rec = workspace.evidence.get(e, {})
+                            # C3: the distinct evidence must come from the spot-check file itself
+                            if spot_file and str(rec.get("path") or "").lstrip("./") != spot_file:
+                                continue
                             span_len = int(rec.get("line_end", 0)) - int(rec.get("line_start", 0)) + 1
                             if span_len >= 3:
                                 ep_specific_eids.append(e)
@@ -2597,15 +2665,48 @@ def audit_visibility_and_coverage(
                 if p:
                     waived_prefixes.append(p)
 
-    # File-level mandatory coverage (ARCH-3C)
+    # File-level mandatory coverage (ARCH-3C), measured in LINES: opening a file is not reading it.
+    # A mandatory file counts as DIRECT_READ only when the merged read ranges cover >= min_pct of its lines.
+    min_pct = float(workspace.cfg.get("mandatory_min_line_coverage", 0.9))
+
+    def _line_cov(fpath: str) -> tuple[int, int]:
+        disk = workspace.root / fpath
+        try:
+            total = len(disk.read_text(encoding="utf-8", errors="replace").splitlines())
+        except OSError:
+            return 0, 0
+        pts = sorted((int(a), int(b)) for a, b in workspace.read_ranges.get(fpath, []) if int(b) >= int(a))
+        covered, cur_s, cur_e = 0, None, None
+        for s, e in pts:
+            s, e = max(1, s), min(total, e)
+            if s > e:
+                continue
+            if cur_e is not None and s <= cur_e + 1:
+                cur_e = max(cur_e, e)
+            else:
+                if cur_e is not None:
+                    covered += cur_e - cur_s + 1
+                cur_s, cur_e = s, e
+        if cur_e is not None:
+            covered += cur_e - cur_s + 1
+        return covered, total
+
     mandatory_file_status: dict[str, dict[str, str]] = {"entrypoint": {}, "security": {}}
+    mandatory_line_coverage: dict[str, dict[str, Any]] = {}
     unvisited_mandatory_files: list[str] = []
+    partially_read_mandatory_files: list[str] = []
     if isinstance(inventory, dict):
         mfiles = inventory.get("mandatory_files", {})
         for bucket in ("entrypoint", "security"):
             for fpath in mfiles.get(bucket, []):
-                if fpath in visited_set:
+                covered, total = _line_cov(fpath)
+                pct = round(covered / total, 4) if total else 1.0
+                mandatory_line_coverage[fpath] = {"lines_read": covered, "lines_total": total, "pct": pct}
+                if fpath in visited_set and pct >= min_pct:
                     mandatory_file_status[bucket][fpath] = "DIRECT_READ"
+                elif fpath in visited_set:
+                    mandatory_file_status[bucket][fpath] = "PARTIAL_READ"
+                    partially_read_mandatory_files.append(f"{bucket}:{fpath} ({covered}/{total} lines)")
                 elif fpath in clustered_files:
                     mandatory_file_status[bucket][fpath] = "CLUSTERED_SAFE"
                 elif any(fpath == wp or fpath.startswith(wp + "/") for wp in waived_prefixes):
@@ -2614,11 +2715,56 @@ def audit_visibility_and_coverage(
                     mandatory_file_status[bucket][fpath] = "UNVISITED"
                     unvisited_mandatory_files.append(f"{bucket}:{fpath}")
 
+    # Per target module: share of lines read across non-test source files (reported, so "visited" is not mistaken for "read")
+    module_line_coverage: dict[str, dict[str, Any]] = {}
+    src_suffixes = {".py", ".ts", ".tsx", ".js", ".mjs", ".go", ".java", ".kt", ".cs", ".rb", ".php", ".rs", ".c", ".cpp", ".h", ".swift", ".dart"}
+    for mod in (scout_map or {}).get("target_modules", []) if isinstance(scout_map, dict) else []:
+        mod_p = str(mod.get("path") if isinstance(mod, dict) else mod).strip().strip("/")
+        base = workspace.root / mod_p if mod_p not in {"", "."} else workspace.root
+        if not base.is_dir():
+            continue
+        lines_total = lines_read = 0
+        for fp in base.rglob("*"):
+            if not fp.is_file() or fp.suffix.lower() not in src_suffixes:
+                continue
+            rel_fp = fp.relative_to(workspace.root).as_posix()
+            parts = [x.lower() for x in fp.relative_to(workspace.root).parts]
+            if "node_modules" in parts or _is_test_or_generated_path(rel_fp, fp.stem.lower(), fp.suffix.lower(), parts):
+                continue
+            c, t = _line_cov(rel_fp)
+            lines_total += t
+            lines_read += c
+        module_line_coverage[mod_p or "."] = {
+            "lines_read": lines_read,
+            "lines_total": lines_total,
+            "pct": round(lines_read / lines_total, 4) if lines_total else None,
+        }
+
+    # V20: the rest of each target module is gated too, by share of non-test source lines read. Before this only the
+    # mandatory files were forced, and the agent stopped at 26-35% of module lines in the vinfast-mcp runs.
+    min_mod_pct = float(workspace.cfg.get("target_module_min_line_coverage", 0.5))
+    under_read_target_modules: list[str] = []
+    for mod_key, mc in module_line_coverage.items():
+        if any(mod_key == wp or mod_key.startswith(wp + "/") for wp in waived_prefixes):
+            continue
+        pct = mc.get("pct")
+        if pct is not None and mc.get("lines_total", 0) > 0 and pct < min_mod_pct:
+            under_read_target_modules.append(
+                f"{mod_key} ({mc['lines_read']}/{mc['lines_total']} lines = {pct:.0%}, need {min_mod_pct:.0%}; "
+                f"use `read_files <repo> --module {mod_key} --until-pct {int(min_mod_pct * 100)}`)"
+            )
+
     vis["mandatory_file_coverage"] = mandatory_file_status
+    vis["mandatory_line_coverage"] = mandatory_line_coverage
+    vis["target_module_min_line_coverage"] = min_mod_pct
+    vis["under_read_target_modules"] = under_read_target_modules
+    vis["mandatory_min_line_coverage"] = min_pct
     vis["unvisited_mandatory_files"] = unvisited_mandatory_files
+    vis["partially_read_mandatory_files"] = partially_read_mandatory_files
+    vis["target_module_line_coverage"] = module_line_coverage
     vis["spot_check_clusters"] = spot_check_clusters
     vis["spot_check_violations"] = spot_check_violations
-    if unvisited_mandatory_files or spot_check_violations:
+    if unvisited_mandatory_files or partially_read_mandatory_files or under_read_target_modules or spot_check_violations:
         vis["gate_passed"] = False
 
     ledger_issues: list[str] = []
@@ -2629,7 +2775,7 @@ def audit_visibility_and_coverage(
             ledger_issues.append(str(exc))
     else:
         if not vis.get("gate_passed", False):
-            ledger_issues.append("Visibility Tracker gate failed (unvisited_target_modules, shallow_grazing_files, or unvisited_mandatory_files present)")
+            ledger_issues.append("Visibility Tracker gate failed (unvisited_target_modules, shallow_grazing_files, unvisited_mandatory_files or partially_read_mandatory_files present)")
     for v in spot_check_violations:
         if v not in ledger_issues:
             ledger_issues.append(v)
@@ -2981,7 +3127,13 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
         "coverage_ledger_flagged": 0,
         "inventory_leads": 0,
         "external_tool_leads": 0,
+        "stride_review": 0,
+        "pattern_checklist": 0,
     }
+
+    def _norm_rc(v: Any) -> str:
+        t = re.sub(r"[^A-Za-z0-9]+", "-", str(v or "").strip()).strip("-").upper()
+        return t if len(t) >= 4 else ""
 
     def _add_candidate(
         source_kind: str,
@@ -3009,6 +3161,8 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
             "evidence_ids": [str(e) for e in evidence_ids if str(e).startswith("ev_")],
             "status": "queued_for_phase_2",
             "source_detail": raw_item,
+            # V1: root-cause hint declared by the Phase 1 step that produced the item (shared across sources)
+            "root_cause_hint": _norm_rc(raw_item.get("root_cause_hint") or raw_item.get("root_cause_cluster_id") or ""),
         })
 
     # 1a. unified_surface_mapper.json -> explicit candidate_queue[] / candidates[] and semantic_clusters[].outliers[]
@@ -3270,6 +3424,22 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
                 item,
             )
 
+    # 4b. cross_repo_and_arch_review.json -> stride_review (E7) and pattern_checklist (V16) issues
+    for block, prefix in (("stride_review", "STRIDE"), ("pattern_checklist", "PATTERN")):
+        review = arch.get(block) if isinstance(arch.get(block), dict) else {}
+        for s_key, s_item in review.items():
+            if isinstance(s_item, dict) and str(s_item.get("review_status")) == "issue_found":
+                for iss in s_item.get("issues") or []:
+                    if isinstance(iss, dict):
+                        _add_candidate(
+                            block,
+                            str(iss.get("title") or s_key),
+                            f"{prefix}_{str(s_key).upper()}",
+                            str(iss.get("target_path") or iss.get("path") or ""),
+                            list(iss.get("evidence_ids", [])),
+                            iss,
+                        )
+
     # 5. cross_repo_and_arch_review.json -> contract_drift_findings[]
     for item in arch.get("contract_drift_findings", []):
         if isinstance(item, dict):
@@ -3328,10 +3498,106 @@ def build_v3_candidate_queue(run_dir: Path, repo_name: str) -> dict[str, Any]:
                 ext_lead,
             )
 
+    # E6: the same issue arrives from up to 5 sources (vinfast-mcp trial: 49 candidates, ~12 issues). Keep every
+    # candidate for accountability, but link likely duplicates so 2.1 batches by group instead of re-deriving it by hand:
+    # mostly the same evidence ids, OR the same source file (a path with an extension), OR the same directory-level
+    # target with the same attack class. Sources label classes differently (BOLA_IDOR vs CROSS_SERVICE_TRUST_MISMATCH vs
+    # privacy) for the same issue, so evidence and file are the stronger signals.
+    # V1: in the vinfast-mcp run 2 these rules produced one group of 48/72 candidates: "generic" source labels
+    # (cluster outliers, flagged coverage records) matched every class in the same file and bridged unrelated issues.
+    # Now only specific candidates link to each other; each generic one is attached afterwards to the single closest
+    # group without merging groups, and a group above MAX_GROUP is split back by attack class.
+    generic_classes = {"CLUSTER_OUTLIER_REVIEW", "COVERAGE_FLAGGED", "UNVERIFIED_SURFACE", "BOLA_IDOR_FLAGGED"}
+    MAX_GROUP = 12
+    parent = list(range(len(candidates)))
+
+    def _find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def _file_of(c: dict[str, Any]) -> str:
+        return str(c.get("target_path") or "").split(":", 1)[0].strip().lstrip("./")
+
+    def _is_generic(c: dict[str, Any]) -> bool:
+        title = str(c.get("title") or "")
+        return c["attack_class"] in generic_classes or title.startswith(("Flagged Coverage Record", "Cluster Outlier", "Contradicted Surface"))
+
+    def _jaccard(a: dict[str, Any], b: dict[str, Any]) -> float:
+        ea, eb = set(a["evidence_ids"]), set(b["evidence_ids"])
+        return len(ea & eb) / len(ea | eb) if ea and eb else 0.0
+
+    specific = [i for i, c in enumerate(candidates) if not _is_generic(c)]
+    for x, i in enumerate(specific):
+        for j in specific[x + 1:]:
+            a, b = candidates[i], candidates[j]
+            fa, fb = _file_of(a), _file_of(b)
+            same_file_class = bool(fa) and fa == fb and a["attack_class"] == b["attack_class"]
+            ha, hb = a.get("root_cause_hint") or "", b.get("root_cause_hint") or ""
+            if ha and hb and ha != hb:
+                continue  # two different declared root causes are never merged by heuristics
+            if same_file_class or _jaccard(a, b) >= 0.5:
+                parent[_find(i)] = _find(j)
+    for i, c in enumerate(candidates):
+        if i in specific:
+            continue
+        best, best_score = None, 0.0
+        for j in specific:
+            score = _jaccard(c, candidates[j]) + (0.5 if _file_of(c) and _file_of(c) == _file_of(candidates[j]) else 0.0)
+            if score > best_score:
+                best, best_score = j, score
+        if best is not None and best_score >= 0.5:
+            parent[i] = _find(best)
+    # V1: candidates whose Phase 1 step declared the same root_cause_hint belong together whatever their file or class
+    # (vinfast-mcp run 3: ~14 groups were all the unsigned-identity-header root cause under different labels).
+    by_hint: dict[str, int] = {}
+    for i, c in enumerate(candidates):
+        h = c.get("root_cause_hint") or ""
+        if not h:
+            continue
+        if h in by_hint:
+            parent[_find(i)] = _find(by_hint[h])
+        else:
+            by_hint[h] = i
+    groups: dict[int, list[dict[str, Any]]] = {}
+    for i, c in enumerate(candidates):
+        groups.setdefault(_find(i), []).append(c)
+    # Split only heuristic groups; a group held together by one declared root cause stays whole
+    oversized = [
+        k for k, m in groups.items()
+        if len(m) > MAX_GROUP and len({c.get("root_cause_hint") for c in m if c.get("root_cause_hint")}) != 1
+    ]
+    for k in oversized:
+        members = groups.pop(k)
+        # Split by declared root cause first; only hint-less members fall back to attack class
+        by_key: dict[str, list[dict[str, Any]]] = {}
+        for c in members:
+            key = ("hint:" + c["root_cause_hint"]) if c.get("root_cause_hint") else ("class:" + c["attack_class"])
+            by_key.setdefault(key, []).append(c)
+        for idx, sub in enumerate(by_key.values()):
+            groups[-(k * 1000 + idx + 1)] = sub
+    duplicate_groups: list[dict[str, Any]] = []
+    for members in sorted(groups.values(), key=lambda m: m[0]["candidate_id"]):
+        gid = "grp_" + hashlib.sha256("|".join(sorted(c["candidate_id"] for c in members)).encode("utf-8")).hexdigest()[:10]
+        for c in members:
+            c["duplicate_group_id"] = gid
+            c["duplicate_group_size"] = len(members)
+        duplicate_groups.append({
+            "duplicate_group_id": gid,
+            "attack_class": members[0]["attack_class"],
+            "target_files": sorted({_file_of(c) for c in members if _file_of(c)}),
+            "candidate_ids": [c["candidate_id"] for c in members],
+            "titles": [c["title"] for c in members][:6],
+            "root_cause_hints": sorted({c["root_cause_hint"] for c in members if c.get("root_cause_hint")}),
+        })
+
     payload = {
         "repo_name": repo_name,
         "candidate_count": len(candidates),
+        "duplicate_group_count": len(duplicate_groups),
         "sources_summary": sources_summary,
+        "duplicate_groups": duplicate_groups,
         "candidates": candidates,
     }
     write_json(run_dir / "candidate_queue.json", payload)
@@ -3488,7 +3754,7 @@ def match_cross_repo_boundaries(project_root: Path, run_id: str = "default") -> 
         ptarget = prod["target"]
         pmethod = prod.get("method", "")
         phost, pnorm, psegs = _normalize_boundary_target(ptarget, prod.get("target_service", ""))
-        matched_any = False
+        candidates_for_prod: list[tuple[int, str]] = []
         for c_idx, cons in enumerate(consumers):
             if cons["repo_name"] == prod["repo_name"]:
                 continue
@@ -3505,42 +3771,55 @@ def match_cross_repo_boundaries(project_root: Path, run_id: str = "default") -> 
                 # If producer explicitly named another repo/service host, require consumer repo match when possible
                 if any(phost == r.lower() or phost == _safe_name(r).lower() for r in repos_scanned):
                     continue
-            is_match = False
+            literal_generic = {"api", "v1", "v2", "v3", "internal", "public", "private", "admin", "{param}"}
             if pnorm == cnorm:
-                is_match = True
+                candidates_for_prod.append((c_idx, "exact"))
             else:
                 shorter_segs = psegs if len(psegs) <= len(csegs) else csegs
                 longer_segs = csegs if len(psegs) <= len(csegs) else psegs
-                if len(shorter_segs) >= 2 and longer_segs[-len(shorter_segs):] == shorter_segs:
-                    if not (len(shorter_segs) == 2 and shorter_segs[0] in {"api", "v1", "v2", "v3", "internal"} and shorter_segs[1] == "{param}"):
-                        is_match = True
-            if is_match:
-                matched_any = True
-                matched_consumer_indices.add(c_idx)
-                edge = {
-                    "producer_repo": prod["repo_name"],
-                    "consumer_repo": cons["repo_name"],
-                    "target": ptarget,
-                    "normalized_target": cnorm,
-                    "protocol": prod["protocol"],
-                    "producer_path": prod["path"],
-                    "consumer_path": cons["path"],
-                    "producer_evidence_ids": prod["evidence_ids"],
-                    "consumer_evidence_ids": cons["evidence_ids"],
-                }
-                matched_edges.append(edge)
-                if (not prod["forwards_auth"] and cons["expects_auth"]) or cons["assumes_upstream_auth"]:
-                    if cons["assumes_upstream_auth"]:
-                        gap_reason = "Consumer assumes upstream auth without local verification"
-                    elif prod.get("identity_forwarding") == "unknown":
-                        gap_reason = "Producer identity_forwarding is unspecified ('unknown') while consumer requires authentication"
-                    else:
-                        gap_reason = "Producer does not forward auth context required by consumer"
-                    auth_propagation_gaps.append({
-                        **edge,
-                        "gap_reason": gap_reason,
-                    })
-        if not matched_any and ptarget:
+                # D5: a suffix match needs >= 2 specific literal segments (not params or api/v1-style prefixes),
+                # otherwise `users/{param}` matches every service that has a users resource.
+                specific = [sg for sg in shorter_segs if sg not in literal_generic]
+                if len(shorter_segs) >= 2 and longer_segs[-len(shorter_segs):] == shorter_segs and len(specific) >= 2:
+                    candidates_for_prod.append((c_idx, "suffix"))
+
+        exact = [c for c in candidates_for_prod if c[1] == "exact"]
+        chosen = exact or candidates_for_prod
+        # D5: suffix-only matches into more than one consumer repo are ambiguous: keep them visible, but no auth gap
+        ambiguous = not exact and len({consumers[ci]["repo_name"] for ci, _ in chosen}) > 1
+        for c_idx, kind in chosen:
+            cons = consumers[c_idx]
+            matched_consumer_indices.add(c_idx)
+            cnorm = _normalize_boundary_target(cons["target"])[1]
+            edge = {
+                "producer_repo": prod["repo_name"],
+                "consumer_repo": cons["repo_name"],
+                "target": ptarget,
+                "normalized_target": cnorm,
+                "protocol": prod["protocol"],
+                "method": pmethod or cons.get("method", ""),
+                "match_kind": kind,
+                "ambiguous": ambiguous,
+                "producer_path": prod["path"],
+                "consumer_path": cons["path"],
+                "producer_evidence_ids": prod["evidence_ids"],
+                "consumer_evidence_ids": cons["evidence_ids"],
+            }
+            matched_edges.append(edge)
+            if ambiguous:
+                continue
+            if (not prod["forwards_auth"] and cons["expects_auth"]) or cons["assumes_upstream_auth"]:
+                if cons["assumes_upstream_auth"]:
+                    gap_reason = "Consumer assumes upstream auth without local verification"
+                elif prod.get("identity_forwarding") == "unknown":
+                    gap_reason = "Producer identity_forwarding is unspecified ('unknown') while consumer requires authentication"
+                else:
+                    gap_reason = "Producer does not forward auth context required by consumer"
+                auth_propagation_gaps.append({
+                    **edge,
+                    "gap_reason": gap_reason,
+                })
+        if not chosen and ptarget:
             unmatched_producers.append(prod)
 
     for c_idx, cons in enumerate(consumers):
@@ -3688,10 +3967,22 @@ def finalize_v3_phase1(project_root: Path, repo_name: str, run_id: str = "defaul
         surface_map=surface_map or None,
     )
 
+    arch_for_stride: dict[str, Any] = {}
+    arch_fp = run_dir / "cross_repo_and_arch_review.json"
+    if arch_fp.is_file():
+        try:
+            raw_arch = json.loads(arch_fp.read_text(encoding="utf-8", errors="replace"))
+            arch_for_stride = raw_arch.get("result", raw_arch) if isinstance(raw_arch, dict) else {}
+        except Exception:
+            arch_for_stride = {}
+    stride_errors = check_stride_review(arch_for_stride, set(ws.evidence.keys()) or None)
+    stride_errors += check_pattern_checklist(arch_for_stride, set(ws.evidence.keys()) or None)
+
     gate_passed = bool(
         scout_validation.get("valid", True)
         and vis_audit.get("gate_passed", False)
         and not auditor_errors
+        and not stride_errors
     )
 
     authoritative_auditor = {
@@ -3709,7 +4000,10 @@ def finalize_v3_phase1(project_root: Path, repo_name: str, run_id: str = "defaul
             "blocker_reasons": (
                 list(vis_audit.get("visibility_report", {}).get("unvisited_target_modules", []))
                 + list(vis_audit.get("visibility_report", {}).get("grazed_files", []))
+                + list(vis_audit.get("visibility_report", {}).get("partially_read_mandatory_files", []))
+                + list(vis_audit.get("visibility_report", {}).get("under_read_target_modules", []))
                 + auditor_errors
+                + stride_errors
             ),
             "summary": (
                 f"Authoritative Phase 1 audit finalized (gate_passed={gate_passed}, "
@@ -3730,10 +4024,88 @@ def finalize_v3_phase1(project_root: Path, repo_name: str, run_id: str = "defaul
         "coverage_matrix_records": matrix.get("record_count", 0),
         "candidate_queue_count": cand_queue.get("candidate_count", 0),
         "auditor_validation_errors": auditor_errors,
+        "stride_review_errors": stride_errors,
     }
     write_json(run_dir / "phase1_gate_Certificate.json", cert)
     write_json(run_dir / "phase1_gate_receipt.json", cert)
     return cert
+
+
+# E7: a STRIDE + hardening pass in step 1.5. The vinfast-mcp trial missed exactly the classes the attack-class
+# companions do not cover (client-side supply chain / SRI, DoS by design, audit gaps, one service credential for all users).
+STRIDE_REVIEW_KEYS = (
+    "spoofing",
+    "tampering",
+    "repudiation",
+    "information_disclosure",
+    "denial_of_service",
+    "elevation_of_privilege",
+    "client_side_supply_chain",
+    "shared_service_credentials",
+)
+
+
+# V16: fixed checklist of recurring weakness patterns. Run-to-run variance in the vinfast-mcp trials came from Phase 1
+# candidate generation (run 2 never raised "booking state kept in process memory" that run 1 found); a fixed list makes
+# every run look at the same places.
+PATTERN_CHECKLIST_KEYS = (
+    "process_local_state_multi_replica",
+    "client_asserted_identity_or_ownership",
+    "client_controlled_state_or_flags",
+    "ownership_check_on_every_object_access",
+    "replay_and_idempotency",
+    "llm_or_tool_argument_trust",
+    "outbound_url_fetch",
+    "environment_gated_controls",
+    "debug_error_and_metadata_exposure",
+    "secrets_in_code_or_config",
+)
+
+
+def check_stride_review(arch: dict[str, Any] | None, valid_evidence_ids: set[str] | None = None) -> list[str]:
+    """Return gate errors for cross_repo_and_arch_review.stride_review (empty list = complete)."""
+    return _check_review_block(arch, "stride_review", STRIDE_REVIEW_KEYS, valid_evidence_ids)
+
+
+def check_pattern_checklist(arch: dict[str, Any] | None, valid_evidence_ids: set[str] | None = None) -> list[str]:
+    """Return gate errors for cross_repo_and_arch_review.pattern_checklist (empty list = complete)."""
+    return _check_review_block(arch, "pattern_checklist", PATTERN_CHECKLIST_KEYS, valid_evidence_ids)
+
+
+def _check_review_block(
+    arch: dict[str, Any] | None,
+    field: str,
+    keys: tuple[str, ...],
+    valid_evidence_ids: set[str] | None = None,
+) -> list[str]:
+    review = arch.get(field) if isinstance(arch, dict) else None
+    if not isinstance(review, dict):
+        return [f"{field} missing in cross_repo_and_arch_review (step 1.5 must cover " + ", ".join(keys) + ")"]
+    errors: list[str] = []
+
+    def _ev_ok(ids: Any) -> bool:
+        vals = [str(e) for e in (ids or []) if str(e).startswith("ev_")]
+        return bool(vals) and (not valid_evidence_ids or all(v in valid_evidence_ids for v in vals))
+
+    for key in keys:
+        item = review.get(key)
+        if not isinstance(item, dict):
+            errors.append(f"{field}.{key} missing")
+            continue
+        st = str(item.get("review_status") or "")
+        if st == "not_applicable":
+            if len(str(item.get("reason") or "").strip()) < 20:
+                errors.append(f"{field}.{key}: not_applicable needs a reason of >= 20 characters")
+        elif st == "checked_none":
+            if not item.get("checked_paths") or not _ev_ok(item.get("evidence_ids")):
+                errors.append(f"{field}.{key}: checked_none needs checked_paths and real ev_ evidence_ids")
+        elif st == "issue_found":
+            issues = [i for i in (item.get("issues") or []) if isinstance(i, dict)]
+            if not issues or any(not str(i.get("title") or "").strip() or not _ev_ok(i.get("evidence_ids")) for i in issues):
+                errors.append(f"{field}.{key}: issue_found needs issues[] each with title and real ev_ evidence_ids")
+        else:
+            errors.append(f"{field}.{key}.review_status must be issue_found | checked_none | not_applicable")
+    return errors
 
 
 CHALLENGER_RECONCILIATION_MATRIX = {
@@ -3744,8 +4116,31 @@ CHALLENGER_RECONCILIATION_MATRIX = {
     "refuted": "REFUTED_FALSE_POSITIVE",
     "broken_link": "REFUTED_FALSE_POSITIVE",
     "needs_runtime_verification": "HYPOTHESIS_ONLY_UNVERIFIED",
-    "partially_mitigated": "HYPOTHESIS_ONLY_UNVERIFIED",
+    # Code path exists and a control covers only part of it: residual risk is real, so it stays in Phase 3 scope
+    # (was HYPOTHESIS_ONLY_UNVERIFIED, which dropped the highest-severity chain of the vinfast-mcp trial out of Phase 3).
+    "partially_mitigated": "REACHABLE_PARTIALLY_MITIGATED",
 }
+
+SURVIVING_RECONCILED_STATUSES = {"REACHABLE_VULNERABILITY", "REACHABLE_PARTIALLY_MITIGATED"}
+
+
+def chains_fingerprint(deep_trace: dict[str, Any] | None) -> str:
+    """V18: content fingerprint of what the blinded challenger must challenge (chain ids + hop locations).
+    prepare_blinded_chain_verifier writes it into the package, the challenger copies it into its output, and
+    finalize_v3_phase2 compares it with the current 2.2 chains instead of comparing file timestamps."""
+    raw = (deep_trace or {}).get("chains") or (deep_trace or {}).get("verified_chains") or []
+    canon = []
+    for ch in raw:
+        if not isinstance(ch, dict):
+            continue
+        hops = [
+            (str(h.get("file") or h.get("path") or ""), int(h.get("line_start") or 0), int(h.get("line_end") or 0))
+            for h in (ch.get("hops") or [])
+            if isinstance(h, dict)
+        ]
+        canon.append((str(ch.get("chain_id") or ""), sorted(str(c) for c in (ch.get("candidate_ids") or [])), hops))
+    canon.sort()
+    return "sha256:" + hashlib.sha256(json.dumps(canon, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
 def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "default") -> dict[str, Any]:
@@ -3764,6 +4159,26 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
     dt_mtime = dt_file.stat().st_mtime if dt_file.is_file() else 0.0
     ch_mtime = ch_file.stat().st_mtime if ch_file.is_file() else 0.0
     stale_challenger = bool(dt_mtime and ch_mtime and ch_mtime + 0.001 < dt_mtime)
+    # V18: when the challenger output carries the package fingerprint, freshness is decided by content: a 2.2
+    # resubmit with unchanged chains is not stale, and an old 2.3 output resubmitted after the chains changed is.
+    challenger_fingerprint = ""
+    if ch_file.is_file():
+        try:
+            raw_ch = json.loads(ch_file.read_text(encoding="utf-8", errors="replace"))
+            raw_ch = raw_ch.get("result", raw_ch) if isinstance(raw_ch, dict) and isinstance(raw_ch.get("result"), dict) else raw_ch
+            challenger_fingerprint = str((raw_ch or {}).get("blinded_package_fingerprint") or "")
+        except Exception:
+            challenger_fingerprint = ""
+    current_fingerprint = ""
+    if dt_file.is_file():
+        try:
+            raw_dt_fp = json.loads(dt_file.read_text(encoding="utf-8", errors="replace"))
+            raw_dt_fp = raw_dt_fp.get("result", raw_dt_fp) if isinstance(raw_dt_fp, dict) and isinstance(raw_dt_fp.get("result"), dict) else raw_dt_fp
+            current_fingerprint = chains_fingerprint(raw_dt_fp if isinstance(raw_dt_fp, dict) else {})
+        except Exception:
+            current_fingerprint = ""
+    if challenger_fingerprint:
+        stale_challenger = challenger_fingerprint != current_fingerprint
 
     def _load(fname: str) -> dict[str, Any]:
         fp = run_dir / fname
@@ -3812,6 +4227,8 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
     verified_phase3_findings: list[dict[str, Any]] = []
     refuted_ledger: list[dict[str, Any]] = []
     hypothesis_only: list[dict[str, Any]] = []
+    # V17: a chain refuted as broken_link only proves the hops do not connect, not that each weakness is false
+    broken_link_splits: list[dict[str, Any]] = []
     reconciliation_log: list[dict[str, Any]] = []
     accounted_candidate_ids: set[str] = set()
     unchallenged_chains: list[str] = []
@@ -3968,6 +4385,11 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
             "challenge_verdict": ch_verdict,
             "reconciled_status": reconciled_status,
         }
+        if ch_entry:
+            # Carry the challenger's own reasoning forward (residual risk / existing controls), not just the verdict label
+            reconciled_item["challenger_notes"] = str(
+                ch_entry.get("notes") or ch_entry.get("rationale") or ch_entry.get("summary") or ch_entry.get("reason") or ""
+            )
         reconciliation_log.append({
             "chain_id": chain_id or cand_id,
             "chain_verdict": effective_chain_verdict,
@@ -3976,13 +4398,22 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
             "reconciled_status": reconciled_status,
         })
 
-        if reconciled_status == "REACHABLE_VULNERABILITY":
+        if reconciled_status in SURVIVING_RECONCILED_STATUSES:
             verified_phase3_findings.append(reconciled_item)
         elif reconciled_status == "REFUTED_FALSE_POSITIVE":
+            if str(ch_verdict).strip().lower() == "broken_link":
+                broken_link_splits.append({
+                    "chain_id": chain_id or cand_id,
+                    "candidate_ids": [str(x) for x in (chain.get("candidate_ids") or chain.get("source_candidate_ids") or []) if x],
+                    "hop_files": sorted({str(h.get("file") or h.get("path") or "") for h in (chain.get("hops") or []) if isinstance(h, dict)} - {""}),
+                    "challenger_notes": str((ch_entry or {}).get("notes") or (ch_entry or {}).get("rationale") or ""),
+                    "required_action": "assess each candidate on its own path; the broken_link verdict is not counter-evidence for them",
+                })
+            ch_reason = str((ch_entry or {}).get("notes") or (ch_entry or {}).get("rationale") or (ch_entry or {}).get("reason") or "").strip()
             refuted_ledger.append({
                 "candidate_id": cand_id or chain_id,
                 "chain_id": chain_id or cand_id,
-                "refutation_reason": f"Refuted by blinded_counterevidence_challenger ({ch_verdict})",
+                "refutation_reason": f"Refuted by blinded_counterevidence_challenger ({ch_verdict})" + (f": {ch_reason}" if ch_reason else ""),
                 "counterevidence_ids": list(
                     (ch_entry or {}).get("counter_evidence_ids")
                     or (ch_entry or {}).get("counterevidence_ids")
@@ -4030,6 +4461,7 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
         "verified_findings": verified_phase3_findings,
         "hypothesis_only_findings": hypothesis_only,
         "empirical_refutations_ledger": refuted_ledger,
+        "broken_link_splits": broken_link_splits,
         "reconciliation_log": reconciliation_log,
     }
     write_json(run_dir / "phase3_verified_queue.json", phase3_queue)
@@ -4048,6 +4480,8 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
                 "unchallenged_chains": unchallenged_chains,
                 "incomplete_checklist_chains": incomplete_checklist_chains,
                 "stale_challenger": stale_challenger,
+                "challenger_fingerprint": challenger_fingerprint or None,
+                "current_chains_fingerprint": current_fingerprint or None,
                 "empirical_refutations_ledger": refuted_ledger,
                 "reconciliation_log": reconciliation_log,
                 "summary": (
@@ -4067,6 +4501,8 @@ def finalize_v3_phase2(project_root: Path, repo_name: str, run_id: str = "defaul
         "blinded_artifact_present": blinded_artifact_path.is_file(),
         "blinded_challenger_verified": blinded_challenger_verified,
         "stale_challenger": stale_challenger,
+        "chains_fingerprint": current_fingerprint or None,
+        "blinded_package_fingerprint": challenger_fingerprint or None,
         "unchallenged_chains": unchallenged_chains,
         "incomplete_checklist_chains": incomplete_checklist_chains,
         "total_candidates": len(queued_ids),
@@ -4206,6 +4642,30 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
                     continue
                 pst = _pre_status(pre)
                 cond_desc = str(pre.get("condition") or pre.get("description") or pre.get("precondition") or "unknown precondition")
+                if pst == "unknown":
+                    # V12: a precondition is attainable when 3.1 itself names a holder who attains it with real repo
+                    # evidence (e.g. "chat-be workload holds AGENT_PLATFORM_KEY"). Leaving it 'unknown' made every chain
+                    # provisional, while reporting/risk.py — given the same holders — concluded the chain is feasible.
+                    chain_actor = str(a_entry.get("minimum_actor") or a_entry.get("minimum_viable_actor") or "").strip()
+                    holder_hit = next(
+                        (
+                            h for h in (pre.get("holders") or [])
+                            if isinstance(h, dict)
+                            and str(h.get("attainable") or "").strip().lower() == "yes"
+                            # V19: a holder counts for the chain's own attacker type only
+                            and (not h.get("actor_type") or not chain_actor or str(h.get("actor_type")) == chain_actor)
+                            and any(
+                                str(e).startswith("ev_") and bool(ws_evidence_ids and str(e) in ws_evidence_ids)
+                                for e in (h.get("evidence_ids") or [])
+                            )
+                        ),
+                        None,
+                    )
+                    if holder_hit is not None:
+                        pst = "yes"
+                        pre["status"] = "yes"
+                        pre["precondition_status"] = "yes"
+                        pre["attained_via_holder"] = str(holder_hit.get("who") or "")
                 if pst == "no":
                     # C8: Require non-empty ws_evidence_ids and membership in ws_evidence_ids for repo-evidenced 'no' preconditions
                     pre_eids = [
@@ -4258,6 +4718,7 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
                 ctrl["status"] = "hypothesis"
                 if ctrl.get("mitigation_effect") == "blocks_exploit":
                     ctrl["mitigation_effect"] = "reduces_likelihood"
+                    ctrl["claimed_blocks_exploit"] = True
                 downgraded_controls.append({
                     "control": cname,
                     "previous_status": status,
@@ -4276,6 +4737,8 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
                 "chain_id": cid_ref or "repo_wide",
                 "question_kind": "beyond_code_control",
                 "target_team": "infra_cloud_sec",
+                # V12: only a control that would block the exploit if confirmed keeps the chain provisional
+                "could_block_exploit": bool(ctrl.get("mitigation_effect") == "blocks_exploit" or ctrl.get("claimed_blocks_exploit")),
                 "question": f"Is control '{cname}' actively enforced in production for {cid_ref or repo_name}?",
                 "searched_paths": list(ctrl.get("searched_paths", [])),
                 "outcome_if_yes": "Control is confirmed enforced; if mitigation_effect=='blocks_exploit', feasibility becomes 'infeasible' and contextual_risk_rating downgrades to 'low'.",
@@ -4287,6 +4750,12 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
         write_json(run_dir / "beyond_code_control_mapper.json", beyond_code)
 
     # ARCH-3H & R3-A5: Derive feasibility_derived, derived_risk_rating, dynamic key_questions outcomes, and Safety HSE handoff questions
+    # Hypothesis-only chains (Phase 2 could not confirm the path) stay provisional whatever 3.1 says
+    hypothesis_only_ids = {
+        str(h.get("chain_id") or h.get("candidate_id") or "")
+        for h in p3_queue.get("hypothesis_only_findings", [])
+        if isinstance(h, dict)
+    }
     calibrated_list = sfop.get("calibrated_findings", []) if isinstance(sfop, dict) else []
     accounted_chain_ids: set[str] = set()
     rank_map = {"none": 0, "negligible": 0, "low": 1, "medium": 2, "high": 3, "critical": 4, "catastrophic": 5}
@@ -4360,12 +4829,15 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
             cf["derived_risk_rating"] = derived_risk
             cf["contextual_risk_rating"] = derived_risk
             cf["provisional"] = False
-        elif has_unknown_precondition or len(pending_chain_questions) > 0:
+        elif has_unknown_precondition or fid in hypothesis_only_ids or any(
+            q.get("question_kind") != "beyond_code_control" or q.get("could_block_exploit") for q in pending_chain_questions
+        ):
             cf["feasibility_derived"] = "provisional_unknown"
             cf["derived_risk_rating"] = max_impact_str
             cf["provisional"] = True
         else:
-            cf["feasibility_derived"] = cf.get("feasibility_derived") or "feasible"
+            # Script-derived: never keep a model-written 'provisional_unknown' once every precondition is attained
+            cf["feasibility_derived"] = "feasible"
             cf["derived_risk_rating"] = max_impact_str
             cf["provisional"] = False
 
@@ -4429,13 +4901,20 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
         if h_id:
             hypothesis_only_chain_ids.append(h_id)
         h_verdict = str(h_ch.get("challenger_verdict") or h_ch.get("challenge_verdict") or "needs_runtime_verification")
+        h_sev = str(h_ch.get("code_verified_severity") or h_ch.get("severity") or "unknown")
+        h_paths = sorted({
+            str(hp.get("file") or hp.get("path") or "")
+            for hp in (h_ch.get("hops") or [])
+            if isinstance(hp, dict) and (hp.get("file") or hp.get("path"))
+        } | ({str(h_ch["target_path"])} if h_ch.get("target_path") else set()))
         key_questions.append({
             "question_id": f"KQ-HYP-{len(key_questions) + 1:02d}",
             "chain_id": h_id or "repo_wide",
             "question_kind": "hypothesis_runtime_verification",
             "target_team": "appsec_pentest_qa",
-            "question": f"Execute runtime verification request_plan for hypothesis-only chain {h_id or repo_name} ({h_verdict}).",
-            "searched_paths": [str(h_ch.get("target_path") or "")],
+            "severity": h_sev,
+            "question": f"Execute runtime verification request_plan for hypothesis-only chain {h_id or repo_name} (severity {h_sev}, {h_verdict}).",
+            "searched_paths": h_paths,
             "outcome_if_yes": "Exploit chain confirmed reproducible at runtime; promote to Confirmed Finding and calibrate S-F-O-P-C risk.",
             "outcome_if_no": "Exploit chain blocked at runtime; move to Empirical Refutations Ledger with runtime evidence.",
             "status": "pending_runtime_verification",
@@ -4454,9 +4933,11 @@ def finalize_v3_phase3(project_root: Path, repo_name: str, run_id: str = "defaul
         },
     )
 
+    # Phase 3 must assess hypothesis-only chains too (provisional): a chain that still needs runtime proof can be the
+    # most severe one, and a bare KQ-HYP question leaves it without actor/control/impact assessment or a rating.
     surviving_p2_ids = [
         str(f.get("chain_id") or f.get("finding_id") or "")
-        for f in p3_queue.get("verified_findings", [])
+        for f in list(p3_queue.get("verified_findings", [])) + list(p3_queue.get("hypothesis_only_findings", []))
         if isinstance(f, dict) and (f.get("chain_id") or f.get("finding_id"))
     ]
     unaccounted_p3_chains = [cid for cid in surviving_p2_ids if cid not in accounted_chain_ids]

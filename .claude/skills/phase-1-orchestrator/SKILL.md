@@ -13,6 +13,12 @@ Phase 1 của LocalSec v3.0 gộp **Technical Recon** và **Business/Safety Inte
 
 ---
 
+
+> **Gợi ý nguyên nhân gốc (Đợt 9 — V1):** mỗi phát hiện ở Phase 1 nên ghi `root_cause_hint` dạng `RC-<TÊN-NGẮN>`. Điều này áp dụng cho `candidates` của 1.3, `intent_vs_code_gaps`/`self_challenged_gaps` của 1.2, `trust_boundary_mismatches`, và `issues` của `stride_review`/`pattern_checklist` ở 1.5. Các phát hiện **cùng một nguyên nhân** dùng **cùng một hint**, dù khác file hay khác loại tấn công. Ví dụ: header danh tính không ký, BOLA đặt chỗ do tin header, và một token dịch vụ dùng chung đều là `RC-UNSIGNED-IDENTITY-HEADERS`. `build_v3_candidate_queue` gom các ứng viên cùng hint vào một nhóm trùng. Bước 2.2 dùng lại đúng hint đó làm `root_cause_cluster_id` của chuỗi.
+
+
+> **Độ phủ theo module (Đợt 10 — V20):** trước khi chạy `finalize_v3_phase1`, gọi `coverage_status <repo>`. Với mỗi module còn thiếu, dùng `read_files <repo> --module <m> --until-pct 50` (lặp tới khi đạt), rồi phân tích các đoạn vừa đọc và bổ sung phát hiện vào các bước 1.3–1.5 nếu có.
+
 ## Kiến trúc 6 Bước Tinh gọn của Phase 1 — Intent Before Code (`ARCH-3K`)
 
 Với mỗi repository trong dự án (hoặc chạy tăng dần `--changed-files` qua `python -m localsec.manual_session diff_prior_run <repo_name> --changed-files <file1>`), bắt buộc thực thi theo đúng thứ tự **Intent Before Code (`ARCH-3K`)** dưới đây:

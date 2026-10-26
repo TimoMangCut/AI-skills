@@ -1,0 +1,16 @@
+{
+  "localsec-blinded-guard": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -m localsec.claude_subagent_guard --platform antigravity",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
