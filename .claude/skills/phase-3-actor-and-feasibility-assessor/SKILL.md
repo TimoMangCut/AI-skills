@@ -39,6 +39,14 @@ Với mỗi `chain_id` sống sót từ Phase 2, bắt buộc khai báo trườn
    - Mỗi phần tử trong `preconditions[]` phải khai báo rõ `precondition_id`, `description` (hoặc `condition` / `precondition`), **`status`** (`"yes"` | `"no"` | `"unknown"` — engine cũng chấp nhận alias `"precondition_status"`), `searched_paths` và `evidence_ids`.
    - **Luật Fail-Closed khi bác bỏ tính khả thi (`R3-A5`)**: Nếu đánh dấu một điều kiện tiên quyết là **`"status": "no"`** (không thỏa mãn $\rightarrow$ làm chuỗi tấn công trở nên `infeasible`), bắt buộc phải cung cấp **cả `"evidence_ids"` khác rỗng (`["ev_..."]`) lẫn `"searched_paths"` khác rỗng** chứng minh điều kiện đó không thể xảy ra trong thực tế. Nếu thiếu bằng chứng, validator sẽ từ chối ngay lập tức.
    - Mọi điều kiện tiên quyết có `"status": "unknown"` sẽ được `finalize_v3_phase3` tự động chuyển thành câu hỏi hai chiều (`outcome_if_yes` / `outcome_if_no`) trong `key_questions.json` và gán `feasibility_derived = "provisional_unknown"`.
+3. **Người nắm giữ và từng loại người tấn công (`holders`, `actors_considered` — D6)**:
+   - Với mỗi điều kiện, ghi `holders[]`. **Định nghĩa (Đợt 9 — V19):** người nắm giữ là **chỗ mà kẻ tấn công thuộc `actor_type` lấy được điều kiện đó**: một người, một workload, một hệ thống đang có sẵn điều kiện. `attainable` trả lời câu hỏi "**kẻ tấn công loại `actor_type` có lấy được điều kiện này qua người nắm giữ này không**" (`yes` | `no` | `unknown`). Câu hỏi không phải là "người nắm giữ có điều kiện đó hợp pháp không".
+     - Mỗi người nắm giữ ghi `who`, `actor_type` (một giá trị của `minimum_actor`), `attainable`, `why` và `evidence_ids`. Bằng chứng là code hoặc cấu hình cho thấy người nắm giữ thật sự có điều kiện đó.
+     - **Workload hợp pháp có điều kiện là người nắm giữ của `compromised_internal_component`.** Ví dụ: chat-be được cấp `AGENT_PLATFORM_KEY` (có bằng chứng trong cấu hình). Kẻ tấn công chiếm được chat-be thì có khoá, nên ghi `{"who": "chat-be workload", "actor_type": "compromised_internal_component", "attainable": "yes"}`. Không ghi `unknown` chỉ vì chat-be là chủ hợp pháp.
+     - Với `external_unauthenticated`, cùng điều kiện đó thường là `no`: người ngoài không lấy được khoá, trừ khi có đường lộ.
+     - Script chỉ coi một điều kiện là đạt khi có người nắm giữ `attainable: yes`, kèm bằng chứng thật, và `actor_type` trùng `minimum_actor` của chuỗi (hoặc không ghi `actor_type`); riêng điều kiện công khai đã ghi trực tiếp `"status": "yes"` kèm bằng chứng thì không bắt buộc lặp lại `holders`.
+   - **Chuỗi giả thuyết giữ nguyên trạng thái tạm thời (`provisional_unknown`):** Mọi chuỗi đi sang Phase 3 từ `hypothesis_only_findings` (hoặc có `chain_verdict` là `"hypothesized"` / `"partially_confirmed"`) sẽ luôn được `finalize_v3_phase3` giữ ở `feasibility_derived = "provisional_unknown"` (rủi ro tạm tính) cho tới khi có xác nhận runtime, bất kể `preconditions[].status`.
+   - Ghi `actors_considered`: với **từng** loại người tấn công đã xét, hoặc danh sách `precondition_id` của đường áp dụng cho loại đó, hoặc lý do (≥ 20 ký tự) vì sao loại đó không áp dụng. Phase 4 chép nguyên hai trường này sang Phase Risk; thiếu thì Phase Risk phải tự lập luận lại.
 
 ---
 
@@ -46,10 +54,10 @@ Với mỗi `chain_id` sống sót từ Phase 2, bắt buộc khai báo trườn
 
 ```powershell
 # 1. Đọc thêm file cấu hình RBAC/IAM/Role mapping nếu cần xác minh quyền của Actor
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> src/ocpp_controller.py 1 120 --skill actor_and_feasibility_assessor
+python -m localsec.manual_session read_file <repo_name> src/ocpp_controller.py 1 120 --skill actor_and_feasibility_assessor
 
 # 2. Lưu kết quả đánh giá Actor & Feasibility (đối chiếu AI-skills/schemas/v3/actor_and_feasibility_assessor.schema.json)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> actor_and_feasibility_assessor .localsec/tmp/actor_and_feasibility_assessor_<repo_name>.json
+python -m localsec.manual_session submit_skill <repo_name> actor_and_feasibility_assessor .localsec/tmp/actor_and_feasibility_assessor_<repo_name>.json
 ```
 
 ```json
@@ -71,6 +79,17 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_nam
             ],
             "evidence_ids": [
               "ev_001"
+            ],
+            "holders": [
+              {
+                "who": "Any registered EV driver",
+                "actor_type": "authenticated_user",
+                "attainable": "yes",
+                "why": "station_id is printed on the charger and transaction_id is echoed in the driver's own session API",
+                "evidence_ids": [
+                  "ev_001"
+                ]
+              }
             ]
           },
           {
@@ -83,6 +102,16 @@ PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_nam
             "evidence_ids": []
           }
         ],
+        "actors_considered": {
+          "external_unauthenticated": "WebSocket upgrade requires a driver JWT, so an unauthenticated caller never reaches the handler",
+          "authenticated_user": [
+            "PRE-01",
+            "PRE-02"
+          ],
+          "compromised_edge_device_tbox_charger_robot": [
+            "PRE-02"
+          ]
+        },
         "attack_feasibility": "high",
         "evidence_ids": [
           "ev_001"

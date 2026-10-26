@@ -1,0 +1,66 @@
+{
+  "executive_summary": {
+    "posture": "Nền tảng ví dụ xử lý thanh toán dịch vụ cho khách hàng qua app và portal. Điểm yếu hệ thống quan trọng nhất là mọi backend tin header danh tính do gateway gắn mà không xác minh, nên chỉ một đường vào nội bộ là đủ để mạo danh bất kỳ người dùng nào (F-01). Luồng callback thanh toán không kiểm chữ ký cho phép gạch nợ hoá đơn mà không có tiền vào (F-03). Đánh giá dựa trên đọc mã thủ công có giới hạn; khả năng tiếp cận runtime của hai điểm trên chưa được kiểm. Việc cần làm trước tiên là chặn lưu lượng east-west không qua gateway và bắt buộc kiểm chữ ký callback.",
+    "key_messages": [
+      "F-01 (P0): danh tính truyền bằng header không ký giữa gateway và 12 service; sửa tại gốc bằng token nội bộ có chữ ký (A-01).",
+      "F-03 (P0): callback thanh toán thuê pin không kiểm HMAC; lỗi trong mã đã xác nhận, đường tới route còn phụ thuộc cấu hình scope gateway.",
+      "Điểm mạnh có bằng chứng: gateway không chuyển tiếp header danh tính do client gửi, nên đường giả header từ Internet đã bị bác bỏ.",
+      "Khoảng trống lớn nhất: chưa kiểm cấu hình runtime (bảng scope gateway, NetworkPolicy) — quyết định mức khai thác của F-01 và F-03 (G-01)."
+    ]
+  },
+  "findings": [
+    {
+      "id": "F-03",
+      "title": "Callback thanh toán thuê pin không kiểm chữ ký cho phép gạch nợ hoá đơn không có tiền",
+      "services": ["payment-service"],
+      "domains": ["D1"],
+      "source_ids": ["payment-service:CM-1", "_analysis:C2", "payment-service:TM-PAY-01"],
+      "root_causes": ["RC-2"],
+      "core_issue": "`POST /battery-leasing/payment/call-back/pay-success` chọn hoá đơn theo `billIds` do bên gọi gửi và đặt trạng thái đã thanh toán theo cờ `success`, không kiểm HMAC như các callback eSIM/VSP. Trạng thái này sau đó được đồng bộ sang SAP.",
+      "risk": "critical",
+      "confidence": "evidence_backed",
+      "priority": "P0",
+      "risk_rationale": "Tác động critical (thất thoát trực tiếp, lặp được, lan sang ERP). Lỗi trong mã đã xác nhận ở Phase 2; Phase 3 giữ chuỗi ở mức giả thuyết vì chưa biết route thuộc scope client nào, nên khả năng khai thác lấy mức trung bình.",
+      "remediation": "Bắt buộc kiểm chữ ký HMAC và đối chiếu số tiền/mã giao dịch với cổng thanh toán trước khi đổi trạng thái; chỉ nhận callback từ IP/credential riêng của cổng; thêm idempotency key.",
+      "validation": "Xuất bảng scope của gateway cho route callback; gửi callback giả trên môi trường test được phê duyệt và xác nhận bị từ chối sau khi sửa.",
+      "business_impact": {
+        "capability": "Thu tiền thuê pin và đối soát công nợ với ERP",
+        "scenario": "Bên có client credential hợp lệ gửi callback giả `success=true` cho hoá đơn của mình hoặc người khác",
+        "consequence": "Hoá đơn bị gạch nợ mà không có tiền vào; ERP ghi nhận doanh thu không có thật, chỉ phát hiện khi đối soát thủ công.",
+        "dimensions": ["tai_chinh", "toan_ven_nghiep_vu"],
+        "level": "critical",
+        "blast_radius": "cross_domain",
+        "basis": "P2 `payment-service:CM-1` business_impact; chuỗi `_analysis:C2` business_consequence",
+        "conditions": "Route callback nằm trong scope một client mà kẻ tấn công có credential (chưa kiểm cấu hình gateway)."
+      }
+    }
+  ],
+  "excluded": [
+    {"source_id": "_system:SR-07", "reason": "trung_lap", "into": "F-03", "note": "Rủi ro hệ thống mô tả lại callback không ký ở góc nhìn cross-repo"}
+  ],
+  "roadmap": [
+    {
+      "id": "A-02",
+      "priority": "P0",
+      "action": "Bắt buộc kiểm HMAC + đối chiếu số tiền cho mọi callback thanh toán; tách credential riêng cho cổng thanh toán.",
+      "findings": ["F-03"],
+      "root_causes": ["RC-2"],
+      "owner": "Team Payment",
+      "acceptance": "Callback thiếu/sai chữ ký trả 401 và không đổi trạng thái hoá đơn; có test tự động cho cả ba loại callback."
+    }
+  ],
+  "gaps": [
+    {
+      "id": "G-01",
+      "area": "Cấu hình runtime của gateway (bảng scope client/route)",
+      "why": "Quyết định khả năng khai thác của F-01, F-03; không nằm trong mã nguồn",
+      "next": "Platform team xuất bảng scope (ẩn danh secret) để đối chiếu"
+    },
+    {
+      "id": "G-09",
+      "area": "Self-check: mức critical của F-03 dựa trên giả định route reachable",
+      "why": "Nếu route chỉ mở cho IP cổng thanh toán, mức thực tế thấp hơn",
+      "next": "Kiểm G-01 rồi đánh giá lại"
+    }
+  ]
+}

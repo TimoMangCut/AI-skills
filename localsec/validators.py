@@ -634,6 +634,22 @@ def _validate_schema(value: Any, schema: dict[str, Any], path: str = "$", issues
     return issues
 
 
+_DEPLOY_ROOTS = {"apps", "services", "cmd", "functions", "lambdas", "workers"}
+_SHARED_ROOTS = {"packages", "libs", "lib", "shared", "common", "pkg", "internal", "docs", "doc"}
+
+
+def _deploy_unit(hop: dict[str, Any]) -> str:
+    """Deployable unit of a hop (V17): '<repo>:apps/<x>' for monorepo apps, '<repo>' otherwise. Shared libraries and docs
+    return '' because calling them happens inside whatever unit the previous hop runs in."""
+    repo = str(hop.get("repo_name") or "").strip()
+    parts = [p for p in str(hop.get("file") or hop.get("path") or "").replace("\\", "/").split("/") if p and p != "."]
+    if parts and parts[0].lower() in _SHARED_ROOTS:
+        return ""
+    if len(parts) >= 2 and parts[0].lower() in _DEPLOY_ROOTS:
+        return f"{repo}:{parts[0]}/{parts[1]}"
+    return repo
+
+
 def _supporting_ref_ids(refs: Any) -> list[str]:
     if not isinstance(refs, list):
         return []
@@ -1256,7 +1272,33 @@ def _validate_v30_epistemic_gates(
                 issues.append(
                     f"$.chains[{c_idx}].chain_verdict cannot be 'confirmed' when execution_status is {exec_status!r} (request_plan_is_not_execution)"
                 )
+            # V15: every chain names its root-cause cluster so Phase 4 can fill the root-cause map
+            # (all three vinfast-mcp trial runs left it empty and the report's root-cause section stayed blank).
+            if not str(chain.get("root_cause_cluster_id") or "").strip():
+                issues.append(
+                    f"$.chains[{c_idx}].root_cause_cluster_id is required: name the shared root cause (e.g. 'RC-UNSIGNED-IDENTITY-HEADERS'); "
+                    "chains with the same root cause use the same id"
+                )
             hops = chain.get("hops") if isinstance(chain.get("hops"), list) else chain.get("steps", [])
+            # V17: a chain is ONE continuous path. Two consecutive hops in different deployable units (apps/x, services/x,
+            # cmd/x, or different repos) must be joined by a cross-service hop (http, grpc, queue, ipc). In trial 3,
+            # chatJWT (apps/gateway) and the cancel ticket (apps/mcp) were merged with an in_process hop; the blinded
+            # challenger then refuted the whole chain as broken_link and both real weaknesses dropped out.
+            if isinstance(hops, list):
+                prev_unit = None
+                for h_idx, hop in enumerate(hops):
+                    if not isinstance(hop, dict):
+                        continue
+                    unit = _deploy_unit(hop)
+                    h_kind = str(hop.get("hop_kind", "")).strip().lower()
+                    if prev_unit and unit and unit != prev_unit and h_kind not in cross_hop_kinds:
+                        issues.append(
+                            f"$.chains[{c_idx}].hops[{h_idx}] jumps from {prev_unit!r} to {unit!r} with hop_kind={h_kind!r}; "
+                            "a chain must be one continuous path — join the units with a cross-service hop (http/grpc/message_queue/zmq_or_ipc) "
+                            "that has caller and callee evidence, or split it into separate chains (V17)"
+                        )
+                    if unit:
+                        prev_unit = unit
             if isinstance(hops, list):
                 for h_idx, hop in enumerate(hops):
                     if not isinstance(hop, dict):

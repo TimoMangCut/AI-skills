@@ -96,6 +96,59 @@
                 },
                 "notes": {
                   "type": "string"
+                },
+                "precondition_id": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "holders": {
+                  "type": "array",
+                  "description": "D6: ai có thể có được điều kiện này (người/thành phần), mỗi người một kết luận",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "who",
+                      "attainable"
+                    ],
+                    "properties": {
+                      "who": {
+                        "type": "string",
+                        "minLength": 2
+                      },
+                      "attainable": {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no",
+                          "unknown"
+                        ]
+                      },
+                      "why": {
+                        "type": "string"
+                      },
+                      "evidence_ids": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "actor_type": {
+                        "type": "string",
+                        "enum": [
+                          "external_unauthenticated",
+                          "authenticated_user",
+                          "b2b_partner_cross_scope",
+                          "rogue_insider_or_operator",
+                          "compromised_internal_component",
+                          "physical_or_local_bus_attacker",
+                          "authenticated_ev_driver",
+                          "compromised_edge_device_tbox_charger_robot"
+                        ]
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -144,6 +197,59 @@
                 },
                 "notes": {
                   "type": "string"
+                },
+                "precondition_id": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "holders": {
+                  "type": "array",
+                  "description": "D6: ai có thể có được điều kiện này (người/thành phần), mỗi người một kết luận",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "who",
+                      "attainable"
+                    ],
+                    "properties": {
+                      "who": {
+                        "type": "string",
+                        "minLength": 2
+                      },
+                      "attainable": {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no",
+                          "unknown"
+                        ]
+                      },
+                      "why": {
+                        "type": "string"
+                      },
+                      "evidence_ids": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "actor_type": {
+                        "type": "string",
+                        "enum": [
+                          "external_unauthenticated",
+                          "authenticated_user",
+                          "b2b_partner_cross_scope",
+                          "rogue_insider_or_operator",
+                          "compromised_internal_component",
+                          "physical_or_local_bus_attacker",
+                          "authenticated_ev_driver",
+                          "compromised_edge_device_tbox_charger_robot"
+                        ]
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -167,6 +273,37 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "actors_considered": {
+            "type": "object",
+            "description": "D6: với từng loại người tấn công: danh sách precondition_id của đường áp dụng, hoặc lý do (>= 20 ký tự) vì sao không áp dụng",
+            "propertyNames": {
+              "enum": [
+                "external_unauthenticated",
+                "authenticated_user",
+                "b2b_partner_cross_scope",
+                "rogue_insider_or_operator",
+                "compromised_internal_component",
+                "physical_or_local_bus_attacker",
+                "authenticated_ev_driver",
+                "compromised_edge_device_tbox_charger_robot"
+              ]
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1
+                },
+                {
+                  "type": "string",
+                  "minLength": 20
+                }
+              ]
             }
           }
         }
@@ -271,6 +408,59 @@
                 },
                 "notes": {
                   "type": "string"
+                },
+                "precondition_id": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "holders": {
+                  "type": "array",
+                  "description": "D6: ai có thể có được điều kiện này (người/thành phần), mỗi người một kết luận",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "who",
+                      "attainable"
+                    ],
+                    "properties": {
+                      "who": {
+                        "type": "string",
+                        "minLength": 2
+                      },
+                      "attainable": {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no",
+                          "unknown"
+                        ]
+                      },
+                      "why": {
+                        "type": "string"
+                      },
+                      "evidence_ids": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "actor_type": {
+                        "type": "string",
+                        "enum": [
+                          "external_unauthenticated",
+                          "authenticated_user",
+                          "b2b_partner_cross_scope",
+                          "rogue_insider_or_operator",
+                          "compromised_internal_component",
+                          "physical_or_local_bus_attacker",
+                          "authenticated_ev_driver",
+                          "compromised_edge_device_tbox_charger_robot"
+                        ]
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -319,6 +509,59 @@
                 },
                 "notes": {
                   "type": "string"
+                },
+                "precondition_id": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "holders": {
+                  "type": "array",
+                  "description": "D6: ai có thể có được điều kiện này (người/thành phần), mỗi người một kết luận",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "who",
+                      "attainable"
+                    ],
+                    "properties": {
+                      "who": {
+                        "type": "string",
+                        "minLength": 2
+                      },
+                      "attainable": {
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no",
+                          "unknown"
+                        ]
+                      },
+                      "why": {
+                        "type": "string"
+                      },
+                      "evidence_ids": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "actor_type": {
+                        "type": "string",
+                        "enum": [
+                          "external_unauthenticated",
+                          "authenticated_user",
+                          "b2b_partner_cross_scope",
+                          "rogue_insider_or_operator",
+                          "compromised_internal_component",
+                          "physical_or_local_bus_attacker",
+                          "authenticated_ev_driver",
+                          "compromised_edge_device_tbox_charger_robot"
+                        ]
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -333,6 +576,37 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "actors_considered": {
+            "type": "object",
+            "description": "D6: với từng loại người tấn công: danh sách precondition_id của đường áp dụng, hoặc lý do (>= 20 ký tự) vì sao không áp dụng",
+            "propertyNames": {
+              "enum": [
+                "external_unauthenticated",
+                "authenticated_user",
+                "b2b_partner_cross_scope",
+                "rogue_insider_or_operator",
+                "compromised_internal_component",
+                "physical_or_local_bus_attacker",
+                "authenticated_ev_driver",
+                "compromised_edge_device_tbox_charger_robot"
+              ]
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1
+                },
+                {
+                  "type": "string",
+                  "minLength": 20
+                }
+              ]
             }
           }
         }

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -18,6 +21,22 @@ from localsec.validators import (
     validate_coverage_ledger,
 )
 from localsec.workspace import ManualWorkspace
+
+
+
+def _pattern_checklist_ok(ev: str) -> dict:
+    """V16 fixture: a complete pattern checklist with real evidence."""
+    keys = ("process_local_state_multi_replica", "client_asserted_identity_or_ownership", "client_controlled_state_or_flags",
+            "ownership_check_on_every_object_access", "replay_and_idempotency", "llm_or_tool_argument_trust",
+            "outbound_url_fetch", "environment_gated_controls", "debug_error_and_metadata_exposure", "secrets_in_code_or_config")
+    return {k: {"review_status": "checked_none", "checked_paths": ["src"], "evidence_ids": [ev]} for k in keys}
+
+
+def _stride_review_ok(ev: str) -> dict:
+    """E7 fixture: a complete STRIDE + hardening pass with real evidence."""
+    keys = ("spoofing", "tampering", "repudiation", "information_disclosure", "denial_of_service",
+            "elevation_of_privilege", "client_side_supply_chain", "shared_service_credentials")
+    return {k: {"review_status": "checked_none", "checked_paths": ["src"], "evidence_ids": [ev]} for k in keys}
 
 
 class LocalSecV30VinSOCPipelineTests(unittest.TestCase):
@@ -771,6 +790,7 @@ class LocalSecV30VinSOCPipelineTests(unittest.TestCase):
                             }
                         ],
                         "matched_cross_repo_boundaries": [],
+                        "stride_review": _stride_review_ok(ev_ocpp), "pattern_checklist": _pattern_checklist_ok(ev_ocpp),
                         "diagrams": ["flowchart LR\n  CSMS-->Station"],
                         "summary": "Cross-repo review complete",
                     },
@@ -846,6 +866,7 @@ class LocalSecV30VinSOCPipelineTests(unittest.TestCase):
                                     }
                                 ],
                                 "root_cause": "Missing session ownership check in on_remote_start_transaction",
+                                "root_cause_cluster_id": "RC-SESSION-OWNERSHIP",
                                 "request_plan": {
                                     "execution_status": "not_executed",
                                     "steps": ["Send OCPP RemoteStartTransaction with victim station_id"],
@@ -1772,6 +1793,28 @@ class LocalSecV30VinSOCPipelineTests(unittest.TestCase):
                 }),
                 encoding="utf-8",
             )
+            # Round 7 (E3): hypothesis-only chains must be assessed in Phase 3 as well; leaving CHAIN-HYP out fails the gate
+            p3_missing_hyp = finalize_v3_phase3(proj, "svc-a", run_id="default")
+            self.assertFalse(p3_missing_hyp["gate_passed"])
+            self.assertIn("CHAIN-HYP", p3_missing_hyp["unaccounted_phase2_chains"])
+            actor_doc = json.loads((run_dir_a / "actor_and_feasibility_assessor.json").read_text(encoding="utf-8"))
+            actor_doc["actor_assessments"].append({
+                "chain_id": "CHAIN-HYP",
+                "minimum_actor": "authenticated_user",
+                "identity_acquisition_cost": "low",
+                "preconditions": [{"precondition_id": "PRE-H1", "description": "Runtime path reachable", "status": "unknown",
+                                   "searched_paths": ["src/controller.py"], "evidence_ids": [ev_a]}],
+                "evidence_ids": [ev_a],
+            })
+            (run_dir_a / "actor_and_feasibility_assessor.json").write_text(json.dumps(actor_doc), encoding="utf-8")
+            sfop_doc = json.loads((run_dir_a / "sfop_risk_calibrator.json").read_text(encoding="utf-8"))
+            sfop_doc["calibrated_findings"].append({
+                "finding_id": "FIND-HYP-01", "chain_id": "CHAIN-HYP",
+                "impact_axes": {"safety": "negligible", "financial": "low", "operational": "low", "privacy": "medium", "compliance": "low"},
+                "max_impact": "medium", "contextual_risk_rating": "medium", "owner_role": "dev_team",
+                "risk_owner": "dev_team (pending roster)", "safety_owner": "", "evidence_ids": [ev_a],
+            })
+            (run_dir_a / "sfop_risk_calibrator.json").write_text(json.dumps(sfop_doc), encoding="utf-8")
             p3_res = finalize_v3_phase3(proj, "svc-a", run_id="default")
             self.assertTrue(p3_res["gate_passed"])
             sfop_saved = json.loads((run_dir_a / "sfop_risk_calibrator.json").read_text(encoding="utf-8"))
@@ -1970,6 +2013,11 @@ class LocalSecV30VinSOCPipelineTests(unittest.TestCase):
                 json.dumps({"invariants": [{"invariant_id": "INV-1", "axis": "financial", "statement": "Order owner check", "source_type": "authoritative_doc", "status": "confirmed", "evidence_ids": [ev1]}], "self_challenged_gaps": []}),
                 encoding="utf-8",
             )
+            (run_dir / "cross_repo_and_arch_review.json").write_text(
+                json.dumps({"architecture_findings": [], "matched_cross_repo_boundaries": [], "diagrams": [], "summary": "fixture",
+                            "stride_review": _stride_review_ok(ev1), "pattern_checklist": _pattern_checklist_ok(ev1)}),
+                encoding="utf-8",
+            )
             p1_cert = finalize_v3_phase1(proj, "svc-main", run_id="default")
             self.assertTrue(p1_cert["gate_passed"])
 
@@ -2099,23 +2147,20 @@ class LocalSecV30VinSOCPipelineTests(unittest.TestCase):
             kq_after = json.loads((run_dir / "key_questions.json").read_text(encoding="utf-8"))
             self.assertTrue(any(q.get("question_kind") == "owner_assignment" for q in kq_after["questions"]))
 
-            # Phase 4: export_final_phase_inputs / finalize_v3_phase4
+            # Phase 4 (round 6): export only inputs for reporting/report.py collect; no script-written F-xx or reports
             p4_res = export_final_phase_inputs(proj, run_id="default")
             self.assertTrue(p4_res["gate_passed"])
-            self.assertTrue(p4_res["risk_parity_verified"])
-            self.assertTrue((proj / "documents" / "svc-main" / "01_repo_profile.md").is_file())
-            self.assertTrue((proj / "documents" / "svc-main" / "12_analysis_status.json").is_file())
-            cov_16 = json.loads((proj / "documents" / "svc-main" / "16_code_coverage.json").read_text(encoding="utf-8"))
-            self.assertEqual(cov_16["coverage_semantics"], "file_touched")
-            self.assertTrue((proj / "documents" / "svc-main" / "basv" / "19_basv_epistemic_and_contradiction_diagnostics.json").is_file())
-            self.assertTrue((proj / "documents" / "_report" / "work" / "risk" / "F-01.json").is_file())
-            f01_risk = json.loads((proj / "documents" / "_report" / "work" / "risk" / "F-01.json").read_text(encoding="utf-8"))
-            self.assertTrue(f01_risk["parity_verified"])
-            self.assertEqual(f01_risk["muc_rui_ro_suy_ra"], "high")
-            self.assertEqual(f01_risk["muc_rui_ro_cuoi"], "medium")
-            self.assertTrue((proj / "documents" / "_report" / "00_manifest.md").is_file())
-            self.assertTrue((proj / "documents" / "_report" / "BAO_CAO_TONG_HOP_BAO_MAT.md").is_file())
-            self.assertTrue((proj / "documents" / "_report" / "DANH_GIA_RUI_RO.md").is_file())
+            docs = proj / "documents"
+            for rel_p in ("svc-main/01_repo_profile.md", "svc-main/12_analysis_status.json", "svc-main/16_code_coverage.json",
+                          "svc-main/basv/19_basv_epistemic_and_contradiction_diagnostics.json", "_v3/wins_phase3_risk.json"):
+                self.assertTrue((docs / rel_p).is_file(), rel_p)
+            for rel_p in ("_report/work/risk/F-01.json", "_report/BAO_CAO_TONG_HOP_BAO_MAT.md", "_report/DANH_GIA_RUI_RO.md", "_report/00_manifest.md"):
+                self.assertFalse((docs / rel_p).exists(), rel_p)
+            cov_16 = json.loads((docs / "svc-main" / "16_code_coverage.json").read_text(encoding="utf-8"))
+            self.assertIn("mandatory_pct", cov_16["coverage_semantics"])
+            hints = json.loads((docs / "_v3" / "wins_phase3_risk.json").read_text(encoding="utf-8"))
+            self.assertTrue(any(h["derived_risk_rating"] == "high" and h["contextual_risk_rating"] == "medium" for h in hints["chains"]))
+            render_v3_reports(proj, repo_name=None, run_id="default")
 
             # C6 & C5 in rendered Executive report
             exec_md = (proj / "documents" / "02_executive_risk_and_key_questions.md").read_text(encoding="utf-8")
@@ -2347,6 +2392,11 @@ class LocalSecV30VinSOCPipelineTests(unittest.TestCase):
                 json.dumps({"repo_name": "svc-core", "run_id": "default", "evidence": ws.evidence, "tool_log": [], "read_ranges": {"src/wallet.py": [[1, 65]]}}),
                 encoding="utf-8",
             )
+            (run_dir / "cross_repo_and_arch_review.json").write_text(
+                json.dumps({"architecture_findings": [], "matched_cross_repo_boundaries": [], "diagrams": [], "summary": "fixture",
+                            "stride_review": _stride_review_ok(ev1), "pattern_checklist": _pattern_checklist_ok(ev1)}),
+                encoding="utf-8",
+            )
             p1_ok = finalize_v3_phase1(proj, "svc-core", run_id="default")
             self.assertTrue(p1_ok["gate_passed"])
 
@@ -2420,71 +2470,532 @@ class LocalSecV30VinSOCPipelineTests(unittest.TestCase):
             p3_ok = finalize_v3_phase3(proj, "svc-core", run_id="default")
             self.assertTrue(p3_ok["gate_passed"])
 
-            # 4. B2: Overwrite protection when non-wins file exists in documents/
-            foreign_file = proj / "documents" / "_report" / "00_manifest.md"
+            # 4. Overwrite guard covers every exported file (here: a 09_findings.json from another toolkit)
+            foreign_file = proj / "documents" / "svc-core" / "09_findings.json"
             foreign_file.parent.mkdir(parents=True, exist_ok=True)
-            foreign_file.write_text("# Foreign Manifest from another tool\n", encoding="utf-8")
+            foreign_file.write_text('{"findings": []}', encoding="utf-8")
             blocked_res = export_final_phase_inputs(proj, run_id="default", force_overwrite=False)
             self.assertFalse(blocked_res["gate_passed"])
             self.assertTrue(blocked_res["overwrite_blocked"])
-            self.assertEqual(foreign_file.read_text(encoding="utf-8"), "# Foreign Manifest from another tool\n")
+            self.assertEqual(foreign_file.read_text(encoding="utf-8"), '{"findings": []}')
+            self.assertFalse((proj / "documents" / "svc-core" / "01_repo_profile.md").exists())  # nothing written when blocked
 
-            # With force_overwrite=True, Phase 4 exports cleanly
             p4_ok = export_final_phase_inputs(proj, run_id="default", force_overwrite=True)
             self.assertTrue(p4_ok["gate_passed"])
-            self.assertTrue(p4_ok["risk_parity_verified"])
+            docs = proj / "documents"
 
-            # 5. B4: Two chains sharing root_cause_cluster_id='RC-WALLET-OWNER' consolidated into 1 finding F-01
-            self.assertEqual(p4_ok["consolidated_findings_count"], 1)
-            consolidated = json.loads((proj / "documents" / "_report" / "work" / "findings_consolidated.json").read_text(encoding="utf-8"))
-            self.assertEqual(len(consolidated["findings"]), 1)
-            self.assertEqual(consolidated["findings"][0]["id"], "F-01")
-            self.assertEqual(sorted(consolidated["findings"][0]["chain_ids"]), ["CHAIN-W1", "CHAIN-W2"])
+            # 5. Chains keep their root-cause cluster; F-xx are NOT built by script any more
+            rc06 = json.loads((docs / "_analysis" / "06_root_cause_map.json").read_text(encoding="utf-8"))
+            wallet_rc = [rc for rc in rc06["root_causes"] if rc["root_cause_id"] == "RC-WALLET-OWNER"]
+            self.assertEqual(len(wallet_rc), 1)
+            self.assertEqual(sorted(wallet_rc[0]["affected_chain_ids"]), ["svc-core:CHAIN-W1", "svc-core:CHAIN-W2"])
+            self.assertEqual(wallet_rc[0]["remediation_that_only_treats_symptom"], [])
+            # E9: chains whose request plan was not executed are exported as partially_confirmed, never "Đã xác nhận"
+            w1 = json.loads((docs / "_analysis" / "chains" / "chain_svc-core_CHAIN-W1.json").read_text(encoding="utf-8"))
+            self.assertEqual(w1["chain_verdict"], "partially_confirmed")
+            self.assertFalse((docs / "_report" / "work").exists())
 
-            # 6. B1: Verify exact schemas of exported documents/ files
-            prof_md = (proj / "documents" / "svc-core" / "01_repo_profile.md").read_text(encoding="utf-8")
-            self.assertIn("## Purpose", prof_md)
-            self.assertIn("## Criticality assessment", prof_md)
-            tech = json.loads((proj / "documents" / "svc-core" / "02_techstack.json").read_text(encoding="utf-8"))
-            self.assertIn("languages", tech)
-            self.assertIn("frameworks", tech)
-            io_doc = json.loads((proj / "documents" / "svc-core" / "05_inbound_outbound.json").read_text(encoding="utf-8"))
-            self.assertGreaterEqual(len(io_doc["inbound"]), 1)
-            self.assertGreaterEqual(len(io_doc["outbound"]), 1)
-            f09 = json.loads((proj / "documents" / "svc-core" / "09_findings.json").read_text(encoding="utf-8"))
+            # 6. No placeholder content: empty stays empty
+            f09 = json.loads((docs / "svc-core" / "09_findings.json").read_text(encoding="utf-8"))
             self.assertGreaterEqual(len(f09["findings"]), len(all_cands))
-            st12 = json.loads((proj / "documents" / "svc-core" / "12_analysis_status.json").read_text(encoding="utf-8"))
-            self.assertTrue(st12["completed"])
-            basv18 = json.loads((proj / "documents" / "svc-core" / "basv" / "18_business_aware_synthesis.json").read_text(encoding="utf-8"))
-            self.assertIn("invariants", basv18)
-            self.assertIn("gaps", basv18)
-            rc06 = json.loads((proj / "documents" / "_analysis" / "06_root_cause_map.json").read_text(encoding="utf-8"))
-            self.assertIn("root_causes", rc06)
-            f01_json = json.loads((proj / "documents" / "_report" / "work" / "risk" / "F-01.json").read_text(encoding="utf-8"))
-            for req_key in ("attack_paths", "actors_considered", "yields", "detection", "business_impact", "open_questions"):
-                self.assertIn(req_key, f01_json)
-            self.assertEqual(f01_json["muc_rui_ro_suy_ra"], "critical")
+            self.assertNotIn("Enforce centralized authorization", json.dumps(rc06, ensure_ascii=False))
+            cov16 = json.loads((docs / "svc-core" / "16_code_coverage.json").read_text(encoding="utf-8"))
+            self.assertTrue(cov16["mandatory_pct"] is None or 0 <= cov16["mandatory_pct"] <= 100)
 
-            # 7. B3 & B6: Verify depth of BAO_CAO_TONG_HOP_BAO_MAT.md and DANH_GIA_RUI_RO.md
-            bao_cao = (proj / "documents" / "_report" / "BAO_CAO_TONG_HOP_BAO_MAT.md").read_text(encoding="utf-8")
-            self.assertIn("## 1. Tóm tắt Điều hành", bao_cao)
-            self.assertIn("### Chi tiết `F-01`:", bao_cao)
-            self.assertIn("## 4. Lộ trình Khắc phục", bao_cao)
-            self.assertIn("## Phụ lục A — Bảng Truy vết Nguồn", bao_cao)
+            # 7. The vendored reporting/report.py collect reads the export without error and resolves chain origins
+            reporting_py = Path(__file__).resolve().parents[1] / "reporting" / "report.py"
+            res = subprocess.run([sys.executable, str(reporting_py), "collect"], cwd=str(proj), capture_output=True, text=True, encoding="utf-8")
+            self.assertEqual(res.returncode, 0, res.stderr)
+            inputs = json.loads((docs / "_report" / "inputs" / "inputs.json").read_text(encoding="utf-8"))
+            sids = {f["sid"]: f for f in inputs["findings"]}
+            for cand in all_cands:
+                self.assertIn(f"svc-core:{cand}", sids)
+            chain_sid = "_analysis:svc-core:CHAIN-W1"
+            self.assertIn(chain_sid, sids)
+            self.assertEqual(sids[chain_sid]["origin_unresolved"], [])
+            self.assertTrue(sids[chain_sid]["origin_sids"])
+            self.assertEqual(inputs["analysis"]["origin_unresolved"], [])
+            self.assertTrue(set(inputs["evidence_ids"]))
+            svc_core = next(s_ for s_ in inputs["services"] if s_["repo"] == "svc-core")
+            self.assertEqual(svc_core["phase1"], "done")
 
-            danh_gia = (proj / "documents" / "_report" / "DANH_GIA_RUI_RO.md").read_text(encoding="utf-8")
-            self.assertIn("(`attack_paths`)", danh_gia)
-            self.assertIn("(`holders` / `searched`)", danh_gia)
-            self.assertIn("(`_combinations.json`)", danh_gia)
+            # 8. A repo that loses a gate blocks export; --allow-unfinalized removes the stale "done" marker
+            (run_dir / "phase3_gate_receipt.json").unlink()
+            self.assertIn("error", export_final_phase_inputs(proj, run_id="default"))
+            p4_partial = export_final_phase_inputs(proj, run_id="default", allow_unfinalized=True)
+            self.assertFalse(p4_partial["gate_passed"])
+            self.assertFalse((docs / "svc-core" / "12_analysis_status.json").exists())
 
-            # 8. B5: If derived_risk_rating is missing from sfop_risk_calibrator.json, risk_parity_verified MUST be False
-            sfop_tampered = json.loads((run_dir / "sfop_risk_calibrator.json").read_text(encoding="utf-8"))
-            for item in sfop_tampered["calibrated_findings"]:
-                item.pop("derived_risk_rating", None)
-            (run_dir / "sfop_risk_calibrator.json").write_text(json.dumps(sfop_tampered), encoding="utf-8")
-            p4_missing_derived = export_final_phase_inputs(proj, run_id="default", force_overwrite=True)
-            self.assertFalse(p4_missing_derived["risk_parity_verified"])
-            self.assertFalse(p4_missing_derived["gate_passed"])
+    def test_v30_round6_blinded_guard_leaks_and_handler_span(self) -> None:
+        """Round 6 (Kiểm tra Đợt 5 A1-A3, C3): blinded challenger cannot read/write other skills' drafts,
+        cannot submit as another skill, cannot switch --skill; handler span is derived from source."""
+        from localsec.claude_subagent_guard import evaluate_tool_use
+        from localsec.orchestrator import _derive_handler_end
+
+        def dec(tool: str, tool_input: dict) -> str:
+            return evaluate_tool_use({"tool_name": tool, "tool_input": tool_input}, mode="blinded_challenger")["decision"]
+
+        # A1: drafts of non-blinded skills sit in .localsec/tmp as <skill>_<repo>.json
+        for name in ("deep_trace_chain_analyst_svc.json", "candidate_intake_planner_svc.json", "intent_invariant_modeler_svc.json"):
+            self.assertEqual(dec("Read", {"file_path": f".localsec/tmp/{name}"}), "block", name)
+        self.assertEqual(dec("Read", {"file_path": ".localsec/tmp/blinded_chains_svc.json"}), "approve")
+        self.assertEqual(dec("Read", {"file_path": ".localsec/tmp/draft_2_3.json"}), "approve")
+        # A2: writes limited to the challenger's own drafts
+        self.assertEqual(dec("Write", {"file_path": ".localsec/tmp/deep_trace_chain_analyst_svc.json"}), "block")
+        self.assertEqual(dec("Write", {"file_path": ".localsec/tmp/blinded_counterevidence_challenger_svc.json"}), "approve")
+        ms = "python -m localsec.manual_session"
+        self.assertEqual(dec("Bash", {"command": f"{ms} submit_skill svc deep_trace_chain_analyst .localsec/tmp/blinded_counterevidence_challenger_svc.json"}), "block")
+        self.assertEqual(dec("Bash", {"command": f"{ms} submit_skill svc blinded_counterevidence_challenger .localsec/tmp/draft_2_3.json"}), "approve")
+        self.assertEqual(dec("Bash", {"command": f"{ms} read_file svc src/a.py --skill blinded_counterevidence_challenger --skill unified_surface_mapper"}), "block")
+        self.assertEqual(dec("Bash", {"command": f"{ms} read_file svc src/a.py --skill=blinded_counterevidence_challenger"}), "approve")
+        # A3: list_evidence exposes read_by (where the analyst looked)
+        self.assertEqual(dec("Bash", {"command": f"{ms} list_evidence svc"}), "block")
+
+        # A3: allow = exit 0 with no decision output (keeps Claude Code permission prompts)
+        res = subprocess.run(
+            [sys.executable, "-m", "localsec.claude_subagent_guard", "--mode", "blinded_challenger"],
+            input=json.dumps({"tool_name": "Read", "tool_input": {"file_path": ".localsec/tmp/blinded_chains_svc.json"}}),
+            capture_output=True, text=True, cwd=str(Path(__file__).resolve().parents[1]),
+        )
+        self.assertEqual((res.returncode, res.stdout.strip()), (0, ""))
+
+        # C3: span comes from the source; a short self-declared line_end cannot shrink it
+        py_src = ["@app.get('/w/{id}')", "def get_wallet(id):", "    w = load(id)", "", "    if w.owner != user():", "        raise Forbidden()", "    return w", "def other():", "    pass"]
+        self.assertEqual(_derive_handler_end(py_src, 1), 7)
+        java_src = ['@GetMapping("/w/{id}")', "public Wallet get(@PathVariable Long id) {", "  Wallet w = repo.find(id);", "  if (!w.owner().equals(me())) {", "    throw new Forbidden();", "  }", "  return w;", "}", "public void next() {}"]
+        self.assertEqual(_derive_handler_end(java_src, 1), 8)
+        self.assertIsNone(_derive_handler_end(["// no handler here"] * 3, 1))
+
+        # D5: `users/{param}` suffix no longer matches every service; multi-repo suffix matches are ambiguous, no auth gap
+        from localsec.orchestrator import match_cross_repo_boundaries
+
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp)
+            runs = proj / ".localsec" / "runs" / "default"
+
+            def surf(repo: str, payload: dict) -> None:
+                (runs / repo).mkdir(parents=True, exist_ok=True)
+                (runs / repo / "unified_surface_mapper.json").write_text(json.dumps(payload), encoding="utf-8")
+
+            surf("gw", {"outbound_calls": [
+                {"target": "GET /api/v1/users/{id}"},
+                {"target": "GET /wallets/{id}/transactions", "identity_forwarding": "none"},
+            ]})
+            surf("svc-user", {"entrypoints": [{"route": "GET /users/{id}", "authn": "jwt"}]})
+            surf("svc-wallet", {"entrypoints": [{"route": "GET /internal/wallets/{id}/transactions", "authn": "jwt"}]})
+            surf("svc-ledger", {"entrypoints": [{"route": "GET /v2/wallets/{id}/transactions", "authn": "jwt"}]})
+            res = match_cross_repo_boundaries(proj, run_id="default")
+            users_edges = [e for e in res["matched_edges"] if "users" in e["normalized_target"]]
+            self.assertEqual(users_edges, [])
+            wallet_edges = [e for e in res["matched_edges"] if "wallets" in e["normalized_target"]]
+            self.assertEqual(sorted(e["consumer_repo"] for e in wallet_edges), ["svc-ledger", "svc-wallet"])
+            self.assertTrue(all(e["ambiguous"] and e["match_kind"] == "suffix" for e in wallet_edges))
+            self.assertEqual(res["auth_propagation_gaps"], [])
+
+
+    def test_v30_round7_mcp_entrypoints_and_line_coverage_gate(self) -> None:
+        """Round 7 (Thử nghiệm Đợt 6): MCP tool files are entrypoints; a mandatory file must be read by lines, not just opened."""
+        from localsec.orchestrator import audit_visibility_and_coverage, inventory_repo
+
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp)
+            svc = proj / "svc-mcp"
+            (svc / "tools").mkdir(parents=True)
+            body = ["export function register(server) {", "  server.registerTool('cancel', {}, async (args) => {"]
+            body += [f"    step{i}();" for i in range(60)] + ["  });", "}"]
+            (svc / "tools" / "cancel.ts").write_text("\n".join(body) + "\n", encoding="utf-8")
+            inv = inventory_repo(proj, "svc-mcp", run_id="default")
+            self.assertIn("tools/cancel.ts", inv["mandatory_files"]["entrypoint"])
+
+            ws = ManualWorkspace(svc, "svc-mcp", dict(self.cfg), "default", project_root=proj)
+            ws.read_file("unified_surface_mapper", "tools/cancel.ts", 1, 10)
+            scout = {"target_modules": ["tools"], "ignored_modules": []}
+            res = audit_visibility_and_coverage(workspace=ws, scout_map=scout, inventory=inv)
+            vis = res["visibility_report"]
+            self.assertFalse(res["gate_passed"])
+            self.assertTrue(any("tools/cancel.ts" in x for x in vis["partially_read_mandatory_files"]))
+            self.assertLess(vis["target_module_line_coverage"]["tools"]["pct"], 0.5)
+
+            ws.read_file("unified_surface_mapper", "tools/cancel.ts", 11, 64)
+            vis2 = audit_visibility_and_coverage(workspace=ws, scout_map=scout, inventory=inv)["visibility_report"]
+            self.assertEqual(vis2["partially_read_mandatory_files"], [])
+            self.assertEqual(vis2["mandatory_file_coverage"]["entrypoint"]["tools/cancel.ts"], "DIRECT_READ")
+
+        # E3: partially mitigated chains stay in Phase 3 scope as reachable with residual risk
+        from localsec.orchestrator import CHALLENGER_RECONCILIATION_MATRIX, SURVIVING_RECONCILED_STATUSES
+        self.assertEqual(CHALLENGER_RECONCILIATION_MATRIX["partially_mitigated"], "REACHABLE_PARTIALLY_MITIGATED")
+        self.assertIn("REACHABLE_PARTIALLY_MITIGATED", SURVIVING_RECONCILED_STATUSES)
+
+        # E5: companions follow archetypes + whole-token triggers; English free text no longer pulls OTA/OCPP/SAP
+        from localsec.prompts import select_companion_blocks
+        sel = select_companion_blocks(
+            archetypes=["ai_llm_vla_model_serving_datasets", "api_rest_graphql_grpc_websocket"],
+            free_text_signals=["TypeScript monorepo; Express 5 + MCP SDK; the client can order a booking; gateway issues JWT"],
+        )["selected_module_ids"]
+        self.assertIn("ai-llm-vla-model-serving-datasets", sel)
+        for unrelated in ("automotive-connected-car-ota-tbox", "ev-charging-ocpp-ocpi-battery", "enterprise-sap-mulesoft-b2b", "robotics-cpp-ros2-ot-scada-bess"):
+            self.assertNotIn(unrelated, sel)
+
+        # E6: duplicate candidates from different Phase 1 sources are linked by evidence overlap / same file
+        from localsec.orchestrator import build_v3_candidate_queue
+        with tempfile.TemporaryDirectory() as tmp:
+            rd = Path(tmp) / "svc"
+            rd.mkdir()
+            (rd / "unified_surface_mapper.json").write_text(json.dumps({"candidates": [
+                {"title": "Unsigned identity header trusted", "attack_class": "BOLA_IDOR", "target_path": "src/ctx.ts", "evidence_ids": ["ev_a", "ev_b"]},
+                {"title": "Lead consent asserted by model", "attack_class": "BUSINESS_LOGIC", "target_path": "src/lead.ts", "evidence_ids": ["ev_z"]},
+            ]}), encoding="utf-8")
+            (rd / "cross_repo_and_arch_review.json").write_text(json.dumps({"trust_boundary_mismatches": [
+                {"title": "Header identity crosses trust boundary", "attack_class": "CROSS_SERVICE_TRUST_MISMATCH", "path": "src/ctx.ts", "evidence_ids": ["ev_a", "ev_b"]},
+            ]}), encoding="utf-8")
+            q = build_v3_candidate_queue(rd, "svc")
+            by_title = {c["title"]: c for c in q["candidates"]}
+            hdr = by_title["Unsigned identity header trusted"]["duplicate_group_id"]
+            self.assertEqual(sum(1 for c in q["candidates"] if c["duplicate_group_id"] == hdr), 2)
+            self.assertNotEqual(by_title["Lead consent asserted by model"]["duplicate_group_id"], hdr)
+
+        # E7: STRIDE + hardening pass is required, and issues become Phase 2 candidates
+        from localsec.orchestrator import check_stride_review
+        self.assertTrue(check_stride_review({}))
+        partial = {"stride_review": {"spoofing": {"review_status": "checked_none", "checked_paths": ["src"], "evidence_ids": ["ev_x"]}}}
+        self.assertTrue(any("denial_of_service missing" in e for e in check_stride_review(partial)))
+        full = {"stride_review": _stride_review_ok("ev_x")}
+        self.assertEqual(check_stride_review(full, {"ev_x"}), [])
+        full["stride_review"]["client_side_supply_chain"] = {"review_status": "not_applicable", "reason": "n/a"}
+        self.assertTrue(check_stride_review(full, {"ev_x"}))
+        with tempfile.TemporaryDirectory() as tmp:
+            rd = Path(tmp) / "svc"
+            rd.mkdir()
+            review = _stride_review_ok("ev_x")
+            review["client_side_supply_chain"] = {"review_status": "issue_found", "issues": [
+                {"title": "Chat SDK loaded from CDN without SRI", "target_path": "packages/chat/loader.ts", "evidence_ids": ["ev_x"]}]}
+            (rd / "cross_repo_and_arch_review.json").write_text(json.dumps({"stride_review": review}), encoding="utf-8")
+            q = build_v3_candidate_queue(rd, "svc")
+            self.assertTrue(any(c["attack_class"] == "STRIDE_CLIENT_SIDE_SUPPLY_CHAIN" for c in q["candidates"]))
+
+
+    def test_v30_round8_phase3_feasibility_uses_evidenced_holders(self) -> None:
+        """Round 8 (V12): a precondition attained by a holder with real evidence is 'yes'; unconfirmed non-blocking
+        controls do not keep a chain provisional; hypothesis-only chains stay provisional."""
+        from localsec.orchestrator import finalize_v3_phase3
+
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp)
+            rd = proj / ".localsec" / "runs" / "default" / "svc"
+            rd.mkdir(parents=True)
+            ev = "ev_aaaaaaaaaaaaaaaaaa"
+            (rd / "workspace_state.json").write_text(json.dumps({"evidence": {ev: {"path": "src/a.ts", "line_start": 1, "line_end": 5}}}), encoding="utf-8")
+            (rd / "phase3_verified_queue.json").write_text(json.dumps({
+                "verified_findings": [{"chain_id": "C-HOLD", "reconciled_status": "REACHABLE_PARTIALLY_MITIGATED"},
+                                      {"chain_id": "C-NOEV", "reconciled_status": "REACHABLE_VULNERABILITY"},
+                                      {"chain_id": "C-OTHERACTOR", "reconciled_status": "REACHABLE_VULNERABILITY"}],
+                "hypothesis_only_findings": [{"chain_id": "C-HYP", "reconciled_status": "HYPOTHESIS_ONLY_UNVERIFIED"}],
+            }), encoding="utf-8")
+
+            def pre(holder_eids, actor_type="compromised_internal_component"):
+                return [{"precondition_id": "PRE-1", "description": "Attacker holds the platform key", "status": "unknown",
+                         "searched_paths": ["src"], "evidence_ids": [],
+                         "holders": [{"who": "chat-be workload", "actor_type": actor_type, "attainable": "yes",
+                                      "why": "deployed with the key", "evidence_ids": holder_eids}]}]
+
+            (rd / "actor_and_feasibility_assessor.json").write_text(json.dumps({"actor_assessments": [
+                {"chain_id": "C-HOLD", "minimum_actor": "compromised_internal_component", "identity_acquisition_cost": "medium", "preconditions": pre([ev]), "evidence_ids": [ev]},
+                {"chain_id": "C-NOEV", "minimum_actor": "compromised_internal_component", "identity_acquisition_cost": "medium", "preconditions": pre([]), "evidence_ids": [ev]},
+                {"chain_id": "C-HYP", "minimum_actor": "authenticated_user", "identity_acquisition_cost": "low", "preconditions": pre([ev]), "evidence_ids": [ev]},
+                # V19: the holder is attainable for an insider, but this chain's minimum actor is an external attacker
+                {"chain_id": "C-OTHERACTOR", "minimum_actor": "external_unauthenticated", "identity_acquisition_cost": "low",
+                 "preconditions": pre([ev], actor_type="rogue_insider_or_operator"), "evidence_ids": [ev]},
+            ]}), encoding="utf-8")
+            (rd / "beyond_code_control_mapper.json").write_text(json.dumps({"beyond_code_controls": [
+                {"control_id": "CTRL-NET", "chain_id": "C-HOLD", "layer": "network", "status": "hypothesis", "mitigation_effect": "reduces_likelihood", "evidence_ids": []},
+            ]}), encoding="utf-8")
+            cal = lambda cid: {"finding_id": f"F-{cid}", "chain_id": cid, "impact_axes": {"safety": "negligible", "financial": "low", "operational": "low", "privacy": "high", "compliance": "low"},
+                               "max_impact": "high", "contextual_risk_rating": "high", "feasibility_derived": "provisional_unknown",
+                               "owner_role": "dev_team", "risk_owner": "dev lead", "safety_owner": "", "evidence_ids": [ev]}
+            (rd / "sfop_risk_calibrator.json").write_text(json.dumps({"calibrated_findings": [cal("C-HOLD"), cal("C-NOEV"), cal("C-HYP"), cal("C-OTHERACTOR")]}), encoding="utf-8")
+
+            res = finalize_v3_phase3(proj, "svc", run_id="default")
+            self.assertTrue(res["gate_passed"], res)
+            out = json.loads((rd / "sfop_risk_calibrator.json").read_text(encoding="utf-8"))
+            feas = {c["chain_id"]: c["feasibility_derived"] for c in out["calibrated_findings"]}
+            self.assertEqual(feas["C-HOLD"], "feasible")            # evidenced holder + non-blocking hypothesis control
+            self.assertEqual(feas["C-NOEV"], "provisional_unknown")  # holder claims 'yes' without evidence
+            self.assertEqual(feas["C-HYP"], "provisional_unknown")   # hypothesis-only chain never becomes feasible
+            self.assertEqual(feas["C-OTHERACTOR"], "provisional_unknown")  # V19: holder is for another attacker type
+
+        # V16: fixed pattern checklist is required in 1.5 and its issues become PATTERN_* candidates
+        from localsec.orchestrator import build_v3_candidate_queue, check_pattern_checklist
+        self.assertTrue(check_pattern_checklist({"stride_review": _stride_review_ok("ev_x")}))
+        self.assertEqual(check_pattern_checklist({"pattern_checklist": _pattern_checklist_ok("ev_x")}, {"ev_x"}), [])
+        with tempfile.TemporaryDirectory() as tmp:
+            rd = Path(tmp) / "svc"
+            rd.mkdir()
+            pc = _pattern_checklist_ok("ev_x")
+            pc["process_local_state_multi_replica"] = {"review_status": "issue_found", "issues": [
+                {"title": "Booking single-use lease kept in process memory", "target_path": "src/flow-state-store.ts", "evidence_ids": ["ev_x"]}]}
+            (rd / "cross_repo_and_arch_review.json").write_text(json.dumps({"pattern_checklist": pc}), encoding="utf-8")
+            q = build_v3_candidate_queue(rd, "svc")
+            self.assertTrue(any(c["attack_class"] == "PATTERN_PROCESS_LOCAL_STATE_MULTI_REPLICA" for c in q["candidates"]))
+
+        # V1: a generic candidate (cluster outlier) on a shared file no longer bridges two unrelated issues
+        with tempfile.TemporaryDirectory() as tmp:
+            rd = Path(tmp) / "svc"
+            rd.mkdir()
+            (rd / "unified_surface_mapper.json").write_text(json.dumps({"candidates": [
+                {"title": "Rate limit keyed on caller header", "attack_class": "RATE_LIMIT_BYPASS", "target_path": "src/index.ts", "evidence_ids": ["ev_1"]},
+                {"title": "Identity from unsigned header", "attack_class": "BOLA_IDOR", "target_path": "src/index.ts", "evidence_ids": ["ev_2"]},
+                {"title": "Cluster Outlier", "attack_class": "CLUSTER_OUTLIER_REVIEW", "target_path": "src/index.ts", "evidence_ids": ["ev_1", "ev_2"]},
+            ]}), encoding="utf-8")
+            q = build_v3_candidate_queue(rd, "svc")
+            g = {c["title"]: c["duplicate_group_id"] for c in q["candidates"]}
+            self.assertNotEqual(g["Rate limit keyed on caller header"], g["Identity from unsigned header"])
+
+        # V1 (round 9): a declared root_cause_hint links candidates across files and attack classes
+        with tempfile.TemporaryDirectory() as tmp:
+            rd = Path(tmp) / "svc"
+            rd.mkdir()
+            (rd / "unified_surface_mapper.json").write_text(json.dumps({"candidates": [
+                {"title": "Unsigned x-user-id header trusted", "attack_class": "BROKEN_AUTHENTICATION", "target_path": "src/ctx.ts", "evidence_ids": ["ev_1"], "root_cause_hint": "RC-unsigned identity headers"},
+                {"title": "Booking detail by reservationId", "attack_class": "BOLA_IDOR", "target_path": "src/booking.ts", "evidence_ids": ["ev_2"], "root_cause_hint": "RC-UNSIGNED-IDENTITY-HEADERS"},
+                {"title": "Lead consent asserted by model", "attack_class": "BUSINESS_LOGIC", "target_path": "src/lead.ts", "evidence_ids": ["ev_3"], "root_cause_hint": "RC-MODEL-SET-CONSENT"},
+            ]}), encoding="utf-8")
+            q = build_v3_candidate_queue(rd, "svc")
+            g = {c["title"]: c["duplicate_group_id"] for c in q["candidates"]}
+            self.assertEqual(g["Unsigned x-user-id header trusted"], g["Booking detail by reservationId"])
+            self.assertNotEqual(g["Unsigned x-user-id header trusted"], g["Lead consent asserted by model"])
+            grp = next(x for x in q["duplicate_groups"] if x["duplicate_group_id"] == g["Booking detail by reservationId"])
+            self.assertEqual(grp["root_cause_hints"], ["RC-UNSIGNED-IDENTITY-HEADERS"])
+
+        # V8: the blinded allow-list includes files the hop files import (relative + monorepo workspace packages)
+        import contextlib
+        import io
+        from localsec import manual_session
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp)
+            repo = proj / "svc"
+            (repo / "apps" / "api").mkdir(parents=True)
+            (repo / "packages" / "shared" / "src" / "http").mkdir(parents=True)
+            (repo / "packages" / "shared" / "package.json").write_text(json.dumps({"name": "@acme/shared"}), encoding="utf-8")
+            (repo / "packages" / "shared" / "src" / "http" / "rate-limit.ts").write_text("export const rateLimit = () => 1\n", encoding="utf-8")
+            (repo / "apps" / "api" / "guard.ts").write_text("export const guard = 1\n", encoding="utf-8")
+            (repo / "apps" / "api" / "index.ts").write_text(
+                "import { guard } from './guard.ts'\nimport { rateLimit } from '@acme/shared/http/rate-limit'\nimport express from 'express'\n",
+                encoding="utf-8")
+            rd = proj / ".localsec" / "runs" / "default" / "svc"
+            rd.mkdir(parents=True)
+            (rd / "deep_trace_chain_analyst.json").write_text(json.dumps({"chains": [{"chain_id": "C1", "candidate_ids": [], "hops": [
+                {"hop_id": "H1", "hop_kind": "http", "file": "apps/api/index.ts", "line_start": 1, "line_end": 3}]}]}), encoding="utf-8")
+            import os
+            old_env = os.environ.get("LOCALSEC_PROJECT_ROOT")
+            try:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    manual_session.main(["--project-root", str(proj), "prepare_blinded_chain_verifier", "svc"])
+            finally:
+                if old_env is None:
+                    os.environ.pop("LOCALSEC_PROJECT_ROOT", None)
+                else:
+                    os.environ["LOCALSEC_PROJECT_ROOT"] = old_env
+            pkg = json.loads((proj / ".localsec" / "tmp" / "blinded_chains_svc.json").read_text(encoding="utf-8"))
+            self.assertIn("apps/api/guard.ts", pkg["exact_paths"])
+            self.assertIn("packages/shared/src/http/rate-limit.ts", pkg["exact_paths"])
+            self.assertFalse(any("node_modules" in x for x in pkg["exact_paths"]))
+
+
+    def test_v30_round9_continuous_chains_and_broken_link_splits(self) -> None:
+        """Round 9 (V17, V15): chains must be one continuous path and name a root cause; candidates of a chain
+        refuted as broken_link are exported as must-map sources instead of disappearing with the chain."""
+        from localsec.validators import _validate_v30_epistemic_gates
+        from localsec.final_phase_export import export_final_phase_inputs
+
+        merged = {"chains": [{"chain_id": "C-MERGED", "candidate_ids": ["cand_a"], "chain_verdict": "hypothesized",
+                              "hops": [{"hop_id": "H1", "hop_kind": "in_process", "repo_name": "r", "file": "apps/gateway/jwt.ts"},
+                                       {"hop_id": "H2", "hop_kind": "in_process", "repo_name": "r", "file": "packages/shared/util.ts"},
+                                       {"hop_id": "H3", "hop_kind": "in_process", "repo_name": "r", "file": "apps/mcp/cancel.ts"}]}]}
+        issues: list[str] = []
+        _validate_v30_epistemic_gates("deep_trace_chain_analyst", merged, issues)
+        self.assertTrue(any("V17" in i and "apps/gateway" in i and "apps/mcp" in i for i in issues))
+        self.assertTrue(any("root_cause_cluster_id is required" in i for i in issues))
+        ok = {"chains": [{"chain_id": "C-OK", "candidate_ids": ["cand_a"], "chain_verdict": "hypothesized", "root_cause_cluster_id": "RC-X",
+                          "hops": [{"hop_id": "H1", "hop_kind": "in_process", "repo_name": "r", "file": "apps/mcp/a.ts"},
+                                   {"hop_id": "H2", "hop_kind": "in_process", "repo_name": "r", "file": "packages/shared/b.ts"},
+                                   {"hop_id": "H3", "hop_kind": "http", "repo_name": "r", "file": "apps/gateway/c.ts"}]}]}
+        issues = []
+        _validate_v30_epistemic_gates("deep_trace_chain_analyst", ok, issues)
+        self.assertFalse([i for i in issues if "V17" in i or "root_cause_cluster_id" in i])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp)
+            rd = proj / ".localsec" / "runs" / "default" / "svc"
+            rd.mkdir(parents=True)
+            for n in (1, 2, 3):
+                (rd / f"phase{n}_gate_receipt.json").write_text(json.dumps({"gate_passed": True}), encoding="utf-8")
+            (rd / "candidate_queue.json").write_text(json.dumps({"candidates": [
+                {"candidate_id": "cand_jwt", "title": "chatJWT minted without sub", "attack_class": "JWT", "evidence_ids": ["ev_1"]}]}), encoding="utf-8")
+            (rd / "deep_trace_chain_analyst.json").write_text(json.dumps({"chains": [
+                {"chain_id": "C-MERGED", "candidate_ids": ["cand_jwt"], "chain_verdict": "code_supported", "hops": []}]}), encoding="utf-8")
+            (rd / "phase3_verified_queue.json").write_text(json.dumps({
+                "verified_findings": [], "hypothesis_only_findings": [],
+                "empirical_refutations_ledger": [{"chain_id": "C-MERGED", "refutation_reason": "broken_link"}],
+                "reconciliation_log": [{"chain_id": "C-MERGED", "reconciled_status": "REFUTED_FALSE_POSITIVE", "challenger_verdict": "broken_link"}],
+                "broken_link_splits": [{"chain_id": "C-MERGED", "candidate_ids": ["cand_jwt"]}],
+            }), encoding="utf-8")
+            res = export_final_phase_inputs(proj, run_id="default")
+            self.assertTrue(res["gate_passed"], res)
+            sysrev = json.loads((proj / "documents" / "_system" / "02_cross_repo_review.json").read_text(encoding="utf-8"))
+            self.assertTrue(any(r["id"] == "SPLIT-cand_jwt" and r["status"] == "hypothesis" for r in sysrev["system_risks"]))
+            f09 = json.loads((proj / "documents" / "svc" / "09_findings.json").read_text(encoding="utf-8"))
+            self.assertEqual(f09["findings"][0]["status"], "needs_own_assessment_after_broken_link")
+
+        # V18: challenger freshness by content fingerprint, not file timestamps
+        from localsec.orchestrator import chains_fingerprint
+        base = {"chains": [{"chain_id": "C1", "candidate_ids": ["b", "a"], "hops": [{"file": "apps/mcp/x.ts", "line_start": 1, "line_end": 9}]}]}
+        same = {"chains": [{"chain_id": "C1", "candidate_ids": ["a", "b"], "title": "renamed", "hops": [{"file": "apps/mcp/x.ts", "line_start": 1, "line_end": 9}]}]}
+        moved = {"chains": [{"chain_id": "C1", "candidate_ids": ["a", "b"], "hops": [{"file": "apps/mcp/x.ts", "line_start": 1, "line_end": 40}]}]}
+        self.assertEqual(chains_fingerprint(base), chains_fingerprint(same))
+        self.assertNotEqual(chains_fingerprint(base), chains_fingerprint(moved))
+
+
+    def test_v30_round10_module_line_gate_and_batch_read(self) -> None:
+        """Round 10 (V20): target modules are gated by share of non-test lines read; read_files batch-reads a module
+        until the target and mints evidence for each chunk; coverage_status reports what is still missing."""
+        import contextlib
+        import io
+        import os
+        from localsec import manual_session
+        from localsec.orchestrator import audit_visibility_and_coverage, inventory_repo
+
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp)
+            svc = proj / "svc"
+            (svc / "src").mkdir(parents=True)
+            (svc / "src" / "tests").mkdir()
+            for name in ("a.ts", "b.ts", "c.ts"):
+                (svc / "src" / name).write_text("\n".join(f"export const v{i} = {i}" for i in range(100)) + "\n", encoding="utf-8")
+            (svc / "src" / "tests" / "a.test.ts").write_text("x\n" * 500, encoding="utf-8")
+            inv = inventory_repo(proj, "svc", run_id="default")
+            rd = proj / ".localsec" / "runs" / "default" / "svc"
+            (rd / "codebase_scout.json").write_text(json.dumps({"target_modules": ["src"], "ignored_modules": []}), encoding="utf-8")
+            cfg = dict(self.cfg, target_module_min_line_coverage=0.6)
+            ws = ManualWorkspace(svc, "svc", cfg, "default", project_root=proj)
+            ws.read_file("unified_surface_mapper", "src/a.ts", 1, 100)
+            vis = audit_visibility_and_coverage(workspace=ws, scout_map={"target_modules": ["src"]}, inventory=inv)["visibility_report"]
+            self.assertFalse(vis["gate_passed"])
+            self.assertTrue(any(x.startswith("src (100/300") for x in vis["under_read_target_modules"]))  # tests excluded
+
+            old_env = os.environ.get("LOCALSEC_PROJECT_ROOT")
+            try:
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf):
+                    manual_session.main(["--project-root", str(proj), "read_files", "svc", "--module", "src", "--until-pct", "60"])
+                out = json.loads(buf.getvalue())
+                self.assertTrue(out["target_reached"])
+                self.assertGreaterEqual(out["module_line_coverage_pct"], 60)
+                self.assertTrue(all(str(c.get("evidence_id", "")).startswith("ev_") for c in out["chunks"]))
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf):
+                    manual_session.main(["--project-root", str(proj), "coverage_status", "svc"])
+                st = json.loads(buf.getvalue())
+                self.assertIn("src", st["target_module_line_coverage"])
+            finally:
+                if old_env is None:
+                    os.environ.pop("LOCALSEC_PROJECT_ROOT", None)
+                else:
+                    os.environ["LOCALSEC_PROJECT_ROOT"] = old_env
+
+    def test_v30_round11_risk_ordered_batch_read_and_md_sources(self) -> None:
+        """Round 11: read_files reads risky files before large UI files and skips ranges already read (V21);
+        the export writes the .md twins that report.py collect cites as sources (V23)."""
+        import contextlib
+        import io
+        import os
+        from localsec import manual_session
+        from localsec.final_phase_export import MD_COMPANIONS, _Outputs
+        from localsec.orchestrator import inventory_repo
+
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp)
+            svc = proj / "svc"
+            (svc / "src" / "components").mkdir(parents=True)
+            (svc / "src" / "auth").mkdir()
+            (svc / "src" / "components" / "Big.tsx").write_text("export const x = 1\n" * 600, encoding="utf-8")
+            (svc / "src" / "auth" / "session.ts").write_text(
+                "export function who(req) { return req.headers['x-user-id'] }\n" * 40, encoding="utf-8")
+            (svc / "src" / "read.ts").write_text("export const r = 1\n" * 50, encoding="utf-8")
+            inventory_repo(proj, "svc", run_id="default")
+            rd = proj / ".localsec" / "runs" / "default" / "svc"
+            (rd / "codebase_scout.json").write_text(json.dumps({"target_modules": ["src"], "ignored_modules": []}), encoding="utf-8")
+            ws = ManualWorkspace(svc, "svc", self.cfg, "default", project_root=proj)
+            ws.read_file("unified_surface_mapper", "src/read.ts", 1, 50)
+            manual_session._save_workspace(ws, rd)
+
+            old_env = os.environ.get("LOCALSEC_PROJECT_ROOT")
+            try:
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf):
+                    manual_session.main(["--project-root", str(proj), "read_files", "svc", "--module", "src", "--until-pct", "95"])
+                out = json.loads(buf.getvalue())
+            finally:
+                if old_env is None:
+                    os.environ.pop("LOCALSEC_PROJECT_ROOT", None)
+                else:
+                    os.environ["LOCALSEC_PROJECT_ROOT"] = old_env
+            paths = [c["path"] for c in out["chunks"]]
+            self.assertEqual(paths[0], "src/auth/session.ts")  # risky before the 600-line UI file
+            self.assertNotIn("src/read.ts", paths)  # already read in full
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = _Outputs(Path(tmp))
+            out.json("svc/09_findings.json", {"findings": [{"id": "c1", "title": "a|b", "status": "x", "evidence_ids": ["ev_1"]}]})
+            out.json("_system/02_cross_repo_review.json", {"system_risks": []})
+            md = out.files[Path(tmp) / "svc" / "09_findings.md"]
+            self.assertIn("| c1 | a\\|b | x | ev_1 |", md)
+            self.assertIn(Path(tmp) / "_system" / "03_cross_repo_review.md", out.files)
+            self.assertEqual(out.conflicts(), [])
+            self.assertEqual(set(MD_COMPANIONS.values()), {"09_findings.md", "18_business_aware_synthesis.md",
+                                                           "03_cross_repo_review.md", "99_project_chain_report.md"})
+
+    def test_v30_round11_antigravity_blinded_guard(self) -> None:
+        """Antigravity: workspace hook payload ({toolCall, transcriptPath}) is enforced only in the 2.3 conversation,
+        answers {"decision": "allow"|"deny"} on stdout with exit 0, and setup merges .agents/hooks.json non-destructively."""
+        import contextlib
+        import io
+        import setup_bootstrap
+        from localsec import claude_subagent_guard as g
+
+        def run(payload: dict) -> tuple[int, dict]:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = g.main(["--platform", "antigravity", "--payload", json.dumps(payload)])
+            return code, json.loads(buf.getvalue())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            child = Path(tmp) / "child.jsonl"
+            child.write_text(json.dumps({"type": "USER_INPUT", "content": "/phase-2-blinded-counterevidence-challenger svc"}) + "\n", encoding="utf-8")
+            parent = Path(tmp) / "parent.jsonl"
+            parent.write_text(
+                json.dumps({"type": "USER_INPUT", "content": "/phase-2-orchestrator svc"}) + "\n"
+                + json.dumps({"type": "TOOL_RESULT", "content": "---\nname: phase-2-orchestrator\n... /phase-2-blinded-counterevidence-challenger <repo_name> ..."}) + "\n",
+                encoding="utf-8",
+            )
+            deep = {"name": "view_file", "args": {"AbsolutePath": "C:/p/.localsec/tmp/deep_trace_chain_analyst_svc.json"}}
+            pkg = {"name": "view_file", "args": {"AbsolutePath": "C:/p/.localsec/tmp/blinded_chains_svc.json"}}
+            code, out = run({"toolCall": deep, "transcriptPath": str(child)})
+            self.assertEqual((code, out["decision"]), (0, "deny"))
+            self.assertEqual(run({"toolCall": pkg, "transcriptPath": str(child)})[1]["decision"], "allow")
+            self.assertEqual(run({"toolCall": {"name": "run_command", "args": {"CommandLine": "python -m localsec.manual_session list_evidence svc"}},
+                                  "transcriptPath": str(child)})[1]["decision"], "deny")
+            self.assertEqual(run({"toolCall": {"name": "invoke_subagent", "args": {}}, "transcriptPath": str(child)})[1]["decision"], "deny")
+            # parent session (and any other conversation) is not blinded, even though it mentions the 2.3 skill
+            self.assertEqual(run({"toolCall": deep, "transcriptPath": str(parent)})[1]["decision"], "allow")
+            self.assertEqual(run({"toolCall": deep, "transcriptPath": str(Path(tmp) / "missing.jsonl")})[1]["decision"], "allow")
+
+            hooks = Path(tmp) / "hooks.json"
+            hooks.write_text(json.dumps({"my-lint": {"PostToolUse": []}}), encoding="utf-8")
+            src = Path(__file__).resolve().parents[1] / ".agents" / "hooks.json"
+            setup_bootstrap._merge_antigravity_hooks(hooks, src)
+            self.assertEqual(set(json.loads(hooks.read_text(encoding="utf-8"))), {"my-lint", "localsec-blinded-guard"})
+            setup_bootstrap._merge_antigravity_hooks(hooks, src, remove=True)
+            self.assertEqual(set(json.loads(hooks.read_text(encoding="utf-8"))), {"my-lint"})
 
 
 if __name__ == "__main__":

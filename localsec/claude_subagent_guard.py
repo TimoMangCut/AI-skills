@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import sys
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,31 @@ FORBIDDEN_BLINDED_PATH_FRAGMENTS = (
     "phase3_verified_queue.json",
     "workspace_state.json",
     "evidence.json",
+)
+
+# Outputs of the non-blinded skills. Their drafts sit next to the blinded package as
+# `.localsec/tmp/<skill>_<repo>.json` (CLAUDE.md, phase-*-orchestrator SKILL.md), so match by prefix, not exact name.
+UNBLINDED_SKILL_NAMES = (
+    "codebase_scout",
+    "extractor_tailor",
+    "unified_surface_mapper",
+    "intent_invariant_modeler",
+    "cross_repo_and_arch_review",
+    "coverage_and_evidence_auditor",
+    "coverage_ledger",
+    "candidate_intake_planner",
+    "deep_trace_chain_analyst",
+    "analysis_evidence_gate",
+    "actor_and_feasibility_assessor",
+    "beyond_code_control_mapper",
+    "sfop_risk_calibrator",
+    "candidate_queue",
+    "phase3_verified_queue",
+    "workspace_state",
+)
+UNBLINDED_ARTIFACT_RE = re.compile(
+    r"(?:^|[/\\\s])(?:" + "|".join(UNBLINDED_SKILL_NAMES) + r")(?:[_.][A-Za-z0-9_.-]*)?\.json\b",
+    re.IGNORECASE,
 )
 
 NATIVE_SEARCH_TOOLS = {
@@ -74,8 +100,23 @@ BLINDED_AGENT_IDENTIFIERS = {
 
 TOOLKIT_ROOT = Path(__file__).resolve().parents[1]
 
-# Strict whitelist regex for .localsec/tmp/*.json Read in blinded challenger mode
-WHITELIST_TMP_JSON_RE = re.compile(r"(?:^|/)\.localsec/tmp/[A-Za-z0-9_.-]+\.json$")
+# Antigravity: hooks live in the workspace-wide `.agents/hooks.json` and the payload does not say which agent is
+# running, so the guard decides from the start of the conversation transcript. The blinded conversation starts either
+# from the custom subagent `.agents/agents/localsec-blinded-challenger.md` (whose prompt carries this sentinel) or from
+# a user message that opens with the 2.3 slash command. Skill bodies are not in the transcript head, so the parent
+# session that merely mentions the skill is not caught.
+ANTIGRAVITY_SENTINEL = "LOCALSEC_BLINDED_CHALLENGER_CONTEXT"
+ANTIGRAVITY_SLASH = "/phase-2-blinded-counterevidence-challenger"
+ANTIGRAVITY_HEAD_RECORDS = 6
+
+# The challenger's own drafts under .localsec/tmp/ (never other skills' drafts)
+BLINDED_DRAFT_NAME = r"(?:draft_2_3[A-Za-z0-9_.-]*|blinded_counterevidence_challenger_[A-Za-z0-9_.-]+)\.json"
+
+# Strict whitelist regex for .localsec/tmp Read in blinded challenger mode:
+# the blinded package from prepare_blinded_chain_verifier plus the challenger's own drafts.
+WHITELIST_TMP_JSON_RE = re.compile(
+    r"(?:^|/)\.localsec/tmp/(?:blinded_chains_[A-Za-z0-9_.-]+\.json|" + BLINDED_DRAFT_NAME + r")$"
+)
 
 # Strict whitelist regex for explicit toolkit-prefixed Read paths
 WHITELIST_TOOLKIT_PREFIX_READ_RE = re.compile(
@@ -86,17 +127,16 @@ WHITELIST_TOOLKIT_PREFIX_READ_RE = re.compile(
 )
 
 # Strict whitelist regex for Write/Edit in blinded challenger mode:
-# Allows writing ONLY to `.localsec/tmp/<draft>.json` (and forbids overwriting `blinded_chains_*.json`)
-WHITELIST_WRITE_TMP_RE = re.compile(
-    r"(?:^|/)\.localsec/tmp/(?!blinded_chains_)[A-Za-z0-9_.-]+\.json$"
-)
+# Allows writing ONLY the challenger's own drafts (never `blinded_chains_*.json` or other skills' drafts)
+WHITELIST_WRITE_TMP_RE = re.compile(r"(?:^|/)\.localsec/tmp/" + BLINDED_DRAFT_NAME + r"$")
 
 # Strict whitelist regex for Bash/PowerShell in blinded challenger mode:
-# Allows ONLY `python -m localsec.manual_session <read_file|show_evidence|list_evidence|submit_skill> ...`
+# Allows ONLY `python -m localsec.manual_session <read_file|show_evidence|submit_skill> ...`
+# (list_evidence is excluded: it prints every evidence id with `read_by`, i.e. where the analyst looked)
 WHITELIST_BASH_CMD_RE = re.compile(
     r"^(?:PYTHONPATH=[A-Za-z0-9_./:-]+\s+)?"
     r"(?:python(?:3(?:\.\d+)?)?|py)\s+-m\s+localsec\.manual_session\s+"
-    r"(?P<subcmd>read_file|show_evidence|list_evidence|submit_skill)\b(?P<rest>.*)$"
+    r"(?P<subcmd>read_file|show_evidence|submit_skill)\b(?P<rest>.*)$"
 )
 
 # Shell metacharacters forbidden in blinded Bash/PowerShell commands
@@ -137,6 +177,62 @@ def _is_blinded_context(payload: dict[str, Any], mode: str = "auto") -> bool:
         return raw_agent in BLINDED_AGENT_IDENTIFIERS
 
     return False
+
+
+def _strings(obj: Any, out: list[str], limit: int = 200) -> None:
+    if len(out) >= limit:
+        return
+    if isinstance(obj, str):
+        out.append(obj)
+    elif isinstance(obj, dict):
+        for v in obj.values():
+            _strings(v, out, limit)
+    elif isinstance(obj, list):
+        for v in obj:
+            _strings(v, out, limit)
+
+
+def _antigravity_is_blinded(payload: dict[str, Any]) -> bool:
+    """True when the transcript head shows this conversation is the 2.3 challenger (sentinel, or the slash command
+    as the first user text). Unreadable transcript -> False: the hook runs for every conversation in the workspace,
+    and failing closed there would block the whole pipeline."""
+    tp = str(payload.get("transcriptPath") or payload.get("transcript_path") or "")
+    if not tp:
+        return False
+    try:
+        fp = Path(os.path.expanduser(tp))
+        head: list[str] = []
+        with fp.open(encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    head.append(line)
+                if len(head) >= ANTIGRAVITY_HEAD_RECORDS:
+                    break
+    except OSError:
+        return False
+    for line in head:
+        if ANTIGRAVITY_SENTINEL in line:
+            return True
+        try:
+            rec = json.loads(line)
+        except Exception:
+            continue
+        texts: list[str] = []
+        _strings(rec, texts)
+        if any(t.lstrip().startswith(ANTIGRAVITY_SLASH) for t in texts):
+            return True
+    return False
+
+
+def _normalize_payload(payload: dict[str, Any], platform: str) -> tuple[dict[str, Any], str]:
+    """Map an Antigravity PreToolUse payload ({toolCall: {name, args}, transcriptPath, ...}) onto the Claude shape."""
+    tc = payload.get("toolCall")
+    if platform == "antigravity" or isinstance(tc, dict):
+        tc = tc if isinstance(tc, dict) else {}
+        norm = {"tool_name": str(tc.get("name") or ""), "tool_input": tc.get("args") or {}}
+        return norm, ("blinded_challenger" if _antigravity_is_blinded(payload) else "auto")
+    return payload, ""
 
 
 def _extract_target_strings(tool_input: Any) -> list[str]:
@@ -180,7 +276,28 @@ def _references_forbidden_blinded_artifact(text: str) -> str | None:
         return "documents/"
     if re.search(r"(?:^|/|\s)\.localsec/runs(?:/|$|\s)", norm_low):
         return ".localsec/runs/"
+    m = UNBLINDED_ARTIFACT_RE.search(norm)
+    if m:
+        return m.group(0).strip(" /\\")
     return None
+
+
+def _split_cli_args(rest: str) -> list[str]:
+    try:
+        parts = shlex.split(rest, posix=False)
+    except ValueError:
+        return []
+    return [p.strip("\"'") for p in parts]
+
+
+def _option_values(args: list[str], name: str) -> list[str]:
+    vals: list[str] = []
+    for i, a in enumerate(args):
+        if a == name and i + 1 < len(args):
+            vals.append(args[i + 1])
+        elif a.startswith(name + "="):
+            vals.append(a.split("=", 1)[1])
+    return vals
 
 
 def _is_whitelisted_read_path(raw_path: str) -> bool:
@@ -216,6 +333,7 @@ def _is_whitelisted_read_path(raw_path: str) -> bool:
             TOOLKIT_ROOT / ".agents" / "skills",
             TOOLKIT_ROOT / ".claude" / "skills",
             TOOLKIT_ROOT / ".claude" / "agents",
+            TOOLKIT_ROOT / ".agents" / "agents",
         )
         if any(cand.is_relative_to(ar) for ar in allowed_roots) and cand.suffix.lower() in {".json", ".md"}:
             return True
@@ -374,8 +492,11 @@ def evaluate_tool_use(payload: Any, *, mode: str = "auto") -> dict[str, Any]:
                 "decision": "block",
                 "reason": "Context-Blinded Violation (C1): parent directory traversal ('..') is forbidden in blinded shell command.",
             }
+        cli_args = _split_cli_args(rest)
         if subcmd == "read_file":
-            if not re.search(r"--skill(?:\s+|=)blinded_counterevidence_challenger\b", rest):
+            # Exactly one --skill equal to the blinded skill: argparse keeps the LAST value, so an extra
+            # `--skill <other>` would switch exact_paths enforcement to another skill's allow-list.
+            if _option_values(cli_args, "--skill") != ["blinded_counterevidence_challenger"]:
                 return {
                     "decision": "block",
                     "reason": (
@@ -384,7 +505,10 @@ def evaluate_tool_use(payload: Any, *, mode: str = "auto") -> dict[str, Any]:
                     ),
                 }
         elif subcmd == "submit_skill":
-            if "blinded_counterevidence_challenger" not in rest:
+            # submit_skill <repo_name> <skill_name> [json_file]: check the skill slot itself, not a substring
+            # anywhere in the command (a draft file name may contain the blinded skill name).
+            positional = [a for a in cli_args if not a.startswith("--")]
+            if len(positional) < 2 or positional[1] != "blinded_counterevidence_challenger":
                 return {
                     "decision": "block",
                     "reason": (
@@ -413,13 +537,27 @@ def evaluate_tool_use(payload: Any, *, mode: str = "auto") -> dict[str, Any]:
 def _emit_and_exit(verdict: dict[str, Any]) -> int:
     decision = str(verdict.get("decision") or "block")
     reason = str(verdict.get("reason") or "Blocked by LocalSec PreToolUse guard.")
-    if decision != "approve":
-        # Claude Code reads stderr when PreToolUse exits with code 2
-        sys.stderr.write(f"[LocalSec Blinded Guard BLOCKED] {reason}\n")
-        sys.stderr.flush()
+    if decision == "approve":
+        # Exit 0 without output: the legacy `{"decision": "approve"}` would bypass Claude Code's permission
+        # prompt for every whitelisted command; allowing silently keeps the normal permission flow.
+        return 0
+    # Claude Code reads stderr when PreToolUse exits with code 2
+    sys.stderr.write(f"[LocalSec Blinded Guard BLOCKED] {reason}\n")
+    sys.stderr.flush()
     sys.stdout.write(json.dumps(verdict, ensure_ascii=False) + "\n")
     sys.stdout.flush()
-    return 0 if decision == "approve" else 2
+    return 2
+
+
+def _emit_antigravity(verdict: dict[str, Any]) -> int:
+    """Antigravity reads {"decision": "allow"|"deny", "reason"} from stdout; exit code stays 0."""
+    allow = str(verdict.get("decision") or "block") == "approve"
+    out = {"decision": "allow" if allow else "deny"}
+    if not allow:
+        out["reason"] = "[LocalSec Blinded Guard] " + str(verdict.get("reason") or "blocked")
+    sys.stdout.write(json.dumps(out, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -433,6 +571,12 @@ def main(argv: list[str] | None = None) -> int:
             choices=("auto", "blinded_challenger"),
             default="auto",
             help="Guard enforcement mode ('blinded_challenger' forces blinded whitelist enforcement).",
+        )
+        parser.add_argument(
+            "--platform",
+            choices=("claude", "antigravity"),
+            default="claude",
+            help="Hook payload/response format. 'antigravity' = .agents/hooks.json (toolCall/transcriptPath in, allow/deny out).",
         )
         parser.add_argument(
             "--payload",
@@ -452,20 +596,28 @@ def main(argv: list[str] | None = None) -> int:
             if not sys.stdin.isatty():
                 raw_text = sys.stdin.read()
 
+        emit = _emit_antigravity if args.platform == "antigravity" else _emit_and_exit
         if not raw_text.strip():
-            return _emit_and_exit({"decision": "block", "reason": "Fail-closed: empty PreToolUse hook input."})
+            return emit({"decision": "block", "reason": "Fail-closed: empty PreToolUse hook input."})
 
         try:
             payload = json.loads(raw_text)
         except Exception as exc:
-            return _emit_and_exit(
+            return emit(
                 {"decision": "block", "reason": f"Fail-closed: invalid JSON in PreToolUse hook input ({type(exc).__name__})."}
             )
 
-        verdict = evaluate_tool_use(payload, mode=args.mode)
-        return _emit_and_exit(verdict)
+        mode = args.mode
+        if args.platform == "antigravity" and isinstance(payload, dict):
+            payload, detected = _normalize_payload(payload, "antigravity")
+            if mode == "auto":
+                mode = detected
+        verdict = evaluate_tool_use(payload, mode=mode)
+        return emit(verdict)
     except Exception as exc:
         # Fail-closed on any unexpected internal exception
+        if "--platform" in (argv if argv is not None else sys.argv) and "antigravity" in (argv if argv is not None else sys.argv):
+            return _emit_antigravity({"decision": "block", "reason": f"Fail-closed: internal guard exception ({type(exc).__name__}: {exc})."})
         return _emit_and_exit(
             {"decision": "block", "reason": f"Fail-closed: internal guard exception ({type(exc).__name__}: {exc})."}
         )

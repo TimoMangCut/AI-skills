@@ -40,3 +40,15 @@ LLM tối ưu **độ hợp lý bề ngoài**, không phải **độ đúng**; c
 
 ## Kỷ luật đầu ra
 Deliverable-driven: mỗi phiên đẻ ra artifact. Không nịnh. Nêu trade-off. Gắn metric/impact khi có thể. Kết bằng self-check 3 điểm.
+
+## Luật CLI cần biết (Đợt 7 — ghi lại từ thử nghiệm `vinfast-mcp`)
+
+- **Bước cần ngữ cảnh sạch dùng subagent trên cả hai công cụ** (2.3, R.4, 4.6): Claude Code qua skill `context: fork` / Agent tool; Antigravity qua `invoke_subagent` (2.3: `TypeName: "localsec-blinded-challenger"`, Prompt mở đầu đúng bằng `/phase-2-blinded-counterevidence-challenger <repo>`; R.4/4.6: `TypeName: "self"`). Bước 2.3 bị chặn bằng cùng guard `localsec/claude_subagent_guard.py`: Claude qua hook trong `.claude/agents/localsec-blinded-challenger.md`, Antigravity qua `.agents/hooks.json` (`--platform antigravity`). Không có subagent thì mở hội thoại mới với đúng lời mở đầu đó.
+- **`read_file` trả tối đa 180 dòng mỗi lần** (`max_lines_per_read`). File dài phải đọc nhiều lần liên tiếp (`--start-line`/`--end-line`). Cổng Phase 1 tính độ phủ theo **dòng**: file bắt buộc (entrypoint + security) phải được đọc ≥ 90% số dòng (`mandatory_min_line_coverage`), không chỉ "đã mở".
+- **`coverage_id`** có dạng `surface::boundary::subsystem::attack_class[::lifecycle]`, mỗi đoạn **mã hoá phần trăm theo RFC 3986**: `/` phải viết thành `%2F` (ví dụ `http_api::mcp_edge::apps%2Fmcp%2Fserver::BOLA_IDOR`). Hàm `localsec.orchestrator.build_coverage_id(...)` dựng đúng dạng này.
+- **`run_tailored_extractor --patterns-file <file.json>`** nhận một danh sách `[{"name": "...", "regex": "..."}]`, hoặc object `{"patterns": [...]}`. Mỗi mẫu cần khoá `regex`.
+- **Bước 2.4 (`analysis_evidence_gate`) là tuỳ chọn.** `finalize_v3_phase2` tự ghi file này, và `phase_status --phase 2` không còn đòi nó.
+- **Cổng độ phủ theo module (Đợt 10 — V20):** ngoài file bắt buộc (≥ 90% số dòng), mỗi module trong `target_modules` phải được đọc ≥ `target_module_min_line_coverage` (mặc định **50%**) số dòng nguồn không tính test; module khai báo trong `ignored_modules` được miễn. Hai lệnh hỗ trợ:
+  - `python -m localsec.manual_session coverage_status <repo>`: liệt kê file bắt buộc chưa đủ 90% và module chưa đủ ngưỡng.
+  - `python -m localsec.manual_session read_files <repo> --module <đường dẫn module> --until-pct 50 --skill <skill>`: đọc theo lô, ưu tiên file bắt buộc chưa đọc, rồi tới file có tín hiệu rủi ro cao (đường dẫn auth/token/consent/state…, nội dung đọc header/gọi HTTP/ký token); file UI/catalog xếp sau; bỏ qua đoạn đã đọc; mỗi lượt trả khoảng 60 nghìn ký tự (`--max-chars`), mỗi đoạn có `ev_` như `read_file`. Gọi lại cùng lệnh tới khi `target_reached: true`. **Phải phân tích nội dung trả về**: cổng chỉ đếm dòng đã đọc, không đếm dòng đã hiểu.
+- **Ghi nháp JSON bằng công cụ Write của agent,** không dùng heredoc của Git Bash: heredoc làm hỏng dấu `\` và chữ tiếng Việt trên Windows.

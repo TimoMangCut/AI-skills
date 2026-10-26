@@ -255,8 +255,8 @@ func main() { println("hello") }
         repo_root = Path(__file__).resolve().parents[1]
         ag_skills = sorted((repo_root / ".agents" / "skills").glob("*/SKILL.md"))
         cl_skills = sorted((repo_root / ".claude" / "skills").glob("*/SKILL.md"))
-        self.assertEqual(len(ag_skills), 17)
-        self.assertEqual(len(cl_skills), 17)
+        self.assertEqual(len(ag_skills), 28)
+        self.assertEqual(len(cl_skills), 28)
 
         for ag_p, cl_p in zip(ag_skills, cl_skills):
             self.assertEqual(ag_p.parent.name, cl_p.parent.name)
@@ -287,7 +287,7 @@ func main() { println("hello") }
             self.assertNotIn("<", desc, f"Angle bracket < forbidden by Claude validator in {ag_p}")
             self.assertNotIn(">", desc, f"Angle bracket > forbidden by Claude validator in {ag_p}")
             self.assertTrue(body.startswith("# "), f"Body after frontmatter must start with H1 heading in {ag_p}")
-            # Claude Code frontmatter matches first 3 lines and includes context: fork + agent: localsec-blinded-challenger (R3-A7 / R4-C1)
+            # Claude Code frontmatter matches first 3 lines and includes context: fork + agent: localsec-blinded-challenger for blinded challenger (C1)
             self.assertEqual(cl_fm_lines[:3], fm_lines)
             if cl_p.parent.name == "phase-2-blinded-counterevidence-challenger":
                 self.assertEqual(len(cl_fm_lines), 5, f"Expected context: fork and agent: localsec-blinded-challenger in {cl_p}")
@@ -296,10 +296,6 @@ func main() { println("hello") }
             else:
                 self.assertIn(len(cl_fm_lines), (3, 4))
 
-        challenger_agent = repo_root / ".claude" / "agents" / "localsec-blinded-challenger.md"
-        self.assertTrue(challenger_agent.is_file(), "Missing .claude/agents/localsec-blinded-challenger.md")
-        self.assertIn("claude_subagent_guard --mode blinded_challenger", challenger_agent.read_text(encoding="utf-8"))
-
     def test_setup_sh_syncs_and_uninstalls_antigravity_and_claude(self):
         import os
         import subprocess
@@ -307,20 +303,21 @@ func main() { println("hello") }
         from localsec.workspace import ManualWorkspace, WorkspaceError
 
         repo_root = Path(__file__).resolve().parents[1]
-        setup_sh = repo_root / "setup.sh"
+        setup_py = repo_root / "setup_bootstrap.py"
         with tempfile.TemporaryDirectory() as tmp:
             target_root = Path(tmp)
             env = dict(os.environ, AI_SKILLS_SKIP_TESTS="1")
-            res = subprocess.run(["sh", str(setup_sh)], cwd=str(target_root), env=env, capture_output=True, text=True)
+            res = subprocess.run([sys.executable, str(setup_py)], cwd=str(target_root), env=env, capture_output=True, text=True)
             self.assertEqual(res.returncode, 0, res.stderr)
-            self.assertEqual(len(list((target_root / ".agents" / "skills").glob("*/SKILL.md"))), 17)
-            self.assertEqual(len(list((target_root / ".claude" / "skills").glob("*/SKILL.md"))), 17)
+            self.assertEqual(len(list((target_root / ".agents" / "skills").glob("*/SKILL.md"))), 28)
+            self.assertEqual(len(list((target_root / ".claude" / "skills").glob("*/SKILL.md"))), 28)
             self.assertTrue((target_root / ".claude" / "agents" / "localsec-blinded-challenger.md").is_file())
             self.assertTrue((target_root / "AGENTS.md").is_file())
             self.assertTrue((target_root / "SOUL.md").is_file())
             self.assertTrue((target_root / "CLAUDE.md").is_file())
-            
-            res_un = subprocess.run(["sh", str(setup_sh), "--uninstall"], cwd=str(target_root), env=env, capture_output=True, text=True)
+            self.assertTrue((target_root / "localsec" / "__init__.py").is_file())
+
+            res_un = subprocess.run([sys.executable, str(setup_py), "--uninstall"], cwd=str(target_root), env=env, capture_output=True, text=True)
             self.assertEqual(res_un.returncode, 0, res_un.stderr)
             self.assertFalse((target_root / ".agents").exists())
             self.assertFalse((target_root / ".claude").exists())

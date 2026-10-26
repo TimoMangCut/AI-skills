@@ -38,10 +38,10 @@ Theo kiến trúc **Intent Before Code (`ARCH-3K`)**, Bước 1.3 bắt buộc c
 
 ```powershell
 # 1. Đọc tài liệu đặc tả / OpenAPI / Proto / SQL Schema / Manifest (Engine chặn đọc file .go/.py/.ts/.cs/.java/.cpp ở bước này)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> docs/spec.md 1 180 --skill intent_invariant_modeler
+python -m localsec.manual_session read_file <repo_name> docs/spec.md 1 180 --skill intent_invariant_modeler
 
 # 2. Lưu mô hình ý định & bất biến S-F-O-P-C (đối chiếu AI-skills/schemas/v3/intent_invariant_modeler.schema.json)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> intent_invariant_modeler .localsec/tmp/intent_invariant_modeler_<repo_name>.json
+python -m localsec.manual_session submit_skill <repo_name> intent_invariant_modeler .localsec/tmp/intent_invariant_modeler_<repo_name>.json
 ```
 
 ---

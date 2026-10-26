@@ -1,0 +1,21 @@
+{
+  "note": "Sự thật runtime do người vận hành/chủ hệ thống xác nhận — không có trong mã nguồn. Đặt file thật tại documents/_report/runtime_facts.json; phase rủi ro trích bằng fact:<id>. Mỗi sự thật cần `answer` và `source` (ai/tài liệu nào xác nhận) thì mới được nhận làm bằng chứng.",
+  "facts": [
+    {
+      "id": "K1",
+      "question": "Route /payment/**/call-back/** nằm trong scope của những client nào ở production?",
+      "answer": "Chỉ client 'payment-hub'; credential lưu trong secret store, chỉ team Payment có quyền đọc",
+      "source": "Platform/DevOps — bản xuất bảng client_scope production",
+      "date": "2026-10-25",
+      "answers": "Q1; F-03 · P1.C1"
+    },
+    {
+      "id": "K2",
+      "question": "Cluster production có NetworkPolicy giới hạn ai gọi được các service nghiệp vụ không?",
+      "answer": "Có NetworkPolicy chỉ cho api-gateway gọi vào các service nghiệp vụ",
+      "source": "Kết quả `kubectl get networkpolicy -A` do DevOps gửi",
+      "date": "2026-10-25",
+      "answers": "Q2; F-01 · P2.entry"
+    }
+  ]
+}

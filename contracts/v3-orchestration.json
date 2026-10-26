@@ -60,6 +60,9 @@
         "blinded_counterevidence_challenger.json",
         "analysis_evidence_gate.json"
       ],
+      "optional_steps": [
+        "analysis_evidence_gate"
+      ],
       "finalize_command": "finalize_v3_phase2",
       "finalizer": "finalize_v3_phase2",
       "gate_receipt": "phase2_gate_receipt.json"

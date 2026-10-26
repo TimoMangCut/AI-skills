@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import os
 import sys
 from pathlib import Path
@@ -14,6 +15,7 @@ from .orchestrator import (
     BASV_SPECIALIST_ORDER,
     SPECIALIST_ORDER,
     _apply_audit,
+    chains_fingerprint,
     _compact,
     _iter_claims,
     _safe_name,
@@ -233,6 +235,20 @@ def main(argv: list[str] | None = None) -> int:
     p_ls.add_argument("--limit", type=int, default=None)
     p_ls.add_argument("--skill", default="repo_profile")
 
+    p_rfs = sub.add_parser("read_files",  # one line: tests/test_basv_pipeline.py scans add_parser("…" to validate docs
+        help="V20: batch-read a target module (unread mandatory files first, then highest risk signal; UI/catalog last; already-read ranges skipped) until a line-coverage target",
+    )
+    p_rfs.add_argument("repo_name")
+    p_rfs.add_argument("--module", required=True, help="Target module path, e.g. apps/mcp/server")
+    p_rfs.add_argument("--until-pct", type=float, default=50.0, help="Stop when this %% of the module's non-test source lines is read")
+    p_rfs.add_argument("--max-chars", type=int, default=60000, help="Stop after returning about this many characters of code")
+    p_rfs.add_argument("--skill", default="unified_surface_mapper")
+    p_rfs.add_argument("--run-id", default=None)
+
+    p_cs = sub.add_parser("coverage_status", help="V20: what the Phase 1 coverage gate still needs (mandatory files < 90%%, modules under target)")
+    p_cs.add_argument("repo_name")
+    p_cs.add_argument("--run-id", default=None)
+
     p_rf = sub.add_parser("read_file", help="Read file lines via ManualWorkspace and mint evidence_id")
     p_rf.add_argument("repo_name")
     p_rf.add_argument("path")
@@ -369,13 +385,15 @@ def main(argv: list[str] | None = None) -> int:
     p_fp3 = sub.add_parser("finalize_v3_phase3", help="ARCH-3D: Finalize v3 Phase 3, audit beyond-code controls & SFOP hard laws, and emit phase3_gate_Certificate.json")
     p_fp3.add_argument("repo_name")
 
-    p_fp4 = sub.add_parser("finalize_v3_phase4", help="Phase 4: Export canonical documents/ tree, risk work files, and synthesize final reports")
+    p_fp4 = sub.add_parser("finalize_v3_phase4", help="Phase 4: Export closed Phase 1-3 results as inputs for reporting/report.py collect")
     p_fp4.add_argument("repo_name", nargs="?", default=None)
     p_fp4.add_argument("--force-overwrite", action="store_true", help="Allow overwriting existing non-wins files in documents/")
+    p_fp4.add_argument("--allow-unfinalized", action="store_true", help="Export even if some repo misses a Phase 1/2/3 gate receipt (those repos get no 12_analysis_status.json)")
 
-    p_efpi = sub.add_parser("export_final_phase_inputs", help="Phase 4: Export v3 run outputs into canonical documents/ layout and synthesize final reports")
+    p_efpi = sub.add_parser("export_final_phase_inputs", help="Phase 4: alias of finalize_v3_phase4")
     p_efpi.add_argument("repo_name", nargs="?", default=None)
     p_efpi.add_argument("--force-overwrite", action="store_true", help="Allow overwriting existing non-wins files in documents/")
+    p_efpi.add_argument("--allow-unfinalized", action="store_true", help="Export even if some repo misses a Phase 1/2/3 gate receipt (those repos get no 12_analysis_status.json)")
 
     p_irf = sub.add_parser("ingest_runtime_facts", help="DEPTH-4.4a: Ingest operator-supplied runtime_environment_facts.json")
     p_irf.add_argument("repo_name")
@@ -435,6 +453,7 @@ def main(argv: list[str] | None = None) -> int:
         archetypes = list(args.archetypes or [])
         techstack = list(args.techstack or [])
         signals = list(args.signals or [])
+        free_text: list[str] = []
         cand_classes = list(getattr(args, "candidate_classes", None) or [])
         if scout_file.is_file():
             sdata = json.loads(scout_file.read_text(encoding="utf-8"))
@@ -445,18 +464,26 @@ def main(argv: list[str] | None = None) -> int:
             if isinstance(conv, dict):
                 for v in conv.values():
                     if isinstance(v, str):
-                        signals.append(v)
+                        free_text.append(v)
                     elif isinstance(v, list):
-                        signals.extend(str(i) for i in v)
+                        free_text.extend(str(i) for i in v)
         selected = select_companion_blocks(
             techstack=techstack,
             archetypes=archetypes,
             signals=signals,
             candidate_classes=cand_classes,
             run_dir=run_dir,
+            free_text_signals=free_text,
         )
         write_json(run_dir / "selected_attack_companions.json", selected)
-        print(json.dumps(selected, ensure_ascii=False, indent=2))
+        # E5: print a compact summary; the full verbatim blocks are in the saved file (read only the modules you need)
+        print(json.dumps({
+            "selected_module_ids": selected.get("selected_module_ids", []),
+            "selected_companion_ids": selected.get("selected_companion_ids", []),
+            "excluded_blocks": selected.get("excluded_blocks", []),
+            "saved_to": str(run_dir / "selected_attack_companions.json"),
+            "chars_per_module": {b["module_id"]: len(b.get("markdown") or "") for b in selected.get("verbatim_blocks", [])},
+        }, ensure_ascii=False, indent=2))
         return 0
 
     if args.cmd == "register_scout_map":
@@ -585,6 +612,7 @@ def main(argv: list[str] | None = None) -> int:
             root,
             run_id=eff_run,
             force_overwrite=bool(getattr(args, "force_overwrite", False)),
+            allow_unfinalized=bool(getattr(args, "allow_unfinalized", False)),
         )
         print(json.dumps(res, ensure_ascii=False, indent=2))
         return 0 if res.get("gate_passed") else 2
@@ -717,6 +745,134 @@ def main(argv: list[str] | None = None) -> int:
         _save_workspace(ws, run_dir)
         print(json.dumps(res, ensure_ascii=False, indent=2))
         return 0 if res.get("ok") else 1
+
+    if args.cmd in {"read_files", "coverage_status"}:
+        from .orchestrator import _is_test_or_generated_path, audit_visibility_and_coverage
+
+        ws, run_dir = _load_workspace(args.repo_name, cfg, run_id=args.run_id)
+
+        def _load_opt(name: str) -> Any:
+            fp = run_dir / name
+            if not fp.is_file():
+                return None
+            raw = json.loads(fp.read_text(encoding="utf-8"))
+            return raw.get("result", raw) if isinstance(raw, dict) and isinstance(raw.get("result"), dict) else raw
+
+        inventory = _load_opt("inventory_repo.json")
+        scout = _load_opt("codebase_scout.json")
+
+        def _covered(rel: str, total: int) -> int:
+            pts = sorted((int(a), int(b)) for a, b in ws.read_ranges.get(rel, []) if int(b) >= int(a))
+            cov, cs, ce = 0, None, None
+            for a, b in pts:
+                a, b = max(1, a), min(total, b)
+                if a > b:
+                    continue
+                if ce is not None and a <= ce + 1:
+                    ce = max(ce, b)
+                else:
+                    if ce is not None:
+                        cov += ce - cs + 1
+                    cs, ce = a, b
+            if ce is not None:
+                cov += ce - cs + 1
+            return cov
+
+        if args.cmd == "coverage_status":
+            vis = audit_visibility_and_coverage(workspace=ws, scout_map=scout, inventory=inventory)["visibility_report"]
+            print(json.dumps({
+                "repo_name": ws.repo_name,
+                "partially_read_mandatory_files": vis.get("partially_read_mandatory_files", []),
+                "unvisited_mandatory_files": vis.get("unvisited_mandatory_files", []),
+                "under_read_target_modules": vis.get("under_read_target_modules", []),
+                "target_module_line_coverage": vis.get("target_module_line_coverage", {}),
+            }, ensure_ascii=False, indent=2))
+            return 0
+
+        mod = args.module.strip().strip("/")
+        base = ws.root / mod if mod not in {"", "."} else ws.root
+        if not base.is_dir():
+            print(json.dumps({"ok": False, "error": f"module {mod!r} is not a directory in the repo"}))
+            return 1
+        src_suffixes = {".py", ".ts", ".tsx", ".js", ".mjs", ".go", ".java", ".kt", ".cs", ".rb", ".php", ".rs", ".c", ".cpp", ".h", ".swift", ".dart"}
+        mandatory = set()
+        for cat in ("entrypoint", "security"):
+            mandatory.update(str(x) for x in ((inventory or {}).get("mandatory_files", {}) or {}).get(cat, []))
+        # V21: order by risk signal, not size. In the vinfast-mcp run 4 the largest-first order spent about half of the
+        # extra lines on UI/catalog files; the 5 new findings all came from state/consent/ticket/auth code.
+        risk_path = re.compile(r"auth|token|session|jwt|secret|key|consent|ticket|cancel|submit|booking|reserv|payment|"
+                               r"state|store|admin|webhook|crawl|upload|rate|limit|guard|middleware|route|handler|tool|client|api", re.I)
+        risk_body = re.compile(r"\b(fetch|axios|got|request|headers?\[|req\.(headers|body|query|params)|authorization|"
+                               r"jwt|verify|sign|secret|token|consent|termsAccepted|ticket|cancel|delete|admin|"
+                               r"Map<|new Map\(|localStorage|sessionStorage|cookie|exec|spawn|eval)\b", re.I)
+        low_path = re.compile(r"(^|/)(components?|ui|views?|styles?|css|theme|icons?|assets?|i18n|locales?|catalog|"
+                              r"fixtures?|mocks?|constants?|types?)(/|$)|\.(d\.ts)$", re.I)
+
+        def _risk_score(rel: str, body: str) -> int:
+            score = 3 * len(set(m.group(0).lower() for m in risk_path.finditer(rel)))
+            score += min(10, len(risk_body.findall(body)))
+            if low_path.search(rel):
+                score -= 6
+            return score
+
+        files: list[tuple[int, int, int, str, int]] = []
+        total_lines = read_lines = 0
+        for fp in base.rglob("*"):
+            if not fp.is_file() or fp.suffix.lower() not in src_suffixes:
+                continue
+            rel = fp.relative_to(ws.root).as_posix()
+            parts = [x.lower() for x in fp.relative_to(ws.root).parts]
+            if "node_modules" in parts or _is_test_or_generated_path(rel, fp.stem.lower(), fp.suffix.lower(), parts):
+                continue
+            try:
+                body = fp.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            n = len(body.splitlines())
+            c = _covered(rel, n)
+            total_lines += n
+            read_lines += c
+            if c < n:
+                files.append((0 if rel in mandatory else 1, -_risk_score(rel, body), -(n - c), rel, n))
+        files.sort()
+        risk_of = {rel: -neg for _, neg, _, rel, _ in files}
+        target = args.until_pct / 100.0
+        max_lines = int(cfg.get("max_lines_per_read", 180))
+        out_chunks: list[dict[str, Any]] = []
+        chars = 0
+        for _, _, _, rel, n in files:
+            if total_lines and read_lines / total_lines >= target or chars >= args.max_chars:
+                break
+            start = 1
+            while start <= n and chars < args.max_chars:
+                end = min(n, start + max_lines - 1)
+                before = _covered(rel, n)
+                seen = sorted((int(a), int(b)) for a, b in ws.read_ranges.get(rel, []))
+                if any(a <= start and b >= end for a, b in seen):
+                    start = end + 1  # already read: don't pay for it twice
+                    continue
+                res = ws.execute_tool(args.skill, "read_file", {"path": rel, "start_line": start, "end_line": end})
+                if not res.get("ok", True):
+                    out_chunks.append({"path": rel, "error": res.get("error")})
+                    break
+                res = res.get("result", res) if isinstance(res.get("result"), dict) else res
+                read_lines += _covered(rel, n) - before
+                text = str(res.get("content") or res.get("excerpt") or res.get("text") or "")
+                chars += len(text)
+                out_chunks.append({"path": rel, "lines": f"{start}-{end}", "risk_score": risk_of.get(rel),
+                                   "evidence_id": res.get("evidence_id"), "content": text})
+                start = end + 1
+        _save_workspace(ws, run_dir)
+        print(json.dumps({
+            "ok": True,
+            "module": mod,
+            "module_line_coverage_pct": round(100.0 * read_lines / total_lines, 1) if total_lines else None,
+            "target_pct": args.until_pct,
+            "target_reached": bool(total_lines and read_lines / total_lines >= target),
+            "chunks": out_chunks,
+            "note": "Call again (same command) to continue; each chunk is minted as evidence like read_file.",
+        }, ensure_ascii=False, indent=2))
+        return 0
 
     if args.cmd == "read_file":
         allowed = (
@@ -894,7 +1050,7 @@ def main(argv: list[str] | None = None) -> int:
                         "candidate_intake_planner",
                         "deep_trace_chain_analyst",
                         "blinded_counterevidence_challenger",
-                        "analysis_evidence_gate",
+                        # analysis_evidence_gate is optional: finalize_v3_phase2 writes it itself
                     ]
                     if args.phase == 2
                     else [
@@ -904,6 +1060,9 @@ def main(argv: list[str] | None = None) -> int:
                     ]
                 )
             )
+            # Steps the finalizer writes itself (e.g. analysis_evidence_gate) are not required before finalizing
+            optional_steps = set(phase_spec.get("optional_steps") or [])
+            req_order = [s for s in req_order if s not in optional_steps]
         else:
             if args.phase == 1:
                 req_order = SPECIALIST_ORDER + ["evidence_auditor", "diagram_author"]
@@ -1175,10 +1334,98 @@ def main(argv: list[str] | None = None) -> int:
             "repo_name",
             "file",
             "path",
-            "function_or_symbol",
             "line_start",
             "line_end",
         }
+        # E4: `function_or_symbol` is written by 2.2 and leaked its conclusions ("bookedByOtherAccount"); the package now
+        # carries the source line at line_start instead, and a neutral claim built by script from candidate_queue.
+        config_stems = {"config", "configuration", "env", "environment", "settings", "constants", "secrets"}
+        src_suffixes = {".py", ".ts", ".tsx", ".js", ".mjs", ".go", ".java", ".kt", ".cs", ".rb", ".php", ".rs"}
+
+        import_re = re.compile(
+            r"""(?:\bfrom\s+['"]([^'"]+)['"]|\brequire\(\s*['"]([^'"]+)['"]\s*\)|\bimport\s+['"]([^'"]+)['"]|^\s*from\s+(\.+[\w.]*)\s+import\b)""",
+            re.MULTILINE,
+        )
+        workspace_pkgs_cache: dict[str, dict[str, Path]] = {}
+
+        def _workspace_packages(repo_label: str) -> dict[str, Path]:
+            """Monorepo packages by package.json `name`, so `@scope/pkg/sub/path` resolves inside the repo."""
+            if repo_label not in workspace_pkgs_cache:
+                pkgs: dict[str, Path] = {}
+                for pj in (root / repo_label).rglob("package.json"):
+                    if "node_modules" in pj.parts:
+                        continue
+                    try:
+                        name = json.loads(pj.read_text(encoding="utf-8", errors="replace")).get("name")
+                    except Exception:
+                        name = None
+                    if isinstance(name, str) and name:
+                        pkgs[name] = pj.parent
+                workspace_pkgs_cache[repo_label] = pkgs
+            return workspace_pkgs_cache[repo_label]
+
+        def _direct_local_imports(repo_label: str, rel: str) -> list[str]:
+            """V8: files a hop imports directly (relative imports and monorepo workspace packages, one level),
+            resolved to real files in the repo; node_modules is never followed."""
+            repo_dir = root / repo_label
+            src = repo_dir / rel
+            try:
+                text = src.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                return []
+            found: list[str] = []
+            for m in import_re.finditer(text):
+                spec = next((g for g in m.groups() if g), "")
+                if not spec:
+                    continue
+                if not spec.startswith("."):
+                    pkgs = _workspace_packages(repo_label)
+                    name = next((n for n in sorted(pkgs, key=len, reverse=True) if spec == n or spec.startswith(n + "/")), None)
+                    if name is None:
+                        continue
+                    sub = spec[len(name):].lstrip("/") or "index"
+                    cands = []
+                    for base in (pkgs[name], pkgs[name] / "src"):
+                        cands += [base / sub] + [base / f"{sub}{e}" for e in (".ts", ".tsx", ".js", ".mjs")]
+                        cands += [base / sub / f"index{e}" for e in (".ts", ".tsx", ".js")]
+                elif spec.startswith(".") and not spec.startswith(("./", "../")):
+                    # Python relative import: ".mod.sub" -> mod/sub.py relative to the package (one dot = same dir)
+                    dots = len(spec) - len(spec.lstrip("."))
+                    base = src.parent
+                    for _ in range(dots - 1):
+                        base = base.parent
+                    tail = spec.lstrip(".").replace(".", "/")
+                    cands = [base / f"{tail}.py", base / tail / "__init__.py"] if tail else []
+                else:
+                    target = (src.parent / spec)
+                    stem = str(target)
+                    for ext in (".js", ".mjs", ".cjs"):
+                        if stem.endswith(ext):
+                            stem = stem[: -len(ext)]
+                    t = Path(stem)
+                    cands = [t] + [Path(stem + e) for e in (".ts", ".tsx", ".js", ".mjs", ".py")] + [t / f"index{e}" for e in (".ts", ".tsx", ".js")]
+                for c in cands:
+                    try:
+                        c_res = c.resolve()
+                        if c_res.is_file() and c_res.is_relative_to(repo_dir.resolve()):
+                            r = c_res.relative_to(repo_dir.resolve()).as_posix()
+                            if r not in found and "node_modules" not in r:
+                                found.append(r)
+                            break
+                    except (OSError, ValueError):
+                        continue
+            return found[:25]
+
+        def _source_line(repo_label: str, rel: str, line_no: Any) -> str:
+            try:
+                lines = (root / repo_label / rel).read_text(encoding="utf-8", errors="replace").splitlines()
+                n = int(line_no)
+            except Exception:
+                return ""
+            for i in range(max(0, n - 1), min(len(lines), n + 4)):
+                if lines[i].strip():
+                    return lines[i].strip()[:160]
+            return ""
 
         def _blind_v3_deep_trace(
             dt_payload: dict[str, Any],
@@ -1186,7 +1433,16 @@ def main(argv: list[str] | None = None) -> int:
             target_run_dir: Path | None = None,
         ) -> dict[str, Any]:
             exact_paths_set: set[str] = set()
+            imported_paths: set[str] = set()
             blinded_v3_chains: list[dict[str, Any]] = []
+            cand_by_id: dict[str, dict[str, Any]] = {}
+            cq_dir = target_run_dir or (root / ".localsec" / "runs" / _effective_v3_run_id(repo_label) / _safe_name(repo_label))
+            try:
+                cq = json.loads((cq_dir / "candidate_queue.json").read_text(encoding="utf-8"))
+                cq = cq.get("result", cq) if isinstance(cq, dict) else {}
+                cand_by_id = {str(c.get("candidate_id")): c for c in cq.get("candidates", []) if isinstance(c, dict)}
+            except Exception:
+                cand_by_id = {}
             raw_chains = dt_payload.get("chains") if isinstance(dt_payload.get("chains"), list) else dt_payload.get("verified_chains", [])
             for ch in raw_chains:
                 if not isinstance(ch, dict):
@@ -1208,8 +1464,30 @@ def main(argv: list[str] | None = None) -> int:
                         hpath = str(clean_hp.get("path") or clean_hp.get("file") or "").strip()
                         if hpath:
                             exact_paths_set.add(hpath)
+                            clean_hp["code_at_line_start"] = _source_line(repo_label, hpath, clean_hp.get("line_start"))
+                            imported_paths.update(_direct_local_imports(repo_label, hpath))
                         clean_hops.append(clean_hp)
                 clean_ch["hops"] = clean_hops
+                # Neutral claim: what to challenge, built from the candidates' attack classes and invariant ids only
+                classes: list[str] = []
+                invariants: list[str] = []
+                for cid in clean_ch.get("candidate_ids") or []:
+                    cand = cand_by_id.get(str(cid), {})
+                    for ac in list(cand.get("attack_classes") or []) + ([cand["attack_class"]] if cand.get("attack_class") else []):
+                        if str(ac) not in classes:
+                            classes.append(str(ac))
+                    for iv in list(cand.get("invariant_ids") or []) + ([cand["invariant_id"]] if cand.get("invariant_id") else []):
+                        if str(iv) not in invariants:
+                            invariants.append(str(iv))
+                clean_ch["claim_to_challenge"] = {
+                    "attack_classes": classes,
+                    "invariant_ids": invariants,
+                    "question": (
+                        "Starting at the first hop, can an attacker reach the last hop and achieve "
+                        + (", ".join(classes) if classes else "the security impact implied by these hops")
+                        + "? Look for any control that stops the path and for evidence that it does not."
+                    ),
+                }
                 blinded_v3_chains.append(clean_ch)
 
             control_search_paths: list[str] = []
@@ -1233,23 +1511,45 @@ def main(argv: list[str] | None = None) -> int:
                     except Exception:
                         pass
 
+            # Config-like source files anywhere in the repo: controls often live there (env checks, feature flags, keys)
+            repo_dir = root / repo_label
+            if repo_dir.is_dir():
+                for fp in repo_dir.rglob("*"):
+                    if not fp.is_file() or fp.suffix.lower() not in src_suffixes or "node_modules" in fp.parts:
+                        continue
+                    rel_parts = [x.lower() for x in fp.relative_to(repo_dir).parts]
+                    if any(x in {"test", "tests", "__tests__", "spec", "mocks", "fixtures"} for x in rel_parts) or any(
+                        t in fp.name.lower() for t in (".test.", ".spec.", "_test.", "_spec.")
+                    ):
+                        continue
+                    if fp.stem.lower().split(".")[0] in config_stems or "config" in rel_parts[:-1]:
+                        control_search_paths.append(fp.relative_to(repo_dir).as_posix())
             sorted_control_paths = sorted(set(control_search_paths))
-            combined_exact_paths = sorted({p for p in exact_paths_set if p} | set(sorted_control_paths))
+            combined_exact_paths = sorted({p for p in exact_paths_set if p} | set(sorted_control_paths) | imported_paths)
             tmp_out = root / ".localsec" / "tmp" / f"blinded_chains_{_safe_name(repo_label)}.json"
+            state_dir = target_run_dir or (root / ".localsec" / "runs" / eff_run / _safe_name(repo_label))
             out_obj = {
                 "repo_name": repo_label,
+                "run_dir": str(state_dir),
                 "context_blinding_policy": (
-                    "Strict whitelist enforced: only chain_id, candidate_ids, entrypoint, actor, preconditions, "
-                    "and hop structural locations are retained; title, root_cause, remediation, chain_verdict, "
+                    "Strict whitelist enforced: only chain_id, candidate_ids, entrypoint, actor, hop locations (with the source "
+                    "line at line_start) and a script-built neutral claim are retained; title, root_cause, remediation, "
+                    "chain_verdict, preconditions, hops[].action, hops[].function_or_symbol, "
                     "severity, confidence, state_after, and expected_vulnerable_behavior are strictly stripped"
                 ),
+                "read_allow_list_note": (
+                    "read_file is limited to `exact_paths` (= hop files + files they import directly (`imported_by_hops`) + "
+                    "`control_search_paths`). `control_search_paths` lists "
+                    "security, wiring/config, data-access and config-like source files where controls usually live."
+                ),
+                "chains_fingerprint": chains_fingerprint(dt_payload),
                 "exact_paths": combined_exact_paths,
                 "control_search_paths": sorted_control_paths,
+                "imported_by_hops": sorted(imported_paths),
                 "blinded_chains": blinded_v3_chains,
                 "saved_to": str(tmp_out),
             }
             write_json(tmp_out, out_obj)
-            state_dir = target_run_dir or (root / ".localsec" / "runs" / eff_run / _safe_name(repo_label))
             if state_dir.is_dir():
                 sf = state_dir / "workspace_state.json"
                 st_data: dict[str, Any] = {}

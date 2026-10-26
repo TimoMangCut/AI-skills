@@ -136,6 +136,1098 @@
     },
     "summary": {
       "type": "string"
+    },
+    "stride_review": {
+      "type": "object",
+      "description": "E7: STRIDE + hardening pass; finalize_v3_phase1 requires all keys",
+      "properties": {
+        "spoofing": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "tampering": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "repudiation": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "information_disclosure": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "denial_of_service": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "elevation_of_privilege": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "client_side_supply_chain": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "shared_service_credentials": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "pattern_checklist": {
+      "type": "object",
+      "description": "V16: fixed checklist of recurring weakness patterns; finalize_v3_phase1 requires all keys",
+      "properties": {
+        "process_local_state_multi_replica": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "client_asserted_identity_or_ownership": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "client_controlled_state_or_flags": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "ownership_check_on_every_object_access": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "replay_and_idempotency": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "llm_or_tool_argument_trust": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "outbound_url_fetch": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "environment_gated_controls": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "debug_error_and_metadata_exposure": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        },
+        "secrets_in_code_or_config": {
+          "type": "object",
+          "required": [
+            "review_status"
+          ],
+          "properties": {
+            "checked_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "evidence_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": "string"
+            },
+            "issues": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "evidence_ids"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 5
+                  },
+                  "target_path": {
+                    "type": "string"
+                  },
+                  "evidence_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  },
+                  "notes": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "review_status": {
+              "type": "string",
+              "enum": [
+                "issue_found",
+                "checked_none",
+                "not_applicable"
+              ]
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -33,16 +33,16 @@ Mục tiêu của bước này là giải quyết triệt để bài toán: **Py
 
 ```powershell
 # Trường hợp 1: Dùng bộ extractor chuẩn kèm kiểm định số lượng canary hits tối thiểu
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session run_tailored_extractor <repo_name> --mode USE_STANDARD_EXTRACTOR --canary-files src/ocpp_controller.py --expected-canary-hits 1
+python -m localsec.manual_session run_tailored_extractor <repo_name> --mode USE_STANDARD_EXTRACTOR --canary-files src/ocpp_controller.py --expected-canary-hits 1
 
 # Trường hợp 2: Tinh chỉnh pattern riêng qua --patterns-file và kiểm định --expected-canary-hits
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session run_tailored_extractor <repo_name> --mode TAILOR_CUSTOM_EXTRACTOR --canary-files src/ocpp_controller.py --patterns-file .localsec/tmp/patterns.json --expected-canary-hits 1
+python -m localsec.manual_session run_tailored_extractor <repo_name> --mode TAILOR_CUSTOM_EXTRACTOR --canary-files src/ocpp_controller.py --patterns-file .localsec/tmp/patterns.json --expected-canary-hits 1
 
 # Trường hợp 3: Bỏ qua extractor để đọc trực tiếp (khi code động hoặc C++ macro phức tạp)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session run_tailored_extractor <repo_name> --mode SKIP_EXTRACTOR_DIRECT_READ
+python -m localsec.manual_session run_tailored_extractor <repo_name> --mode SKIP_EXTRACTOR_DIRECT_READ
 
 # Hoặc lưu kết quả tùy chỉnh qua submit_skill (đối chiếu AI-skills/schemas/v3/extractor_tailor.schema.json)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> extractor_tailor .localsec/tmp/extractor_tailor_<repo_name>.json
+python -m localsec.manual_session submit_skill <repo_name> extractor_tailor .localsec/tmp/extractor_tailor_<repo_name>.json
 ```
 
 ---

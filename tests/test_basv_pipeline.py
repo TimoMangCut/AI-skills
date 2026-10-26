@@ -358,7 +358,7 @@ class TestBASVPipeline(unittest.TestCase):
         toolkit_root = manual_session._toolkit_root()
         agents_dir = toolkit_root / ".agents"
         md_files = [agents_dir / "README.md"] + sorted((agents_dir / "skills").glob("*/SKILL.md"))
-        self.assertEqual(len(md_files), 18)
+        self.assertEqual(len(md_files), 29)  # 18 wins + 11 vendored phase-4-*/phase-risk-* report skills
 
         ms_source = Path(manual_session.__file__).read_text(encoding="utf-8")
         registered_subcmds = set(re.findall(r'sub\.add_parser\("([a-z0-9_]+)"', ms_source))
@@ -375,8 +375,10 @@ class TestBASVPipeline(unittest.TestCase):
                     target.exists(),
                     f"Broken path reference '{match}' in {md_file.relative_to(toolkit_root)} -> {target} does not exist",
                 )
-            # 2. Every `python3 -m localsec.manual_session <subcmd>` must be a registered CLI subparser
-            for subcmd in re.findall(r"python3 -m localsec\.manual_session\s+([a-z0-9_]+)", text):
+            # 2. Every `python -m localsec.manual_session <subcmd>` must be a registered CLI subparser
+            self.assertNotIn("PYTHONPATH=AI-skills:.", text, f"Legacy POSIX inline PYTHONPATH found in {md_file}")
+            self.assertNotIn("python3 -m", text, f"Legacy python3 -m found in {md_file}")
+            for subcmd in re.findall(r"python3? -m localsec\.manual_session\s+([a-z0-9_]+)", text):
                 self.assertIn(
                     subcmd,
                     registered_subcmds,
@@ -514,15 +516,18 @@ class TestBASVPipeline(unittest.TestCase):
     def test_setup_sh_non_destructive_merge_git_exclude_and_toml_fallback(self) -> None:
         import os
         import subprocess
+        import sys
         import tomllib
         from localsec import config, manual_session
 
         toolkit_root = manual_session._toolkit_root()
+        self.assertTrue((toolkit_root / "setup.sh").is_file())
+        self.assertTrue((toolkit_root / "setup_bootstrap.py").is_file())
         toml_text = (toolkit_root / "localsec.toml").read_text(encoding="utf-8")
         # 1. Verify Python < 3.11 minimal TOML parser fallback matches stdlib tomllib 100%
         self.assertEqual(config._parse_minimal_toml(toml_text), tomllib.loads(toml_text))
 
-        # 2. Verify setup.sh preserves existing project AGENTS.md & skills, populates .git/info/exclude, and uninstalls cleanly
+        # 2. Verify setup_bootstrap.py preserves existing project AGENTS.md & skills, creates localsec bridge & .localsec/tmp, populates .git/info/exclude, and uninstalls cleanly
         with tempfile.TemporaryDirectory() as tmp:
             proj = Path(tmp)
             (proj / ".git" / "info").mkdir(parents=True)
@@ -534,7 +539,7 @@ class TestBASVPipeline(unittest.TestCase):
 
             env = {**os.environ, "AI_SKILLS_SKIP_TESTS": "1"}
             res1 = subprocess.run(
-                ["sh", str(toolkit_root / "setup.sh")],
+                [sys.executable, str(toolkit_root / "setup_bootstrap.py")],
                 cwd=str(proj),
                 env=env,
                 capture_output=True,
@@ -548,14 +553,17 @@ class TestBASVPipeline(unittest.TestCase):
             self.assertTrue((proj / ".agents" / "rules" / "soul.md").is_file())
             self.assertTrue((proj / ".agents" / "skills" / "custom-project-skill" / "SKILL.md").is_file())
             self.assertTrue((proj / ".agents" / "skills" / "phase-1-orchestrator" / "SKILL.md").is_file())
+            self.assertTrue((proj / "localsec" / "__init__.py").is_file())
+            self.assertTrue((proj / ".localsec" / "tmp").is_dir())
 
             exclude_txt = (proj / ".git" / "info" / "exclude").read_text(encoding="utf-8")
             self.assertIn("# BEGIN AI-SKILLS EXCLUDE", exclude_txt)
             self.assertIn("/.localsec/", exclude_txt)
+            self.assertIn("/localsec/", exclude_txt)
 
-            # Re-run setup.sh to verify idempotency (no duplicate blocks)
+            # Re-run setup_bootstrap.py to verify idempotency (no duplicate blocks)
             subprocess.run(
-                ["sh", str(toolkit_root / "setup.sh")],
+                [sys.executable, str(toolkit_root / "setup_bootstrap.py")],
                 cwd=str(proj),
                 env=env,
                 capture_output=True,
@@ -565,9 +573,9 @@ class TestBASVPipeline(unittest.TestCase):
             merged_agents_2 = (proj / "AGENTS.md").read_text(encoding="utf-8")
             self.assertEqual(merged_agents_2.count("<!-- BEGIN AI-SKILLS:AGENTS.md -->"), 1)
 
-            # Run setup.sh --uninstall and verify original project files are restored intact
+            # Run setup_bootstrap.py --uninstall and verify original project files are restored intact
             subprocess.run(
-                ["sh", str(toolkit_root / "setup.sh"), "--uninstall"],
+                [sys.executable, str(toolkit_root / "setup_bootstrap.py"), "--uninstall"],
                 cwd=str(proj),
                 env=env,
                 capture_output=True,
@@ -576,6 +584,7 @@ class TestBASVPipeline(unittest.TestCase):
             )
             self.assertEqual((proj / "AGENTS.md").read_text(encoding="utf-8"), custom_agents)
             self.assertFalse((proj / "SOUL.md").exists())
+            self.assertFalse((proj / "localsec").exists())
             self.assertTrue((proj / ".agents" / "skills" / "custom-project-skill" / "SKILL.md").is_file())
             self.assertFalse((proj / ".agents" / "skills" / "phase-1-orchestrator").exists())
             self.assertNotIn("# BEGIN AI-SKILLS EXCLUDE", (proj / ".git" / "info" / "exclude").read_text(encoding="utf-8"))
@@ -583,5 +592,6 @@ class TestBASVPipeline(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

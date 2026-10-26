@@ -52,14 +52,14 @@ Trước khi nộp kết quả, hãy đối chiếu hợp đồng điều phối
 
 ```powershell
 # 1. Lấy các khối Attack-Class Companion nguyên văn từ AI-skills/contracts/attack-taxonomy-v1/manifest.json
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session select_attack_companions <repo_name>
+python -m localsec.manual_session select_attack_companions <repo_name>
 
 # 2. Đọc mã nguồn thực chất trên từng target_module và mandatory_files (tránh đọc <=8 dòng gây lỗi Anti-Grazing)
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session read_file <repo_name> src/ocpp_controller.py 1 160 --skill unified_surface_mapper
+python -m localsec.manual_session read_file <repo_name> src/ocpp_controller.py 1 160 --skill unified_surface_mapper
 
 # 3. Lưu kết quả unified_surface_mapper và coverage_ledger
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> unified_surface_mapper .localsec/tmp/unified_surface_mapper_<repo_name>.json
-PYTHONPATH=AI-skills:. python3 -m localsec.manual_session submit_skill <repo_name> coverage_ledger .localsec/tmp/coverage_ledger_<repo_name>.json
+python -m localsec.manual_session submit_skill <repo_name> unified_surface_mapper .localsec/tmp/unified_surface_mapper_<repo_name>.json
+python -m localsec.manual_session submit_skill <repo_name> coverage_ledger .localsec/tmp/coverage_ledger_<repo_name>.json
 ```
 
 ---
