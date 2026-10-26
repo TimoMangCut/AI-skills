@@ -52,7 +52,7 @@ Với mỗi `chain_id` sống sót từ Phase 2, bắt buộc khai báo trườn
 
 ## 3. Giao thức Thực thi CLI & Đầu ra JSON Chuẩn (`AI-skills/schemas/v3/actor_and_feasibility_assessor.schema.json`)
 
-```powershell
+```bash
 # 1. Đọc thêm file cấu hình RBAC/IAM/Role mapping nếu cần xác minh quyền của Actor
 python3 -m localsec.manual_session read_file <repo_name> src/ocpp_controller.py 1 120 --skill actor_and_feasibility_assessor
 
@@ -79,17 +79,6 @@ python3 -m localsec.manual_session submit_skill <repo_name> actor_and_feasibilit
             ],
             "evidence_ids": [
               "ev_001"
-            ],
-            "holders": [
-              {
-                "who": "Any registered EV driver",
-                "actor_type": "authenticated_user",
-                "attainable": "yes",
-                "why": "station_id is printed on the charger and transaction_id is echoed in the driver's own session API",
-                "evidence_ids": [
-                  "ev_001"
-                ]
-              }
             ]
           },
           {
@@ -99,7 +88,16 @@ python3 -m localsec.manual_session submit_skill <repo_name> actor_and_feasibilit
             "searched_paths": [
               "src/ocpp/charging_router.py"
             ],
-            "evidence_ids": []
+            "evidence_ids": [],
+            "holders": [
+              {
+                "who": "Any registered EV driver",
+                "actor_type": "authenticated_user",
+                "attainable": "unknown",
+                "why": "Needs runtime ingress verification whether station_id routing is pinned to mTLS cert",
+                "evidence_ids": []
+              }
+            ]
           }
         ],
         "actors_considered": {

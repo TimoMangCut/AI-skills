@@ -1274,11 +1274,39 @@ def _validate_v30_epistemic_gates(
                 )
             # V15: every chain names its root-cause cluster so Phase 4 can fill the root-cause map
             # (all three vinfast-mcp trial runs left it empty and the report's root-cause section stayed blank).
-            if not str(chain.get("root_cause_cluster_id") or "").strip():
+            rc_cluster_raw = str(chain.get("root_cause_cluster_id") or "").strip()
+            if not rc_cluster_raw:
                 issues.append(
                     f"$.chains[{c_idx}].root_cause_cluster_id is required: name the shared root cause (e.g. 'RC-UNSIGNED-IDENTITY-HEADERS'); "
                     "chains with the same root cause use the same id"
                 )
+            else:
+                hint_map = value.get("_candidate_root_cause_hints") or value.get("candidate_root_cause_hints")
+                if isinstance(hint_map, dict) and hint_map:
+                    def _norm_rc_id(v: Any) -> str:
+                        return re.sub(r"[^A-Za-z0-9]+", "-", str(v or "").strip()).strip("-").upper()
+                    rc_norm = _norm_rc_id(rc_cluster_raw)
+                    cids_in_chain = [
+                        str(x).strip()
+                        for x in (chain.get("candidate_ids") or chain.get("source_candidate_ids") or [])
+                        if str(x).strip()
+                    ]
+                    declared_hints = sorted({
+                        _norm_rc_id(hint_map[cid])
+                        for cid in cids_in_chain
+                        if cid in hint_map and _norm_rc_id(hint_map[cid]) and not _norm_rc_id(hint_map[cid]).startswith("RC-COVERAGE-")
+                    })
+                    override_reason = str(chain.get("root_cause_hint_override_reason") or "").strip()
+                    if len(declared_hints) > 1 and len(override_reason) < 15:
+                        issues.append(
+                            f"$.chains[{c_idx}] merges candidates with conflicting Phase 1 root_cause_hints {declared_hints!r}; "
+                            "split into separate chains per root cause or provide root_cause_hint_override_reason (>=15 chars)"
+                        )
+                    elif len(declared_hints) == 1 and declared_hints[0] != rc_norm and len(override_reason) < 15:
+                        issues.append(
+                            f"$.chains[{c_idx}].root_cause_cluster_id={rc_cluster_raw!r} conflicts with Phase 1 candidate root_cause_hint={declared_hints[0]!r}; "
+                            "keep the Phase 1 root_cause_hint or provide root_cause_hint_override_reason (>=15 chars)"
+                        )
             hops = chain.get("hops") if isinstance(chain.get("hops"), list) else chain.get("steps", [])
             # V17: a chain is ONE continuous path. Two consecutive hops in different deployable units (apps/x, services/x,
             # cmd/x, or different repos) must be joined by a cross-service hop (http, grpc, queue, ipc). In trial 3,

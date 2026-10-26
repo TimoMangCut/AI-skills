@@ -69,6 +69,15 @@ def _resolve_config_path(project_root: Path) -> Path | None:
     return None
 
 
+def _has_v3_marker(run_repo_dir: Path) -> bool:
+    if not run_repo_dir.is_dir():
+        return False
+    return any(
+        (run_repo_dir / marker).is_file()
+        for marker in ("inventory_repo.json", "codebase_scout.json", "unified_surface_mapper.json")
+    )
+
+
 def _resolve_run_id(
     root: Path,
     cfg: dict[str, Any] | None = None,
@@ -77,6 +86,9 @@ def _resolve_run_id(
 ) -> str:
     if explicit_run_id:
         return str(explicit_run_id)
+    cfg_default = str((cfg or {}).get("analysis", {}).get("default_run_id") or "").strip()
+    if cfg_default and cfg_default != DEFAULT_RUN_ID:
+        return cfg_default
     if repo_name:
         safe_r = (
             repo_name
@@ -87,14 +99,16 @@ def _resolve_run_id(
             if (root / ".localsec" / "runs" / "default" / cand_r).exists():
                 return "default"
         for cand_r in (repo_name, safe_r):
-            if (root / ".localsec" / "runs" / "manual-v0.2" / cand_r).exists():
+            v02_dir = root / ".localsec" / "runs" / "manual-v0.2" / cand_r
+            if _has_v3_marker(v02_dir):
                 return "manual-v0.2"
     if (root / ".localsec" / "runs" / "default").exists():
         return "default"
-    if (root / ".localsec" / "runs" / "manual-v0.2").exists():
+    v02_root = root / ".localsec" / "runs" / "manual-v0.2"
+    if v02_root.is_dir() and any(_has_v3_marker(d) for d in v02_root.iterdir() if d.is_dir()):
         return "manual-v0.2"
-    cfg_default = (cfg or {}).get("analysis", {}).get("default_run_id")
-    return str(cfg_default) if cfg_default else DEFAULT_RUN_ID
+    return cfg_default if cfg_default else DEFAULT_RUN_ID
+
 
 
 def _load_workspace(
@@ -1157,8 +1171,12 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps(
                 {
                     "repo_name": ws.repo_name,
+                    "safe_repo_name": ws.repo_name,
                     "run_id": ws.run_id,
                     "run_dir": str(run_dir),
+                    "blinded_package_path": str(
+                        root / ".localsec" / "tmp" / f"blinded_chains_{ws.repo_name}.json"
+                    ),
                     "flow": active_flow,
                     "phase": args.phase,
                     "completed_steps": completed,
@@ -1204,6 +1222,23 @@ def main(argv: list[str] | None = None) -> int:
         from .validators import V30_SKILLS
         if args.skill in V30_SKILLS and isinstance(payload, dict) and isinstance(payload.get("result"), dict) and "status" in payload:
             payload = payload["result"]
+        if args.skill == "deep_trace_chain_analyst" and isinstance(payload, dict):
+            cq_file = run_dir / "candidate_queue.json"
+            if cq_file.is_file():
+                try:
+                    cq_raw = json.loads(cq_file.read_text(encoding="utf-8"))
+                    cq_obj = cq_raw.get("result") if isinstance(cq_raw.get("result"), dict) else cq_raw
+                    hint_map: dict[str, str] = {}
+                    for c_item in (cq_obj.get("candidates") or []) if isinstance(cq_obj, dict) else []:
+                        if isinstance(c_item, dict):
+                            cid = str(c_item.get("candidate_id") or "").strip()
+                            rc_h = str(c_item.get("root_cause_hint") or "").strip()
+                            if cid and rc_h:
+                                hint_map[cid] = rc_h
+                    if hint_map:
+                        payload["_candidate_root_cause_hints"] = hint_map
+                except Exception:
+                    pass
         project_ev_map = _all_project_evidence_ids(root, run_id=ws.run_id)
         merged_catalog = dict(project_ev_map)
         merged_catalog.update(ws.evidence)
@@ -1213,6 +1248,8 @@ def main(argv: list[str] | None = None) -> int:
         except OutputValidationError as exc:
             print(f"VALIDATION_ERROR ({args.skill}): {exc}", file=sys.stderr)
             return 1
+        if isinstance(payload, dict):
+            payload.pop("_candidate_root_cause_hints", None)
         prompt_text, spec = system_prompt(args.skill)
         prompt_sha = hashlib.sha256(prompt_text.encode("utf-8")).hexdigest()
         payload_sha = hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
@@ -1530,6 +1567,7 @@ def main(argv: list[str] | None = None) -> int:
             state_dir = target_run_dir or (root / ".localsec" / "runs" / eff_run / _safe_name(repo_label))
             out_obj = {
                 "repo_name": repo_label,
+                "safe_repo_name": _safe_name(repo_label),
                 "run_dir": str(state_dir),
                 "context_blinding_policy": (
                     "Strict whitelist enforced: only chain_id, candidate_ids, entrypoint, actor, hop locations (with the source "
@@ -1548,6 +1586,7 @@ def main(argv: list[str] | None = None) -> int:
                 "imported_by_hops": sorted(imported_paths),
                 "blinded_chains": blinded_v3_chains,
                 "saved_to": str(tmp_out),
+                "blinded_package_path": str(tmp_out),
             }
             write_json(tmp_out, out_obj)
             if state_dir.is_dir():

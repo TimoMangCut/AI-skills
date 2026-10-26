@@ -383,7 +383,12 @@ def evaluate_tool_use(payload: Any, *, mode: str = "auto") -> dict[str, Any]:
     combined_blob = " ".join(targets)
 
     is_blinded = _is_blinded_context(payload, mode=mode)
-    if "blinded_counterevidence_challenger" in combined_blob.lower():
+    if (
+        not is_blinded
+        and tool_low in NATIVE_SHELL_TOOLS
+        and "--skill" in combined_blob.lower()
+        and "blinded_counterevidence_challenger" in combined_blob.lower()
+    ):
         is_blinded = True
 
     if not is_blinded:

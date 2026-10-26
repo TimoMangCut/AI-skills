@@ -93,6 +93,16 @@
         }
       }
     },
+    "blinded_package_fingerprint": {
+      "type": "string"
+    },
+    "guard_self_test": {
+      "type": "string",
+      "enum": [
+        "blocked",
+        "not_blocked"
+      ]
+    },
     "empirical_refutations": {
       "type": "array",
       "items": {
