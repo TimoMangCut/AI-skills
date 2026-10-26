@@ -43,11 +43,11 @@ Bước này hợp nhất 5 yêu cầu kỹ thuật liên hoàn trong **một ph
 
 ```powershell
 # 1. Xem lại bằng chứng đã thu thập hoặc đọc sâu thêm các dòng code dọc theo đường đi của chuỗi tấn công
-python -m localsec.manual_session show_evidence <repo_name> <ev_id>
-python -m localsec.manual_session read_file <repo_name> src/ocpp_controller.py 1 120 --skill deep_trace_chain_analyst
+python3 -m localsec.manual_session show_evidence <repo_name> <ev_id>
+python3 -m localsec.manual_session read_file <repo_name> src/ocpp_controller.py 1 120 --skill deep_trace_chain_analyst
 
 # 2. Lưu kết quả phân tích sâu (đối chiếu AI-skills/schemas/v3/deep_trace_chain_analyst.schema.json)
-python -m localsec.manual_session submit_skill <repo_name> deep_trace_chain_analyst .localsec/tmp/deep_trace_chain_analyst_<repo_name>.json
+python3 -m localsec.manual_session submit_skill <repo_name> deep_trace_chain_analyst .localsec/tmp/deep_trace_chain_analyst_<repo_name>.json
 ```
 
 ---

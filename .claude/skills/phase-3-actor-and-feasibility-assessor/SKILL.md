@@ -54,10 +54,10 @@ Với mỗi `chain_id` sống sót từ Phase 2, bắt buộc khai báo trườn
 
 ```powershell
 # 1. Đọc thêm file cấu hình RBAC/IAM/Role mapping nếu cần xác minh quyền của Actor
-python -m localsec.manual_session read_file <repo_name> src/ocpp_controller.py 1 120 --skill actor_and_feasibility_assessor
+python3 -m localsec.manual_session read_file <repo_name> src/ocpp_controller.py 1 120 --skill actor_and_feasibility_assessor
 
 # 2. Lưu kết quả đánh giá Actor & Feasibility (đối chiếu AI-skills/schemas/v3/actor_and_feasibility_assessor.schema.json)
-python -m localsec.manual_session submit_skill <repo_name> actor_and_feasibility_assessor .localsec/tmp/actor_and_feasibility_assessor_<repo_name>.json
+python3 -m localsec.manual_session submit_skill <repo_name> actor_and_feasibility_assessor .localsec/tmp/actor_and_feasibility_assessor_<repo_name>.json
 ```
 
 ```json

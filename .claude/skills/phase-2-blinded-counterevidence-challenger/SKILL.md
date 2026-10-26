@@ -26,11 +26,11 @@ Theo nguyên lý **Refute-First (Bác bỏ trước, khẳng định sau)**: m�
 ## 1. Quy tắc Cô lập Ngữ cảnh Whitelist & Danh sách 6 Vị trí Săn tìm Kiểm soát (`ARCH-3E`, `DEPTH-4.2d`, `R2-P0-01`, `R2-P1-01`, `R2-P1-02`, `R3-A4`, `R3-A7`, `R4-C1`)
 
 1. **Gói Ngữ cảnh Mù Kết luận theo Cơ chế Whitelist & Chặn Lộ Prose (`prepare_blinded_chain_verifier` — `R2-P1-01`, `R3-A7`, `R4-C1`)**:
-   - Đầu tiên, Orchestrator chạy `python -m localsec.manual_session prepare_blinded_chain_verifier <repo_name>` để sinh gói `.localsec/tmp/blinded_chains_<repo_name>.json`.
+   - Đầu tiên, Orchestrator chạy `python3 -m localsec.manual_session prepare_blinded_chain_verifier <repo_name>` để sinh gói `.localsec/tmp/blinded_chains_<repo_name>.json`.
    - Lệnh này áp dụng **Strict Whitelist (`R3-A7`)**: loại bỏ hoàn toàn `title`, `root_cause`, `severity`, `chain_verdict`, `expected_vulnerable_behavior`, **`preconditions`**, **`hops[].action`**, và mọi kết luận văn xuôi của Bước 2.2; trong mỗi bước nhảy `hops[]` chỉ giữ lại các định vị mã nguồn trung lập (`hop_id`, `hop_kind`, `repo_name`, `file`, `path`, `function_or_symbol`, `line_start`, `line_end`) kèm danh sách **`control_search_paths`** trích xuất từ `inventory_repo.json`.
    - Bước 2.3 **BẮT BUỘC chạy trong Subagent cô lập / Fresh Context** chỉ nhận duy nhất `.localsec/tmp/blinded_chains_<repo_name>.json`:
-     - Trên Claude Code, `.claude/skills/phase-2-blinded-counterevidence-challenger/SKILL.md` khai báo **`context: fork`** và **`agent: localsec-blinded-challenger`** trong YAML frontmatter; file `.claude/agents/localsec-blinded-challenger.md` đăng ký PreToolUse whitelist hook **`python -m localsec.claude_subagent_guard --mode blinded_challenger`** (chặn mọi thao tác đọc `deep_trace_chain_analyst.json`, `.localsec/runs/`, `documents/`, hoặc lệnh Bash ngoài danh sách trắng).
-     - **Trên Antigravity:** `.agents/agents/localsec-blinded-challenger.md` (gọi bằng `invoke_subagent`) và hook workspace `.agents/hooks.json` → `python -m localsec.claude_subagent_guard --platform antigravity` áp **cùng danh sách trắng** như Claude: chỉ `view_file` file bộ công cụ, `.localsec/tmp/blinded_chains_<repo_name>.json` và bản nháp của mình (`draft_2_3*.json`, `blinded_counterevidence_challenger_<repo_name>.json`); chỉ ghi bản nháp của mình; `run_command` chỉ `manual_session read_file … --skill blinded_counterevidence_challenger` (đúng một `--skill`), `show_evidence`, `submit_skill <repo_name> blinded_counterevidence_challenger <bản nháp>`; `grep_search`/`find_by_name`/`list_dir`, `list_evidence` và gọi subagent khác bị chặn. Guard nhận ra hội thoại 2.3 khi lời mở đầu là `/phase-2-blinded-counterevidence-challenger …`, nên khi mở bằng tay cũng phải bắt đầu đúng như vậy. Nếu không có hook (công cụ khác), tự giữ đúng các giới hạn trên.
+     - Trên Claude Code, `.claude/skills/phase-2-blinded-counterevidence-challenger/SKILL.md` khai báo **`context: fork`** và **`agent: localsec-blinded-challenger`** trong YAML frontmatter; file `.claude/agents/localsec-blinded-challenger.md` đăng ký PreToolUse whitelist hook **`python3 -m localsec.claude_subagent_guard --mode blinded_challenger`** (chặn mọi thao tác đọc `deep_trace_chain_analyst.json`, `.localsec/runs/`, `documents/`, hoặc lệnh Bash ngoài danh sách trắng).
+     - **Trên Antigravity:** `.agents/agents/localsec-blinded-challenger.md` (gọi bằng `invoke_subagent`) và hook workspace `.agents/hooks.json` → `python3 -m localsec.claude_subagent_guard --platform antigravity` áp **cùng danh sách trắng** như Claude: chỉ `view_file` file bộ công cụ, `.localsec/tmp/blinded_chains_<repo_name>.json` và bản nháp của mình (`draft_2_3*.json`, `blinded_counterevidence_challenger_<repo_name>.json`); chỉ ghi bản nháp của mình; `run_command` chỉ `manual_session read_file … --skill blinded_counterevidence_challenger` (đúng một `--skill`), `show_evidence`, `submit_skill <repo_name> blinded_counterevidence_challenger <bản nháp>`; `grep_search`/`find_by_name`/`list_dir`, `list_evidence` và gọi subagent khác bị chặn. Guard nhận ra hội thoại 2.3 khi lời mở đầu là `/phase-2-blinded-counterevidence-challenger …`, nên khi mở bằng tay cũng phải bắt đầu đúng như vậy. Nếu không có hook (công cụ khác), tự giữ đúng các giới hạn trên.
 2. **Tên Trường Chuẩn `challenged_chains`, `challenge_verdict` & Luật Fail-Closed khi Bác bỏ (`R2-P0-01`, `R3-A4`)**:
    - Đặt danh sách kết quả vào trường **`"challenged_chains"`** (TUYỆT ĐỐI KHÔNG dùng `"chain_challenges"`).
    - Mỗi phần tử dùng trường **`"challenge_verdict"`** thuộc enum: `"confirmed_exploit_chain" | "sustained" | "upheld" | "mitigated_by_existing_control" | "refuted" | "broken_link" | "needs_runtime_verification" | "partially_mitigated"` (TUYỆT ĐỐI KHÔNG dùng `"overall_challenge_outcome"`).
@@ -53,13 +53,13 @@ Theo nguyên lý **Refute-First (Bác bỏ trước, khẳng định sau)**: m�
 
 ```powershell
 # 1. Tạo gói ngữ cảnh mù kết luận Whitelist .localsec/tmp/blinded_chains_<repo_name>.json (kèm control_search_paths)
-python -m localsec.manual_session prepare_blinded_chain_verifier <repo_name>
+python3 -m localsec.manual_session prepare_blinded_chain_verifier <repo_name>
 
 # 2. (Trong Subagent cô lập) Đọc mã nguồn tại 6 vị trí control_search_checklist từ control_search_paths
-python -m localsec.manual_session read_file <repo_name> src/auth_guard.py 1 120 --skill blinded_counterevidence_challenger
+python3 -m localsec.manual_session read_file <repo_name> src/auth_guard.py 1 120 --skill blinded_counterevidence_challenger
 
 # 3. Lưu kết quả phản biện đối kháng (đối chiếu AI-skills/schemas/v3/blinded_counterevidence_challenger.schema.json)
-python -m localsec.manual_session submit_skill <repo_name> blinded_counterevidence_challenger .localsec/tmp/blinded_counterevidence_challenger_<repo_name>.json
+python3 -m localsec.manual_session submit_skill <repo_name> blinded_counterevidence_challenger .localsec/tmp/blinded_counterevidence_challenger_<repo_name>.json
 ```
 
 ---

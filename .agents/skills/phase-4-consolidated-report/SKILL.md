@@ -18,14 +18,14 @@ Không phân tích lại, không đọc mã nguồn; mọi kết luận truy v�
 ## Quyền truy cập của Phase 4 (ngoại lệ có chủ đích so với Phase 1–3)
 Áp dụng cho mọi skill `phase-4-*`. Rule "chỉ đọc qua `lsec.py read_file`" và "không sửa tay `documents/`" của Phase 1–3 **không** áp dụng cho Phase 4, vì Phase 4 không đọc mã nguồn mà chỉ đọc kết quả đã khoá sổ.
 - **Đọc** bằng công cụ đọc file thường: `documents/` (đầu ra Phase 1–3), `reports/`, `reviews/`, `independent-review/`, `specs/`, thư mục tài liệu nghiệp vụ, `AI-skills/reporting/`. Không dùng `lsec.py read_file`/`list_dir` (CLI từ chối `documents/` và sẽ ghi sai độ phủ).
-- **Ghi** chỉ trong `documents/_report/` (qua `report.py` hoặc ghi file trong `work/`). Không sửa bất kỳ file nào khác của `documents/`; không đụng `.localsec/`.
+- **Ghi** chỉ trong `documents/_report/` (qua `AI-skills/reporting/report.py` hoặc ghi file trong `work/`). Không sửa bất kỳ file nào khác của `documents/`; không đụng `.localsec/`.
 - **Không đọc mã nguồn** của các repo đang review (không Read/Grep/Glob/list_dir vào thư mục repo). Thiếu bằng chứng thì ghi vào `gaps`, không tự đi kiểm.
 
 ## Nguyên tắc
 1. **Chỉ tổng hợp**, không phân tích lại. Trạng thái sau khoá sổ là chuẩn: chuỗi P3 lấy từ `chains/chain_<ID>.json`; P2 chỉ "đã xác nhận" khi đã qua kiểm toán.
-2. **Fail-closed.** `report.py check` chặn: nâng giả thuyết thành xác nhận, mã nguồn bịa, sót mục bắt buộc, loại trừ không có lý do, F quá lớn, tác động chung chung.
+2. **Fail-closed.** `python3 AI-skills/reporting/report.py check` chặn: nâng giả thuyết thành xác nhận, mã nguồn bịa, sót mục bắt buộc, loại trừ không có lý do, F quá lớn, tác động chung chung.
 3. **Tác giả không tự kiểm.** Bước 4.6 chạy trong context mới (subagent hoặc phiên mới), không phải phiên đã viết báo cáo.
-4. **Tiến độ nằm ở file.** Sau mỗi bước, mỗi lô, hoặc khi context bị nén / mở phiên mới: chạy `report.py status`.
+4. **Tiến độ nằm ở file.** Sau mỗi bước, mỗi lô, hoặc khi context bị nén / mở phiên mới: chạy `python3 AI-skills/reporting/report.py status`.
 5. **Context nhỏ.** Không mở `inputs/inputs.json`; không đọc nguyên file >60 KB, chỉ đọc theo đoạn. Phiên chính chỉ điều phối và hợp nhất; việc đọc nhiều (lô theo repo, rà soát) giao cho subagent nếu công cụ có.
 
 ## Điều phối
@@ -35,15 +35,15 @@ Không phân tích lại, không đọc mã nguồn; mọi kết luận truy v�
 | 4.1 | Gom & rút gọn | script | `python3 AI-skills/reporting/report.py collect [--related ../<project>]` | như bên trái | `status` |
 | 4.2 | Kiến trúc theo cụm nghiệp vụ | phiên chính | tự làm theo `.agents/skills/phase-4-architecture-synthesis/SKILL.md` | như bên trái | `check --stage architecture` |
 | 4.3a | Khung F từ mức hệ thống | phiên chính | tự làm theo `.agents/skills/phase-4-finding-consolidation/SKILL.md` mục 4.3a | như bên trái | — |
-| 4.3b | Gom theo lô (mỗi repo, cả `_ext`) | subagent mỗi lô | Agent tool, `general-purpose`, `model: sonnet`; prompt chỉ gồm: "Chế độ lô của `.agents/skills/phase-4-finding-consolidation/SKILL.md`, lô `<repo>`". Chạy nhiều lô song song được vì mỗi lô chỉ ghi `work/map/<repo>.json` | làm tuần tự trong phiên, mỗi lượt một lô; khi context gần đầy thì mở phiên mới và chạy `report.py catalog` | `catalog` |
-| 4.3c | Hợp nhất đề xuất F mới, rà danh mục | phiên chính | `report.py catalog` → tạo F trong `consolidation.json` → `report.py promote NEW:<slug> F-xx` | như bên trái | `check --stage findings` |
+| 4.3b | Gom theo lô (mỗi repo, cả `_ext`) | subagent mỗi lô | Agent tool, `general-purpose`, `model: sonnet`; prompt chỉ gồm: "Chế độ lô của `.agents/skills/phase-4-finding-consolidation/SKILL.md`, lô `<repo>`". Chạy nhiều lô song song được vì mỗi lô chỉ ghi `work/map/<repo>.json` | làm tuần tự trong phiên, mỗi lượt một lô; khi context gần đầy thì mở phiên mới và chạy `python3 AI-skills/reporting/report.py catalog` | `catalog` |
+| 4.3c | Hợp nhất đề xuất F mới, rà danh mục | phiên chính | `python3 AI-skills/reporting/report.py catalog` → tạo F trong `consolidation.json` → `python3 AI-skills/reporting/report.py promote NEW:<slug> F-xx` | như bên trái | `check --stage findings` |
 | 4.4 | Tác động nghiệp vụ (rủi ro/ưu tiên tạm) | phiên chính | tự làm theo `.agents/skills/phase-4-business-impact/SKILL.md` | như bên trái (mỗi lượt khoảng 5 F) | `check --stage impact` |
 | Risk | **Phase Risk** — rủi ro thực tế: đường khai thác, từng mắt xích có/không/chưa rõ và vì sao, ghép chéo, đặt cạnh tác động 4.4 để chốt rủi ro, thách thức độc lập | theo `/phase-risk-assessment` | tự làm theo `.agents/skills/phase-risk-assessment/SKILL.md` (R.1, R.4 giao subagent) | như bên trái (R.4 trong cuộc hội thoại mới) | `check --stage risk` |
-| 4.5 | Tóm tắt, lộ trình, khoảng trống, bản nháp | phiên chính | tự làm theo `.agents/skills/phase-4-report-writer/SKILL.md` mục 4.5, rồi `report.py render --draft` | như bên trái | `status` báo 4.5 xong |
+| 4.5 | Tóm tắt, lộ trình, khoảng trống, bản nháp | phiên chính | tự làm theo `.agents/skills/phase-4-report-writer/SKILL.md` mục 4.5, rồi `python3 AI-skills/reporting/report.py render --draft` | như bên trái | `status` báo 4.5 xong |
 | 4.6 | Rà soát độc lập | **không phải phiên chính** | Agent tool, `general-purpose`, `model: sonnet`; prompt chỉ gồm: "Chạy theo `.agents/skills/phase-4-independent-review/SKILL.md`; `context: fresh_subagent`". Hơn khoảng 15 F thì chia lô theo cụm nghiệp vụ, mỗi lô một subagent, ghi `work/review/<lô>.json` | mở **cuộc hội thoại mới** cho mỗi lô, gọi `/phase-4-independent-review`, ghi `context: new_session` | `review.json` hoặc `review/<lô>.json` phủ đủ F |
 | 4.7 | Xử lý review, chốt báo cáo | phiên chính | theo `.agents/skills/phase-4-report-writer/SKILL.md` mục 4.7 | như bên trái | `check --stage final` + `render` |
 
-`work/` = `documents/_report/work/`. Mọi lệnh chạy từ `<Project-Root>` (Windows: `python` nếu không có `python3`). Subagent trả về thì xác nhận bằng `report.py status`/`catalog`, không tin báo cáo suông.
+`work/` = `documents/_report/work/`. Mọi lệnh chạy từ `<Project-Root>` (trên Windows dùng `python`; trên macOS/Linux dùng `python3`). Subagent trả về thì xác nhận bằng `python3 AI-skills/reporting/report.py status`/`catalog`, không tin báo cáo suông.
 
 ### Vòng lặp chuẩn
 ```bash
@@ -64,4 +64,4 @@ python3 AI-skills/reporting/report.py render           # sau 4.7
 - Mẫu: `AI-skills/reporting/templates/`.
 
 ## Kết thúc
-Báo cáo xong khi `report.py status` ghi `next: xong`, tức đã qua `check --stage final` gồm cả rà soát độc lập. Báo cho người dùng: đường dẫn báo cáo; số phát hiện theo mức rủi ro × độ tin cậy; số mục bị loại trừ theo lý do; số vấn đề rà soát đã xử lý; 3 khoảng trống lớn nhất.
+Báo cáo xong khi `python3 AI-skills/reporting/report.py status` ghi `next: xong`, tức đã qua `check --stage final` gồm cả rà soát độc lập. Báo cho người dùng: đường dẫn báo cáo; số phát hiện theo mức rủi ro × độ tin cậy; số mục bị loại trừ theo lý do; số vấn đề rà soát đã xử lý; 3 khoảng trống lớn nhất.

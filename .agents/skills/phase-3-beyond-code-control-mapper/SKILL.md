@@ -46,13 +46,13 @@ Một lỗ hổng tồn tại trong mã nguồn ứng dụng không đồng ngh�
 
 ```powershell
 # (Tùy chọn) Nạp thông tin hạ tầng thực tế do đội vận hành cung cấp
-python -m localsec.manual_session ingest_runtime_facts <repo_name> .localsec/tmp/runtime_facts.json
+python3 -m localsec.manual_session ingest_runtime_facts <repo_name> .localsec/tmp/runtime_facts.json
 
 # Đọc các file cấu hình Ingress, Helm, Terraform, Kong, Docker Compose nếu có trong repo
-python -m localsec.manual_session read_file <repo_name> src/ocpp_controller.py 1 120 --skill beyond_code_control_mapper
+python3 -m localsec.manual_session read_file <repo_name> src/ocpp_controller.py 1 120 --skill beyond_code_control_mapper
 
 # Lưu kết quả đánh giá Beyond-Code Controls (đối chiếu AI-skills/schemas/v3/beyond_code_control_mapper.schema.json)
-python -m localsec.manual_session submit_skill <repo_name> beyond_code_control_mapper .localsec/tmp/beyond_code_control_mapper_<repo_name>.json
+python3 -m localsec.manual_session submit_skill <repo_name> beyond_code_control_mapper .localsec/tmp/beyond_code_control_mapper_<repo_name>.json
 ```
 
 ```json

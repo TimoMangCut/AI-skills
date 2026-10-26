@@ -1,6 +1,6 @@
 # 05 — Viết, rà soát độc lập và chốt báo cáo (bước 4.5–4.7)
 
-Báo cáo cuối do `report.py render` dựng **tự động** từ `work/architecture.md`, `work/architecture.json`, `work/consolidation.json`, `work/map/*.json` và `inputs/inputs.json`. Model không tự viết file báo cáo cuối và không sửa nó bằng tay. Muốn đổi nội dung thì sửa file `work/` rồi render lại.
+Báo cáo cuối do `python3 AI-skills/reporting/report.py render` dựng **tự động** từ `work/architecture.md`, `work/architecture.json`, `work/consolidation.json`, `work/map/*.json` và `inputs/inputs.json`. Model không tự viết file báo cáo cuối và không sửa nó bằng tay. Muốn đổi nội dung thì sửa file `work/` rồi render lại.
 
 ## Bố cục do renderer dựng
 

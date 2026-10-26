@@ -22,7 +22,7 @@ Dựng **một** bức tranh kiến trúc cho cả project: repo → service →
 1. Đọc `AI-skills/reporting/guides/02_kien_truc.md` (bắt buộc) và `AI-skills/reporting/templates/architecture.template.md`.
 2. Đọc lần lượt: `documents/_report/inputs/01_services.md` → `02_edges.md` → phần nguyên nhân gốc/khuôn mẫu/rủi ro hệ thống của `03_findings_index.md` → `04_related_projects.md` (nếu có).
 3. Với service trọng yếu và thành phần dùng chung: đọc theo đoạn `documents/<repo>/08_architecture_review.md`, `06_dataflow.md`, `documents/_system/03_cross_repo_review.md`, `documents/_system/diagrams/*.mmd`.
-4. Ghi `documents/_report/work/architecture.json`: `project`, `domains` (mọi repo thuộc đúng một cụm), `shared_components`, `related_projects`. Mẫu: `templates/architecture.example.json`.
+4. Ghi `documents/_report/work/architecture.json`: `project`, `domains` (mọi repo thuộc đúng một cụm), `shared_components`, `related_projects`. Mẫu: `AI-skills/reporting/templates/architecture.example.json`.
 5. Ghi `documents/_report/work/architecture.md`: mục `### 2.1` → `### 2.6`, có một sơ đồ ```mermaid```. Heading không dùng `#`/`##`.
 6. Chạy `python3 AI-skills/reporting/report.py check --stage architecture`; sửa tới khi `ĐẠT`.
 

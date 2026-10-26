@@ -16,7 +16,7 @@ Mỗi phát hiện phải trả lời: lỗi này làm hỏng việc kinh doanh 
 ```
 
 ## Điều kiện
-`report.py check --stage findings` đạt.
+`python3 AI-skills/reporting/report.py check --stage findings` đạt.
 
 ## Làm
 1. Đọc `AI-skills/reporting/guides/04_tac_dong_nghiep_vu.md` (bắt buộc).

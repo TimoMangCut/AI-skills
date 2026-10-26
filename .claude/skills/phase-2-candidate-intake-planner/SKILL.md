@@ -24,9 +24,9 @@ Thay vì quét lại toàn bộ mã nguồn từ đầu, Phase 2 **đọc trực
    - Đọc danh sách ứng viên từ `.localsec/runs/default/<repo_name>/candidate_queue.json`.
    - Bảo toàn 100% mã `candidate_id` từ Phase 1 (định dạng `cand_<12-hex>`) vào các lô `deduplicated_batches[]` để phân tích ở Bước 2.2.
    - **Luật Fail-Closed khi loại bỏ ứng viên (`dismissed_candidates[]` — `R3-A4`)**: Nếu loại bỏ bất kỳ ứng viên nào trong `dismissed_candidates[]`, mỗi phần tử **BẮT BUỘC** phải là một object `{"candidate_id": "...", "reason": "...", "evidence_ids": ["ev_..."]}` có `reason` giải trình cụ thể ($\ge 10$ ký tự) và `evidence_ids` khác rỗng (nghiêm cấm truyền chuỗi trần `candidate_id` hoặc thiếu bằng chứng).
-   - Sử dụng `python -m localsec.manual_session show_evidence <repo_name> <ev_id>` để xem lại các trích đoạn bằng chứng Phase 1 mà không cần mở đọc lại toàn bộ file (`DEPTH-4.5`).
+   - Sử dụng `python3 -m localsec.manual_session show_evidence <repo_name> <ev_id>` để xem lại các trích đoạn bằng chứng Phase 1 mà không cần mở đọc lại toàn bộ file (`DEPTH-4.5`).
 2. **Tiêm Nguyên văn Khối `Attack-Class Companion` (`selected_attack_companions.json` — `DEPTH-4.5`)**:
-   - Chạy `python -m localsec.manual_session select_attack_companions <repo_name> --archetypes ...` để nạp nguyên văn các khối kiểm tra chuyên sâu từ `AI-skills/contracts/attack-taxonomy-v1/manifest.json` (16 mô-đun) và tự động lưu vào `.localsec/runs/default/<repo_name>/selected_attack_companions.json`.
+   - Chạy `python3 -m localsec.manual_session select_attack_companions <repo_name> --archetypes ...` để nạp nguyên văn các khối kiểm tra chuyên sâu từ `AI-skills/contracts/attack-taxonomy-v1/manifest.json` (16 mô-đun) và tự động lưu vào `.localsec/runs/default/<repo_name>/selected_attack_companions.json`.
    - **CẤM tóm tắt hoặc viết lại nội dung bên trong khối `## [ BLOCK: ... ]`**. Khai báo danh sách mô-đun đã chọn trong trường `selected_companions`.
 
 ---
@@ -35,13 +35,13 @@ Thay vì quét lại toàn bộ mã nguồn từ đầu, Phase 2 **đọc trực
 
 ```powershell
 # 1. Xem lại trích đoạn bằng chứng từ Phase 1 mà không cần đọc lại file
-python -m localsec.manual_session show_evidence <repo_name> <ev_id>
+python3 -m localsec.manual_session show_evidence <repo_name> <ev_id>
 
 # 2. Chọn các khối Attack-Class Companion nguyên văn và xuất ra .localsec/runs/default/<repo_name>/selected_attack_companions.json
-python -m localsec.manual_session select_attack_companions <repo_name> --archetypes ev_charging_ocpp_ocpi_bess api_rest_graphql_grpc_websocket
+python3 -m localsec.manual_session select_attack_companions <repo_name> --archetypes ev_charging_ocpp_ocpi_bess api_rest_graphql_grpc_websocket
 
 # 3. Lưu danh sách Candidate Queue đã chuẩn hóa (đối chiếu AI-skills/schemas/v3/candidate_intake_planner.schema.json)
-python -m localsec.manual_session submit_skill <repo_name> candidate_intake_planner .localsec/tmp/candidate_intake_planner_<repo_name>.json
+python3 -m localsec.manual_session submit_skill <repo_name> candidate_intake_planner .localsec/tmp/candidate_intake_planner_<repo_name>.json
 ```
 
 ---

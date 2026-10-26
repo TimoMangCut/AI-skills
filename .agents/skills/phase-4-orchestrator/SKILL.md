@@ -9,12 +9,12 @@ description: >-
 Phase 4 không đọc mã nguồn và không tự viết báo cáo bằng script. Nó gồm hai phần:
 
 1. **Xuất (script, 0 token):** `finalize_v3_phase4` chép kết quả `.localsec/runs/<run_id>/` thành các file trong `documents/` mà `reporting/report.py collect` đọc được.
-2. **Lập báo cáo (model + cổng script):** chạy nguyên luồng của bộ báo cáo tổng hợp vendored trong `AI-skills/reporting/` và các skill `phase-4-*` / `phase-risk-*`. Mọi kết luận đi qua `report.py check`; mức rủi ro do `reporting/risk.py` suy ra.
+2. **Lập báo cáo (model + cổng script):** chạy nguyên luồng của bộ báo cáo tổng hợp vendored trong `AI-skills/reporting/` và các skill `phase-4-*` / `phase-risk-*`. Mọi kết luận đi qua `python3 AI-skills/reporting/report.py check`; mức rủi ro do `reporting/risk.py` suy ra.
 
 ## Bước 4.0 — Kiểm cổng và xuất
 
 ```bash
-python -m localsec.manual_session finalize_v3_phase4
+python3 -m localsec.manual_session finalize_v3_phase4
 ```
 
 - Dừng (`gate_passed: false`) nếu repo nào thiếu hoặc trượt `phase1/2/3_gate_receipt.json`. Chạy lại `finalize_v3_phase1/2/3` cho repo đó. Chỉ khi người dùng đồng ý xuất bản chưa khoá sổ mới thêm `--allow-unfinalized` (repo chưa đạt sẽ không có `12_analysis_status.json`, và `collect` ghi nhận là chưa xong).
@@ -38,15 +38,15 @@ File được xuất:
 ## Bước 4.1 trở đi — Luồng báo cáo tổng hợp
 
 ```bash
-python AI-skills/reporting/report.py collect
-python AI-skills/reporting/report.py status
+python3 AI-skills/reporting/report.py collect
+python3 AI-skills/reporting/report.py status
 ```
 
 Sau đó gọi `/phase-4-consolidated-report` và làm đúng theo skill đó (4.2 kiến trúc → 4.3 hợp nhất F → 4.4 tác động → Phase Risk `/phase-risk-assessment` R.1–R.5 → 4.5 viết → 4.6 rà soát độc lập → 4.7), kết thúc bằng:
 
 ```bash
-python AI-skills/reporting/report.py check --stage final
-python AI-skills/reporting/report.py render
+python3 AI-skills/reporting/report.py check --stage final
+python3 AI-skills/reporting/report.py render
 ```
 
 ### Đối chiếu tên gọi khi đọc các skill vendored
@@ -58,7 +58,7 @@ Các skill `phase-4-*` / `phase-risk-*` và `AI-skills/reporting/guides/` đư�
 | SID `P1` (`<repo>:<id>`, `09_findings.json`) | ứng viên Phase 1 của wins (`candidate_queue`) và phát hiện kiến trúc 1.5 |
 | SID `P2` (`basv/18`) | bất biến bị thiếu/chưa rõ từ 1.2/1.3 |
 | SID `P3` / chuỗi (`_analysis:<repo>:<id>`) | chuỗi Phase 2 của wins sau đối chiếu phản biện 2.3 |
-| `lsec.py read_file` | `python -m localsec.manual_session read_file` (Phase 4 không đọc mã nguồn) |
+| `lsec.py read_file` | `python3 -m localsec.manual_session read_file` (Phase 4 không đọc mã nguồn) |
 
 ### Dùng kết quả Phase 3 của wins trong Phase Risk
 

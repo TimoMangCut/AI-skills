@@ -1,31 +1,31 @@
-# AI-skills — LocalSec v3.0 Security Review Pipeline (Windows Edition — Antigravity & Claude Code)
+# AI-skills — LocalSec v3.0 Security Review Pipeline (macOS / Linux Edition — Antigravity & Claude Code)
 
-Bộ **28 Skills (`.agents/skills/` & `.claude/skills/`) + Subagent Cô lập & PreToolUse Hooks (`.agents/agents/localsec-blinded-challenger.md`, `.agents/hooks.json`, `.claude/agents/localsec-blinded-challenger.md`) + Always-On Rules (`AGENTS.md`, `SOUL.md`, `CLAUDE.md`) + Python Epistemic Engine (`localsec` & `reporting/report.py`)** tối ưu hóa cho môi trường **Windows (PowerShell, CMD, Git Bash)** dùng để kiểm toán bảo mật mã nguồn & hệ sinh thái Cyber-Physical (Vingroup / VinSOC) qua **4 Phase chuẩn hóa v3.0** (`AI-skills/contracts/v3-orchestration.json`):
+Bộ **28 Skills (`.agents/skills/` & `.claude/skills/`) + Subagent Cô lập & PreToolUse Hooks (`.agents/agents/localsec-blinded-challenger.md`, `.agents/hooks.json`, `.claude/agents/localsec-blinded-challenger.md`) + Always-On Rules (`AGENTS.md`, `SOUL.md`, `CLAUDE.md`) + Python Epistemic Engine (`localsec` & `reporting/report.py`)** tối ưu hóa cho môi trường **macOS / Linux (zsh, bash)** dùng để kiểm toán bảo mật mã nguồn & hệ sinh thái Cyber-Physical (Vingroup / VinSOC) qua **4 Phase chuẩn hóa v3.0** (`AI-skills/contracts/v3-orchestration.json`):
 - **Phase 1**: Unified Reconnaissance (`/phase-1-orchestrator` — 6 bước v3.0 theo thứ tự **Intent Before Code (`1.1 -> 1.3 -> 1.2 -> 1.4 -> 1.5 -> 1.6`)**: `inventory_repo` + AI Scouting $\rightarrow$ S-F-O-P-C Invariants trước khi đọc code $\rightarrow$ Tailored Extractor $\rightarrow$ Single-Pass Safe Semantic Clustering + Batch Read `read_files --until-pct 50` ($\ge 50\%$ số dòng mỗi `target_module`) $\rightarrow$ Cross-Repo Boundary Matching, `stride_review` (8 mục) & `pattern_checklist` (10 mục) $\rightarrow$ Physical Visibility Tracker, Evidence Audit & `finalize_v3_phase1`)
 - **Phase 2**: Deep Analysis & Falsification (`/phase-2-orchestrator` — 4 bước v3.0 (`2.1 -> 2.4`): Candidate Queue Intake + 16 Attack-Class Companions $\rightarrow$ Deep Trace & Chain Analyst (100% candidate accounting + fail-closed `unexploitable_candidates` objects + `hop_kind`) $\rightarrow$ Isolated Context-Blinded Challenger (`context: fork` / `invoke_subagent` với `localsec-blinded-challenger` + `localsec/claude_subagent_guard.py` + `blinded_package_fingerprint` + 6-item `control_search_checklist`) $\rightarrow$ `finalize_v3_phase2`)
 - **Phase 3**: Contextual Risk & Exploitability Assessment (`/phase-3-orchestrator` — 3 bước v3.0 (`3.1 -> 3.3` + Per-Repo Report): Actor & Structured Precondition Feasibility (`preconditions[]` với `status`, `holders[]`, `actors_considered`) $\rightarrow$ Beyond-Code Controls Cloudflare/WAF/VPC/OT Interlock (`ingest_runtime_facts`) $\rightarrow$ 5-Axis S-F-O-P-C Quantitative Risk Calibrator, `finalize_v3_phase3` & `render_v3_report`)
-- **Phase 4 & Phase Risk**: Final Synthesis & Canonical Report Generation (`/phase-4-orchestrator` + `/phase-risk-orchestrator` — `finalize_v3_phase4` xuất dữ liệu sang `documents/<repo>/`, `documents/_analysis/`, `documents/_system/`, `documents/_v3/<repo>/` và mồi thẻ `documents/_report/work/risk/F-xx.json`; tiếp theo chạy `python AI-skills/reporting/report.py collect` $\rightarrow$ `4.2` $\rightarrow$ `R.1–R.5` $\rightarrow$ `4.5` $\rightarrow$ `4.6` $\rightarrow$ `4.7` $\rightarrow$ `report.py check --stage final` $\rightarrow$ `report.py render` để xuất `00_manifest.md`, `BAO_CAO_TONG_HOP_BAO_MAT.md`, `DANH_GIA_RUI_RO.md`)
+- **Phase 4 & Phase Risk**: Final Synthesis & Canonical Report Generation (`/phase-4-orchestrator` + `/phase-risk-orchestrator` — `finalize_v3_phase4` xuất dữ liệu sang `documents/<repo>/`, `documents/_analysis/`, `documents/_system/`, `documents/_v3/<repo>/` và mồi thẻ `documents/_report/work/risk/F-xx.json`; tiếp theo chạy `python3 AI-skills/reporting/report.py collect` $\rightarrow$ `4.2` $\rightarrow$ `R.1–R.5` $\rightarrow$ `4.5` $\rightarrow$ `4.6` $\rightarrow$ `4.7` $\rightarrow$ `report.py check --stage final` $\rightarrow$ `report.py render` để xuất `00_manifest.md`, `BAO_CAO_TONG_HOP_BAO_MAT.md`, `DANH_GIA_RUI_RO.md`)
 
 ---
 
-## 1. Cấu trúc Khi Clone Vào Một Project Cần Áp Dụng Trên Windows (`<Project-Root>`)
+## 1. Cấu trúc Khi Clone Vào Một Project Cần Áp Dụng Trên macOS / Linux (`<Project-Root>`)
 
-Khi áp dụng bộ Skills này vào một dự án thực tế (`<Project-Root>`), `.\AI-skills\setup.ps1` (PowerShell) hoặc `AI-skills\setup.bat` (CMD) **tự động đồng bộ `.agents/`, `.claude/`, `AGENTS.md`, `SOUL.md`, `CLAUDE.md` và cầu nối `localsec/` ra ngoài gốc Project** để cả **Antigravity** lẫn **Claude Code** trên Windows chạy trực tiếp lệnh `python -m localsec.manual_session ...` mà không cần biến môi trường POSIX `PYTHONPATH=...`:
+Khi áp dụng bộ Skills này vào một dự án thực tế (`<Project-Root>`), `sh AI-skills/setup.sh` **tự động đồng bộ `.agents/`, `.claude/`, `AGENTS.md`, `SOUL.md`, `CLAUDE.md` và cầu nối `localsec/` ra ngoài gốc Project** để cả **Antigravity** lẫn **Claude Code** trên macOS / Linux chạy trực tiếp lệnh `python3 -m localsec.manual_session ...` mà không cần biến môi trường POSIX `PYTHONPATH=...`:
 
 ```text
-<Project-Root>\                        <-- Mở thư mục này trong Antigravity IDE hoặc Claude Code trên Windows
+<Project-Root>\                        <-- Mở thư mục này trong Antigravity IDE hoặc Claude Code trên macOS / Linux
 ├── <service-repo-1>\                  <-- Các repo mã nguồn của dự án cần review
 ├── <service-repo-2>\
 ├── <docs-or-brd>\                     <-- Tài liệu nghiệp vụ BRD/BRS/Specs của dự án (nếu có)
 ├── documents\                         <-- Báo cáo đầu ra (render_v3_report, finalize_v3_phase4 & report.py render)
 ├── .localsec\                         <-- Trạng thái phiên làm việc, .localsec\tmp\, .localsec\runs\ & mã bằng chứng ev_...
-├── localsec\__init__.py               <-- [Auto-Bridge] Cầu nối package giúp `python -m localsec.manual_session` chạy trực tiếp trên PowerShell/CMD
+├── localsec\__init__.py               <-- [Auto-Bridge] Cầu nối package giúp `python3 -m localsec.manual_session` chạy trực tiếp trên zsh/bash
 │
 ├── AGENTS.md                          <-- [Copy/Merge từ AI-skills] Rule Refute-first & 5 trục S-F-O-P-C
 ├── SOUL.md                            <-- [Copy/Merge từ AI-skills] Lớp giá trị cốt lõi
 ├── CLAUDE.md                          <-- [Copy/Merge từ AI-skills] Entrypoint cho Claude Code (@SOUL.md, @AGENTS.md)
 ├── .agents\                           <-- [Copy từ AI-skills] 28 Skills, Subagent & PreToolUse Hook chuẩn Antigravity
-│   ├── README.md                      <-- Sổ tay tra cứu nhanh các lệnh & mẫu Prompt trên Windows
+│   ├── README.md                      <-- Sổ tay tra cứu nhanh các lệnh & mẫu Prompt trên macOS / Linux
 │   ├── hooks.json                     <-- Hook PreToolUse bảo vệ bước mù 2.3 trên Antigravity
 │   ├── agents\localsec-blinded-challenger.md
 │   ├── rules\soul.md
@@ -51,41 +51,41 @@ Khi áp dụng bộ Skills này vào một dự án thực tế (`<Project-Root>
 
 ---
 
-## 2. Cách Cài Đặt Vào Project Mới Trên Windows (PowerShell / CMD / Git Bash)
+## 2. Cách Cài Đặt Vào Project Mới Trên macOS / Linux (PowerShell / CMD / Git Bash)
 
 Đứng tại thư mục gốc của dự án cần kiểm toán (`<Project-Root>`):
 
 ### Cách A — Windows PowerShell (Khuyên dùng)
-```powershell
+```bash
 # 1. Clone nhánh wins của bộ AI-skills vào trong <Project-Root>
-git clone -b wins https://github.com/TimoMangCut/AI-skills.git
+git clone -b mac https://github.com/TimoMangCut/AI-skills.git
 
 # 2. Chạy script cài đặt tự động trên PowerShell
-.\AI-skills\setup.ps1
+sh AI-skills/setup.sh
 ```
 
 ### Cách B — Windows Command Prompt (CMD)
 ```cmd
-git clone -b wins https://github.com/TimoMangCut/AI-skills.git
+git clone -b mac https://github.com/TimoMangCut/AI-skills.git
 AI-skills\setup.bat
 ```
 
-### Cách C — Git Bash trên Windows
+### Cách C — Git Bash trên macOS / Linux
 ```bash
-git clone -b wins https://github.com/TimoMangCut/AI-skills.git
+git clone -b mac https://github.com/TimoMangCut/AI-skills.git
 sh AI-skills/setup.sh
 ```
 
-Script `setup.ps1` / `setup.bat` thực hiện an toàn 5 việc:
+Script `setup.sh` thực hiện an toàn 5 việc:
 1. Đồng bộ **28 skills** vào `<Project-Root>\.agents\skills\` và `<Project-Root>\.claude\skills\`, đồng thời đồng bộ `.agents\agents\localsec-blinded-challenger.md` + `.agents\hooks.json` và `.claude\agents\localsec-blinded-challenger.md` mà **không xóa mất** các skill riêng sẵn có của dự án (trừ khi truyền `--replace-foreign`).
-2. Tạo cầu nối `<Project-Root>\localsec\__init__.py` và thư mục tạm `<Project-Root>\.localsec\tmp\` để mọi lệnh `python -m localsec.manual_session ...` chạy mượt trên cả **PowerShell**, **CMD**, và **Git Bash** mà không lỗi cú pháp `PYTHONPATH=...` hay đường dẫn `/tmp/`.
+2. Tạo cầu nối `<Project-Root>\localsec\__init__.py` và thư mục tạm `<Project-Root>\.localsec\tmp\` để mọi lệnh `python3 -m localsec.manual_session ...` chạy mượt trên cả **PowerShell**, **CMD**, và **Git Bash** mà không lỗi cú pháp `PYTHONPATH=...` hay đường dẫn `/tmp/`.
 3. Tự kiểm (self-check) cả hook bước mù của Claude Code lẫn Antigravity bằng trình thông dịch Python hoạt động trên máy.
 4. Nếu `<Project-Root>` đã có sẵn `AGENTS.md`, `SOUL.md` hoặc `CLAUDE.md`, script tự động **gộp (merge) có đánh dấu (`<!-- BEGIN AI-SKILLS:... -->`)** chứ không ghi đè làm mất nội dung cũ; đồng thời cập nhật `.git/info/exclude` để giữ `git status` sạch sẽ.
 5. Tự động chạy bộ kiểm định Unit Tests bằng Python hiện hành trên máy.
 
 - **Khi muốn gỡ sạch khỏi `<Project-Root>` sau khi kiểm toán xong**:
-  ```powershell
-  .\AI-skills\setup.ps1 --uninstall
+  ```bash
+  sh AI-skills/setup.sh --uninstall
   # Hoặc trên CMD: AI-skills\setup.bat --uninstall
   ```
 
@@ -116,7 +116,7 @@ Chạy tuần tự 3 bước (3.1 -> 3.3): chứng minh minimum_actor và điề
 ### Bước D — Chạy Phase 4 & Phase Risk (Final Synthesis & Canonical Report Generation — Mở Phiên Mới Sau Khi Mọi Repo Xong Phase 3)
 ```text
 /phase-4-orchestrator Thực hiện Phase 4 và Phase Risk cho toàn bộ dự án:
-Chạy finalize_v3_phase4 để xuất dữ liệu v3 sang documents/<repo>/, documents/_analysis/, documents/_system/, documents/_v3/<repo>/ và mồi thẻ documents/_report/work/risk/F-xx.json; sau đó chạy python AI-skills/reporting/report.py collect -> Bước 4.2 (Deduplicator) -> Bước R.1-R.5 (/phase-risk-orchestrator) -> Bước 4.5 (Remediation) -> Bước 4.6 (Blinded Challenger) -> Bước 4.7 (Executive Summary) -> python AI-skills/reporting/report.py check --stage final -> python AI-skills/reporting/report.py render.
+Chạy finalize_v3_phase4 để xuất dữ liệu v3 sang documents/<repo>/, documents/_analysis/, documents/_system/, documents/_v3/<repo>/ và mồi thẻ documents/_report/work/risk/F-xx.json; sau đó chạy python3 AI-skills/reporting/report.py collect -> Bước 4.2 (Deduplicator) -> Bước R.1-R.5 (/phase-risk-orchestrator) -> Bước 4.5 (Remediation) -> Bước 4.6 (Blinded Challenger) -> Bước 4.7 (Executive Summary) -> python3 AI-skills/reporting/report.py check --stage final -> python3 AI-skills/reporting/report.py render.
 ```
 
 👉 Tra cứu chi tiết từng sub-skill trong bộ 28 skills (Phase 1–4 & Phase Risk) và bảng lệnh CLI chuẩn Windows tại **[`.agents/README.md`](./.agents/README.md)**.

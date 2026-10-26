@@ -18,7 +18,7 @@ Bước này bắt đầu bằng việc chạy công cụ ghép cặp ranh giớ
 ## 1. Ghép cặp Ranh giới Xuyên Repo Tất định (`match_cross_repo_boundaries` — `DEPTH-4.1f`)
 
 1. **Chạy lệnh `match_cross_repo_boundaries` Trước Tiên**:
-   - Trước khi viết đánh giá kiến trúc, chạy `python -m localsec.manual_session match_cross_repo_boundaries`.
+   - Trước khi viết đánh giá kiến trúc, chạy `python3 -m localsec.manual_session match_cross_repo_boundaries`.
    - Engine sẽ tự động đối sánh các `data_flows[]` chiều đi (`outbound`) của repo này với `entrypoints[]` chiều đến (`inbound`) của các repo khác (theo HTTP path, gRPC service/method, Kafka/MQTT/ZeroMQ topic) để lập danh sách:
      - `matched_edges[]` (các cặp kết nối liên repo đã khớp),
      - `unmatched_producers[]` / `unmatched_consumers[]` (các kết nối mồ côi hoặc gọi ra dịch vụ bên ngoài chưa có trong workspace),
@@ -69,10 +69,10 @@ Cùng luật với `stride_review` (`review_status`: `issue_found` / `checked_no
 
 ```powershell
 # 1. Tự động ghép cặp outbound data_flows[] và inbound entrypoints[] xuyên qua các repositories
-python -m localsec.manual_session match_cross_repo_boundaries
+python3 -m localsec.manual_session match_cross_repo_boundaries
 
 # 2. Lưu kết quả đánh giá kiến trúc & liên repo (đối chiếu AI-skills/schemas/v3/cross_repo_and_arch_review.schema.json)
-python -m localsec.manual_session submit_skill <repo_name> cross_repo_and_arch_review .localsec/tmp/cross_repo_and_arch_review_<repo_name>.json
+python3 -m localsec.manual_session submit_skill <repo_name> cross_repo_and_arch_review .localsec/tmp/cross_repo_and_arch_review_<repo_name>.json
 ```
 
 ---

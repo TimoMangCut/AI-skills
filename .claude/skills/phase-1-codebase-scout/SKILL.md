@@ -18,11 +18,11 @@ Mục tiêu của bước này là **định vị chính xác mẫu số kiểm 
 ## 1. Quy tắc Kỷ luật Bắt buộc (`ARCH-3C`, `ARCH-3K`, `DEPTH-4.1e`, `DEPTH-4.3d`, `DEPTH-4.7`)
 
 1. **Chạy Kiểm kê Tất định `inventory_repo` Trước Tiên (`ARCH-3C`)**:
-   - Bắt buộc chạy `python -m localsec.manual_session inventory_repo <repo_name> --tier 1` ngay đầu Bước 1.1.
+   - Bắt buộc chạy `python3 -m localsec.manual_session inventory_repo <repo_name> --tier 1` ngay đầu Bước 1.1.
    - File `.localsec/runs/default/<repo_name>/inventory_repo.json` cung cấp danh sách tất định `mandatory_files` (phân loại theo `entrypoint`, `security`, `wiring_config`, `outbound`, `data_access`) cùng các dấu vết nhạy cảm/phụ thuộc (`scan_repo_leads`).
 2. **Độ phủ Bắt buộc của `target_modules` & Enum `ignored_modules`**:
    - `target_modules` **BẮT BUỘC phải bao phủ 100% các thư mục có chứa file `entrypoint` hoặc `security`** trong `inventory_repo.json`.
-   - Nếu loại trừ bất kỳ thư mục nào vào `ignored_modules`, mỗi mục **BẮT BUỘC** phải khai báo `path` và `reason` thuộc đúng tập enum chuẩn trong `contracts/v3-orchestration.json`:
+   - Nếu loại trừ bất kỳ thư mục nào vào `ignored_modules`, mỗi mục **BẮT BUỘC** phải khai báo `path` và `reason` thuộc đúng tập enum chuẩn trong `AI-skills/contracts/v3-orchestration.json`:
      - `test_or_mock`
      - `generated_code`
      - `third_party_vendor`
@@ -62,16 +62,16 @@ Mục tiêu của bước này là **định vị chính xác mẫu số kiểm 
 
 ```powershell
 # 1. Chạy kiểm kê tất định để lấy mandatory_files (entrypoint, security, wiring_config, outbound, data_access) và scan_repo_leads
-python -m localsec.manual_session inventory_repo <repo_name> --tier 1
+python3 -m localsec.manual_session inventory_repo <repo_name> --tier 1
 
 # 2. Xem cấu trúc thư mục gốc (depth 2)
-python -m localsec.manual_session list_dir <repo_name> . --depth 2 --skill codebase_scout
+python3 -m localsec.manual_session list_dir <repo_name> . --depth 2 --skill codebase_scout
 
 # 3. Đọc file manifest/wiring mẫu để xác định quy ước tổ chức repo
-python -m localsec.manual_session read_file <repo_name> <path_to_manifest_or_wiring> 1 120 --skill codebase_scout
+python3 -m localsec.manual_session read_file <repo_name> <path_to_manifest_or_wiring> 1 120 --skill codebase_scout
 
 # 4. Lưu và xác thực kết quả codebase_scout.json (đối chiếu AI-skills/schemas/v3/codebase_scout.schema.json)
-python -m localsec.manual_session register_scout_map <repo_name> .localsec/tmp/codebase_scout_<repo_name>.json
+python3 -m localsec.manual_session register_scout_map <repo_name> .localsec/tmp/codebase_scout_<repo_name>.json
 ```
 
 ---

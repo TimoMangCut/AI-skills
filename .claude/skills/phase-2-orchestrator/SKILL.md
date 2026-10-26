@@ -16,7 +16,7 @@ Sau khi Phase 1 (`finalize_v3_phase1`) đã hoàn tất kiểm kê bề mặt, �
 ## Ranh giới Phiên làm việc & Tái sử dụng Bằng chứng (`DEPTH-4.5`)
 
 - **Ranh giới Phiên (`Repo x Phase` Session Boundary)**: Mỗi repo trong Phase 2 chạy trong một phiên làm việc mới (Fresh Session), đọc đầu vào từ `.localsec/runs/default/<repo_name>/candidate_queue.json`.
-- **Tái sử dụng Bằng chứng Phase 1 (`show_evidence` / `list_evidence`)**: Dùng lệnh `python -m localsec.manual_session show_evidence <repo_name> <ev_id>` hoặc `python -m localsec.manual_session list_evidence <repo_name>` để xem lại trích đoạn code đã đọc ở Phase 1 mà không cần đọc lại toàn bộ file từ đầu.
+- **Tái sử dụng Bằng chứng Phase 1 (`show_evidence` / `list_evidence`)**: Dùng lệnh `python3 -m localsec.manual_session show_evidence <repo_name> <ev_id>` hoặc `python3 -m localsec.manual_session list_evidence <repo_name>` để xem lại trích đoạn code đã đọc ở Phase 1 mà không cần đọc lại toàn bộ file từ đầu.
 
 ---
 
@@ -24,17 +24,17 @@ Sau khi Phase 1 (`finalize_v3_phase1`) đã hoàn tất kiểm kê bề mặt, �
 
 1. **Bước 2.1 — `/phase-2-candidate-intake-planner` (`candidate_intake_planner` — `ARCH-3G`, `R3-A4`)**:
    - Đọc `.localsec/runs/default/<repo_name>/candidate_queue.json` do `finalize_v3_phase1` sinh ra (`ARCH-3G`).
-   - Chạy `python -m localsec.manual_session select_attack_companions <repo_name> --archetypes ...` để nạp nguyên văn các khối `## [ BLOCK: ... ]` từ `AI-skills/contracts/attack-taxonomy-v1/manifest.json` và ghi ra `.localsec/runs/default/<repo_name>/selected_attack_companions.json` (`DEPTH-4.5`).
-   - Gom nhóm ứng viên vào `deduplicated_batches[]` kèm `selected_companions` (mọi mục trong `dismissed_candidates[]` nếu có phải là object có `"candidate_id"`, `"reason"` $\ge 10$ ký tự và `"evidence_ids"` khác rỗng — `R3-A4`) và nộp qua CLI: `python -m localsec.manual_session submit_skill <repo_name> candidate_intake_planner .localsec/tmp/candidate_intake_planner_<repo_name>.json` (tuân thủ `AI-skills/schemas/v3/candidate_intake_planner.schema.json`).
+   - Chạy `python3 -m localsec.manual_session select_attack_companions <repo_name> --archetypes ...` để nạp nguyên văn các khối `## [ BLOCK: ... ]` từ `AI-skills/contracts/attack-taxonomy-v1/manifest.json` và ghi ra `.localsec/runs/default/<repo_name>/selected_attack_companions.json` (`DEPTH-4.5`).
+   - Gom nhóm ứng viên vào `deduplicated_batches[]` kèm `selected_companions` (mọi mục trong `dismissed_candidates[]` nếu có phải là object có `"candidate_id"`, `"reason"` $\ge 10$ ký tự và `"evidence_ids"` khác rỗng — `R3-A4`) và nộp qua CLI: `python3 -m localsec.manual_session submit_skill <repo_name> candidate_intake_planner .localsec/tmp/candidate_intake_planner_<repo_name>.json` (tuân thủ `AI-skills/schemas/v3/candidate_intake_planner.schema.json`).
 
 2. **Bước 2.2 — `/phase-2-deep-trace-chain-analyst` (`deep_trace_chain_analyst` — `ARCH-3G`, `R3-A4`)**:
    - **Bảo toàn 100% `candidate_id` (`ARCH-3G`, `R3-A4`)**: Mọi `candidate_id` từ `candidate_queue.json` bắt buộc phải được hạch toán đầy đủ vào `chains[].candidate_ids` hoặc `unexploitable_candidates[]` (bắt buộc là object `{"candidate_id", "reason" >= 10 chars, "evidence_ids": ["ev_..."]}`, không nhận chuỗi đơn — `R3-A4`).
    - Sử dụng `chain_verdict` (`"code_supported"` khi chưa thực thi runtime) và truy vết từng bước nhảy thực thi (`hops[]`) bắt buộc khai báo `hop_kind` (`in_process`, `http`, `grpc`, `message_queue`, `zmq_or_ipc`, `db`, `file_or_hardware`) cùng mảng `caller_evidence_ids` và `callee_evidence_ids` (`DEPTH-4.2b`).
    - Truy nguyên nhân gốc (`root_cause`), hướng sửa (`remediation`) và thiết kế `request_plan` (`execution_status: "not_executed"`).
-   - Nộp qua CLI: `python -m localsec.manual_session submit_skill <repo_name> deep_trace_chain_analyst .localsec/tmp/deep_trace_chain_analyst_<repo_name>.json` (tuân thủ `AI-skills/schemas/v3/deep_trace_chain_analyst.schema.json`).
+   - Nộp qua CLI: `python3 -m localsec.manual_session submit_skill <repo_name> deep_trace_chain_analyst .localsec/tmp/deep_trace_chain_analyst_<repo_name>.json` (tuân thủ `AI-skills/schemas/v3/deep_trace_chain_analyst.schema.json`).
 
 3. **Bước 2.3 — `/phase-2-blinded-counterevidence-challenger` (`blinded_counterevidence_challenger` — Subagent Cô lập `ARCH-3E`, `R2-P1-01`, `R2-P1-02`, `R3-A4`, `R3-A7`)**:
-   - Chạy `python -m localsec.manual_session prepare_blinded_chain_verifier <repo_name>` để xuất gói Whitelist `.localsec/tmp/blinded_chains_<repo_name>.json` (đã loại bỏ `title`, `root_cause`, `severity`, `expected_vulnerable_behavior`, `preconditions` và `hops[].action`, kèm danh sách `control_search_paths` từ `inventory_repo.json` — `R3-A7`).
+   - Chạy `python3 -m localsec.manual_session prepare_blinded_chain_verifier <repo_name>` để xuất gói Whitelist `.localsec/tmp/blinded_chains_<repo_name>.json` (đã loại bỏ `title`, `root_cause`, `severity`, `expected_vulnerable_behavior`, `preconditions` và `hops[].action`, kèm danh sách `control_search_paths` từ `inventory_repo.json` — `R3-A7`).
    - **Bắt buộc khởi chạy Bước 2.3 trong một Subagent độc lập / Fresh Conversation (`ARCH-3E`, `context: fork` trong `.claude/skills/phase-2-blinded-counterevidence-challenger/SKILL.md`, bảo vệ bởi PreToolUse hook `localsec/claude_subagent_guard.py` — `R3-A7`)** và **CHỈ truyền duy nhất đường dẫn `.localsec/tmp/blinded_chains_<repo_name>.json`** (tuyệt đối không đọc `deep_trace_chain_analyst.json`).
    - **Cách khởi chạy 2.3 theo công cụ (giống nhau về luật, khác nhau về cơ chế):**
      - **Claude Code:** gọi skill `/phase-2-blinded-counterevidence-challenger <repo_name>`; skill có `context: fork` + `agent: localsec-blinded-challenger`, nên chạy trong subagent ngữ cảnh sạch, hook trong `.claude/agents/localsec-blinded-challenger.md` chặn đọc/ghi/lệnh ngoài danh sách trắng.
@@ -44,13 +44,13 @@ Sau khi Phase 1 (`finalize_v3_phase1`) đã hoàn tất kiểm kê bề mặt, �
    - Kiểm tra đủ 6 vị trí kiểm soát cố định trong `control_search_checklist` với `status` thuộc `"checked_found" | "checked_not_found" | "not_applicable"`, đảm bảo mọi mục `"checked_not_found"` / `"checked_found"` đều có cả `searched_paths` lẫn `evidence_ids` khác rỗng, mọi mục `"not_applicable"` có `"reason"` $\ge 20$ ký tự (không được đánh dấu cả 6 vị trí là `"not_applicable"`), mọi phán quyết bác bỏ (`refuted` / `falsified_by_counterevidence` / `mitigated_by_existing_control`) có `counter_evidence_ids` khác rỗng (`R3-A4`), và nộp `challenged_chains` theo `AI-skills/schemas/v3/blinded_counterevidence_challenger.schema.json`.
 
 4. **Bước 2.4 — `/phase-2-analysis-evidence-gate` (`analysis_evidence_gate` + `finalize_v3_phase2` — `R2-P1-04`, `R3-A4`, `R3-A7`)**:
-   - Chạy cổng khóa sổ tất định có thẩm quyền cuối cùng: `python -m localsec.manual_session finalize_v3_phase2 <repo_name>` (`ARCH-3D`, `ARCH-3G`, `R2-P1-04`, `R3-A4`, `R3-A7`) để kiểm tra đối khớp 100% `candidate_id` (kèm bằng chứng cho mọi ứng viên bị loại), chặn mọi chuỗi chưa qua phản biện (`UNCHALLENGED_BLOCKED`), kiểm tra đủ 6 vị trí challenger + bằng chứng bác bỏ + timestamp freshness, áp trần `code_supported` cho mọi `request_plan` chưa thực thi, và tự động ghi `analysis_evidence_gate.json`, `phase2_gate_receipt.json` cùng `phase3_verified_queue.json`.
+   - Chạy cổng khóa sổ tất định có thẩm quyền cuối cùng: `python3 -m localsec.manual_session finalize_v3_phase2 <repo_name>` (`ARCH-3D`, `ARCH-3G`, `R2-P1-04`, `R3-A4`, `R3-A7`) để kiểm tra đối khớp 100% `candidate_id` (kèm bằng chứng cho mọi ứng viên bị loại), chặn mọi chuỗi chưa qua phản biện (`UNCHALLENGED_BLOCKED`), kiểm tra đủ 6 vị trí challenger + bằng chứng bác bỏ + timestamp freshness, áp trần `code_supported` cho mọi `request_plan` chưa thực thi, và tự động ghi `analysis_evidence_gate.json`, `phase2_gate_receipt.json` cùng `phase3_verified_queue.json`.
 
 ---
 
 ## Bàn giao Phiên (`Repo x Phase` Session Boundary)
 
-Sau khi `python -m localsec.manual_session finalize_v3_phase2 <repo_name>` báo `gate_passed: true`, **kết thúc phiên làm việc hiện tại** và in ra lệnh chính xác dưới đây để người dùng khởi chạy **Phase 3** trong một phiên mới (Fresh Session):
+Sau khi `python3 -m localsec.manual_session finalize_v3_phase2 <repo_name>` báo `gate_passed: true`, **kết thúc phiên làm việc hiện tại** và in ra lệnh chính xác dưới đây để người dùng khởi chạy **Phase 3** trong một phiên mới (Fresh Session):
 
 ```text
 /phase-3-orchestrator Thực hiện Phase 3 (Contextual Risk & Exploitability Assessment v3.0) cho repo <repo_name> trong phiên làm việc mới, đọc trực tiếp .localsec/runs/default/<repo_name>/phase3_verified_queue.json từ Phase 2.
